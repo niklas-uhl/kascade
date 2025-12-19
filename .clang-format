@@ -1,0 +1,17 @@
+﻿# -*- mode: yaml; -*-
+---
+BasedOnStyle: Chromium
+AccessModifierOffset: '-2'
+ColumnLimit: '90'
+IncludeBlocks: Regroup
+SortIncludes: true
+IncludeCategories:
+  - Regex: '^<([a-z_]+)>'
+    Priority: 1
+  - Regex: '^<mpi\.h>$'
+    Priority: 2
+  - Regex: '^<kascade/.*>'
+    Priority: 3
+  - Regex: '^<.*>'
+    Priority: 4
+...

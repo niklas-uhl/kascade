@@ -19,6 +19,19 @@ if(KASCADE_CXX_FLAGS)
                          INTERFACE ${KASCADE_CXX_FLAGS})
 endif()
 
+FetchContent_Declare(
+  kassert
+  GIT_REPOSITORY https://github.com/kamping-site/kassert
+  GIT_TAG v1.0.0
+  SYSTEM EXCLUDE_FROM_ALL)
+
+FetchContent_Declare(
+  kamping
+  GIT_REPOSITORY https://github.com/kamping-site/kamping
+  GIT_TAG v0.2.0
+  SYSTEM EXCLUDE_FROM_ALL)
+
+FetchContent_MakeAvailable(kamping kassert)
 add_subdirectory(lib)
 
 if(KASCADE_BUILD_BENCHMARKS)
