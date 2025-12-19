@@ -1,10 +1,4 @@
-# Master's thesis
+# KAscade
+**Ka**rlsruhe **S**tructural **C**hasing with **A**synchronous **D**istributed **E**xecution
 
-This is the code of my [**master's thesis**](https://publikationen.bibliothek.kit.edu/1000173094
-) where i coded a distributed algorithm for list ranking and tree rooting. The algorithms were evaluated on different instances up to 16384 cores on the SuperMUC-NG supercomputer at the Leibniz Supercomputing Center.
-
-The problem of list ranking determines for every vertex in a list the distance to the end of the list. The input can be generalized to a forest. This problem is denoted by tree rooting. Here each vertex aims to determine its distance to the tree’s root and identify the root itself.
-
-## Usage
-The algorithms use the Message Passing Interface (MPI) to communicate. The different algorithms and test instances are further explained in my [**master's thesis**](https://publikationen.bibliothek.kit.edu/1000173094
-).
+This code is based on the [Master's thesis of Thomas Weidman](https://publikationen.bibliothek.kit.edu/1000173094). It explores scalable approaches for distributed list ranking and tree rooting using MPI.
