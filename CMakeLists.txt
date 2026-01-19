@@ -31,7 +31,19 @@ FetchContent_Declare(
   GIT_TAG v0.2.0
   SYSTEM EXCLUDE_FROM_ALL)
 
-FetchContent_MakeAvailable(kamping kassert)
+set(KAGEN_BUILD_APPS OFF)
+set(KAGEN_BUILD_EXAMPLES OFF)
+set(KAGEN_USE_CGAL OFF)
+set(KAGEN_USE_SPARSEHASH OFF)
+set(KAGEN_USE_XXHASH ON)
+FetchContent_Declare(
+  kagen
+  GIT_REPOSITORY https://github.com/KarlsruheGraphGeneration/KaGen
+  GIT_TAG main
+  GIT_SHALLOW ON
+  EXCLUDE_FROM_ALL SYSTEM)
+
+FetchContent_MakeAvailable(kamping kassert kagen)
 add_subdirectory(lib)
 
 if(KASCADE_BUILD_BENCHMARKS)
