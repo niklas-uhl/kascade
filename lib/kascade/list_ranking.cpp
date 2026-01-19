@@ -1,3 +1,5 @@
+#include <ranges>
+
 #include <kascade/list_ranking.hpp>
 
 #include <kamping/collectives/gather.hpp>
@@ -7,22 +9,74 @@
 #include "kascade/types.hpp"
 
 namespace kascade {
-void rank(std::span<const idx_t> succ,
-          std::span<idx_t> dist,
+
+void rank(std::span<const idx_t> succ_array,
+          std::span<idx_t> rank_array,
+          std::span<idx_t> root_array,
           kamping::Communicator<> const& comm) {}
 
-void rank_on_root(std::span<const idx_t> succ,
-                  std::span<idx_t> dist,
+namespace {
+void local_pointer_chasing(std::span<const idx_t> succ_array,
+                           std::span<idx_t> rank_array,
+                           std::span<idx_t> root_array) {
+  auto const n = static_cast<idx_t>(succ_array.size());
+  std::ranges::fill(rank_array, static_cast<idx_t>(-1));
+  std::ranges::fill(root_array, static_cast<idx_t>(-1));
+
+  std::vector<idx_t> stack;
+  stack.reserve(n);
+  for (idx_t cur = 0; cur < n; ++cur) {
+    if (rank_array[cur] != static_cast<idx_t>(-1)) {
+      continue;
+    }
+    stack.clear();
+
+    // Follow predecessors until we reach a node whose dist is known
+    while (rank_array[cur] == static_cast<idx_t>(-1)) {
+      stack.push_back(cur);
+      idx_t succ = succ_array[cur];
+
+      if (succ == cur) {  // found root
+        rank_array[cur] = 0;
+        root_array[cur] = cur;
+        break;
+      }
+
+      // parent already knows its dist and root
+      if (rank_array[succ] != static_cast<idx_t>(-1)) {
+        break;
+      }
+      cur = succ;
+    }
+
+    // Now dist[cur] and root_of[cur] are known
+    idx_t rank = rank_array[cur];
+    idx_t root = root_array[cur];
+
+    // Assign distances going back along the stack
+    for (unsigned long& it : std::ranges::reverse_view(stack)) {
+      ++rank;
+      rank_array[it] = rank;
+      root_array[it] = root;
+    }
+  }
+}
+}  // namespace
+
+void rank_on_root(std::span<const idx_t> succ_array,
+                  std::span<idx_t> rank_array,
+                  std::span<idx_t> root_array,
                   kamping::Communicator<> const& comm) {
   namespace kmp = kamping::params;
-  auto [succ_global, recv_counts, recv_displs] =
-      comm.gatherv(kmp::send_buf(succ), kmp::recv_counts_out(), kmp::recv_displs_out());
+  auto [succ_global, recv_counts, recv_displs] = comm.gatherv(
+      kmp::send_buf(succ_array), kmp::recv_counts_out(), kmp::recv_displs_out());
   std::vector<idx_t> dist_global;
   if (comm.is_root()) {
     dist_global.resize(succ_global.size());
   }
-  comm.scatterv(kmp::send_buf(dist_global), kmp::recv_buf(dist),
+  local_pointer_chasing(succ_array, rank_array, root_array);
+  comm.scatterv(kmp::send_buf(dist_global), kmp::recv_buf(rank_array),
                 kmp::send_counts(recv_counts), kmp::send_displs(recv_displs),
-                kmp::recv_count(static_cast<int>(succ.size())));
+                kmp::recv_count(static_cast<int>(succ_array.size())));
 }
 }  // namespace kascade
