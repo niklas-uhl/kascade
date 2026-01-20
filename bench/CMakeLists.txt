@@ -45,6 +45,6 @@ target_sources(
 
 target_link_libraries(
   kascade PRIVATE cmake_git_version_tracking KaGen::KaGen CLI11::CLI11
-                  nlohmann_json::nlohmann_json kamping::spdlog-adapter)
+                  nlohmann_json::nlohmann_json kamping::spdlog-adapter kassert::kassert kascade_list_ranking)
 
-target_compile_features(kascade PRIVATE cxx_std_20)
+target_compile_features(kascade PRIVATE cxx_std_23)

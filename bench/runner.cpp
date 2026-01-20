@@ -1,6 +1,10 @@
+#include <kamping/collectives/barrier.hpp>
 #include <kamping/environment.hpp>
 #include <kamping/spdlog_adapter/logging.hpp>
 #include <spdlog/cfg/env.h>
+
+#include "detail/generation.hpp"
+#include "detail/parsing.hpp"
 
 auto main(int argc, char* argv[]) -> int {
   {
@@ -11,11 +15,11 @@ auto main(int argc, char* argv[]) -> int {
 
     kamping::Communicator const comm;
 
-    //// IO
-    // auto config = parse_args(std::span{argv, static_cast<std::size_t>(argc)});
+    // IO
+    auto config = parse_args(std::span{argv, static_cast<std::size_t>(argc)});
 
-    // auto G = generate_input(config, comm);
-    // comm.barrier();
+    auto G = generate_input(config, comm);
+    comm.barrier();
 
     //// reference implementation
     // spdlog::stopwatch stopwatch;
