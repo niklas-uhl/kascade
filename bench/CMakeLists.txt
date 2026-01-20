@@ -21,15 +21,21 @@ FetchContent_Declare(
   GIT_REPOSITORY https://github.com/kamping-site/kamping-spdlog-adapter
   GIT_TAG main
   GIT_SHALLOW ON)
-FetchContent_MakeAvailable(nlohmann_json cli11 kamping-spdlog-adapter)
+FetchContent_Declare(
+  kamping-nlohmann-json-adapter
+  GIT_REPOSITORY https://github.com/kamping-site/kamping-nlohmann-json-adaptor
+  GIT_TAG main
+  GIT_SHALLOW ON)
+
+FetchContent_MakeAvailable(nlohmann_json cli11 kamping-spdlog-adapter
+                           kamping-nlohmann-json-adapter)
 
 add_executable(kascade)
 
 target_sources(
   kascade
   PRIVATE runner.cpp detail/generation.cpp detail/parsing.cpp
-          detail/algorithm_factory.cpp
-  # detail/reporting.cpp detail/algorithm_factory.cpp
+          detail/algorithm_factory.cpp detail/reporting.cpp
   PRIVATE FILE_SET
           HEADERS
           BASE_DIRS
@@ -43,9 +49,7 @@ target_sources(
           detail/algorithm.hpp
           detail/algorithm_factory.hpp
           detail/algorithm_impl.hpp
-  # detail/reporting.hpp detail/algorithm.hpp detail/algorithm_impl.hpp
-  # detail/algorithm_factory.hpp ${CMAKE_CURRENT_BINARY_DIR}/detail/config.h)
-)
+          detail/reporting.hpp)
 
 target_link_libraries(
   kascade
@@ -54,6 +58,7 @@ target_link_libraries(
           CLI11::CLI11
           nlohmann_json::nlohmann_json
           kamping::spdlog-adapter
+          kamping::nlohmann-json-adapter
           kassert::kassert
           kascade_list_ranking)
 
