@@ -1,0 +1,38 @@
+{
+  "version": 10,
+  "$schema": "https://cmake.org/cmake/help/latest/_downloads/3e2d73bff478d88a7de0de736ba5e361/schema.json",
+  "$comment": "We need to re-include the main preset here since we inherit from it.",
+  "include": ["${sourceDir}/CMakePresets.json"],
+  "configurePresets": [
+    {
+      "name": "local-briefkasten",
+      "hidden": true,
+      "cacheVariables": {
+        "FETCHCONTENT_SOURCE_DIR_BRIEFKASTEN": "${sourceDir}/../briefkasten"
+      }
+    },
+    {
+      "name": "dev-macos",
+      "inherits": ["dev"],
+      "cacheVariables": {
+        "CMAKE_C_COMPILER": "gcc-15",
+        "CMAKE_CXX_COMPILER": "g++-15",
+        "CMAKE_CXX_FLAGS": "-fconcepts-diagnostics-depth=6"
+      }
+    },
+    {
+      "name": "dev-macos-clang",
+      "inherits": ["dev"],
+      "cacheVariables": {
+        "CMAKE_C_COMPILER": "/opt/homebrew/opt/llvm/bin/clang",
+        "CMAKE_CXX_COMPILER": "/opt/homebrew/opt/llvm/bin/clang++"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "dev-macos",
+      "configurePreset": "dev-macos"
+    }
+  ]
+}
