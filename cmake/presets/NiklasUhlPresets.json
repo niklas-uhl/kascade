@@ -13,6 +13,7 @@
     },
     {
       "name": "dev-macos",
+      "generator": "Ninja",
       "inherits": ["dev"],
       "cacheVariables": {
         "CMAKE_C_COMPILER": "gcc-15",

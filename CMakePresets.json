@@ -9,7 +9,7 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
-        "KACC_CXX_FLAGS": "-Wall;-Wextra;-pedantic;-DKASSERT_ASSERTION_LEVEL=30;-DSPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_TRACE"
+        "KASCADE_CXX_FLAGS": "-Wall;-Wextra;-pedantic;-DKASSERT_ASSERTION_LEVEL=30;-DSPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_TRACE"
       }
     },
     {
