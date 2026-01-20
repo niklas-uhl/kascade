@@ -10,10 +10,10 @@
 
 namespace kascade {
 
-void rank(std::span<const idx_t> succ_array,
-          std::span<idx_t> rank_array,
-          std::span<idx_t> root_array,
-          kamping::Communicator<> const& comm) {}
+void rank(std::span<const idx_t> /*succ_array*/,
+          std::span<idx_t> /*rank_array*/,
+          std::span<idx_t> /*root_array*/,
+          kamping::Communicator<> const& /*comm*/) {}
 
 namespace {
 void local_pointer_chasing(std::span<const idx_t> succ_array,
@@ -68,14 +68,19 @@ void rank_on_root(std::span<const idx_t> succ_array,
                   std::span<idx_t> root_array,
                   kamping::Communicator<> const& comm) {
   namespace kmp = kamping::params;
-  auto [succ_global, recv_counts, recv_displs] = comm.gatherv(
+  auto [global_succ_array, recv_counts, recv_displs] = comm.gatherv(
       kmp::send_buf(succ_array), kmp::recv_counts_out(), kmp::recv_displs_out());
-  std::vector<idx_t> dist_global;
+  std::vector<idx_t> global_rank_array;
+  std::vector<idx_t> global_root_array;
   if (comm.is_root()) {
-    dist_global.resize(succ_global.size());
+    global_rank_array.resize(global_succ_array.size());
+    global_root_array.resize(global_succ_array.size());
+    local_pointer_chasing(global_succ_array, global_rank_array, global_root_array);
   }
-  local_pointer_chasing(succ_array, rank_array, root_array);
-  comm.scatterv(kmp::send_buf(dist_global), kmp::recv_buf(rank_array),
+  comm.scatterv(kmp::send_buf(global_rank_array), kmp::recv_buf(rank_array),
+                kmp::send_counts(recv_counts), kmp::send_displs(recv_displs),
+                kmp::recv_count(static_cast<int>(succ_array.size())));
+  comm.scatterv(kmp::send_buf(global_root_array), kmp::recv_buf(root_array),
                 kmp::send_counts(recv_counts), kmp::send_displs(recv_displs),
                 kmp::recv_count(static_cast<int>(succ_array.size())));
 }

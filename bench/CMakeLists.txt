@@ -28,6 +28,7 @@ add_executable(kascade)
 target_sources(
   kascade
   PRIVATE runner.cpp detail/generation.cpp detail/parsing.cpp
+          detail/algorithm_factory.cpp
   # detail/reporting.cpp detail/algorithm_factory.cpp
   PRIVATE FILE_SET
           HEADERS
@@ -39,12 +40,21 @@ target_sources(
           detail/generation.hpp
           detail/parsing.hpp
           detail/serialization.hpp
+          detail/algorithm.hpp
+          detail/algorithm_factory.hpp
+          detail/algorithm_impl.hpp
   # detail/reporting.hpp detail/algorithm.hpp detail/algorithm_impl.hpp
   # detail/algorithm_factory.hpp ${CMAKE_CURRENT_BINARY_DIR}/detail/config.h)
 )
 
 target_link_libraries(
-  kascade PRIVATE cmake_git_version_tracking KaGen::KaGen CLI11::CLI11
-                  nlohmann_json::nlohmann_json kamping::spdlog-adapter kassert::kassert kascade_list_ranking)
+  kascade
+  PRIVATE cmake_git_version_tracking
+          KaGen::KaGen
+          CLI11::CLI11
+          nlohmann_json::nlohmann_json
+          kamping::spdlog-adapter
+          kassert::kassert
+          kascade_list_ranking)
 
 target_compile_features(kascade PRIVATE cxx_std_23)
