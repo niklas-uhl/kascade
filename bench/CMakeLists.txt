@@ -35,7 +35,7 @@ add_executable(kascade)
 target_sources(
   kascade
   PRIVATE runner.cpp detail/generation.cpp detail/parsing.cpp
-          detail/algorithm_factory.cpp detail/reporting.cpp
+          detail/algorithm_factory.cpp detail/reporting.cpp detail/verification.cpp
   PRIVATE FILE_SET
           HEADERS
           BASE_DIRS
@@ -44,6 +44,7 @@ target_sources(
           FILES
           detail/benchmark_config.hpp
           detail/generation.hpp
+	  detail/verification.hpp
           detail/parsing.hpp
           detail/serialization.hpp
           detail/algorithm.hpp
@@ -53,7 +54,8 @@ target_sources(
 
 target_link_libraries(
   kascade
-  PRIVATE cmake_git_version_tracking
+  PRIVATE ${CMAKE_PROJECT_NAME}_cxx_flags
+          cmake_git_version_tracking
           KaGen::KaGen
           CLI11::CLI11
           nlohmann_json::nlohmann_json

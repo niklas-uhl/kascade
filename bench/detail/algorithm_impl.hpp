@@ -12,13 +12,11 @@ public:
     rank_array_.resize(succ_array_.size());
     root_array_.resize(succ_array_.size());
   };
-  auto get_rank_array() -> std::vector<kascade::idx_t> override {
+  auto get_rank_array() -> std::vector<kascade::idx_t> const& override {
     return rank_array_;
-    ;
   }
-  auto get_root_array() -> std::vector<kascade::idx_t> override {
+  auto get_root_array() -> std::vector<kascade::idx_t> const& override {
     return root_array_;
-    ;
   }
 
 protected:
