@@ -1,29 +1,58 @@
-cmake_minimum_required(VERSION 3.16.3)
-project(cmake_test)
+cmake_minimum_required(VERSION 3.25)
+project(kascade LANGUAGES CXX)
+option(KASCADE_BUILD_BENCHMARKS "Build benchmarks" ${PROJECT_IS_TOP_LEVEL})
 
 find_package(MPI REQUIRED)
 
-set(CMAKE_BUILD_TYPE Release)
-set(CMAKE_CXX_STANDARD 20)
-   
-add_executable(Code code/cpp/main.cpp)
+include(FetchContent)
+if(PROJECT_IS_TOP_LEVEL)
+  FetchContent_Declare(
+    Format.cmake
+    GIT_REPOSITORY https://github.com/TheLartians/Format.cmake
+    GIT_TAG v1.8.3)
+  FetchContent_MakeAvailable(Format.cmake)
+endif()
 
-target_link_libraries(Code PUBLIC MPI::MPI_CXX)
+add_library(${CMAKE_PROJECT_NAME}_cxx_flags INTERFACE)
+if(KASCADE_CXX_FLAGS)
+  target_compile_options(${CMAKE_PROJECT_NAME}_cxx_flags
+                         INTERFACE ${KASCADE_CXX_FLAGS})
+endif()
 
+FetchContent_Declare(
+  kassert
+  GIT_REPOSITORY https://github.com/kamping-site/kassert
+  GIT_TAG v1.0.0
+  SYSTEM EXCLUDE_FROM_ALL)
+
+FetchContent_Declare(
+  kamping
+  GIT_REPOSITORY https://github.com/kamping-site/kamping
+  GIT_TAG v0.2.0
+  SYSTEM EXCLUDE_FROM_ALL)
+
+set(KAGEN_BUILD_APPS OFF)
+set(KAGEN_BUILD_EXAMPLES OFF)
+set(KAGEN_USE_CGAL OFF)
 set(KAGEN_USE_SPARSEHASH OFF)
+set(KAGEN_USE_XXHASH ON)
+FetchContent_Declare(
+  kagen
+  GIT_REPOSITORY https://github.com/KarlsruheGraphGeneration/KaGen
+  GIT_TAG main
+  GIT_SHALLOW ON
+  EXCLUDE_FROM_ALL SYSTEM)
 
-add_subdirectory(extern/KaGen)
-target_link_libraries(Code PUBLIC KaGen::KaGen)
+FetchContent_MakeAvailable(kamping kassert kagen)
+add_subdirectory(lib)
 
-add_subdirectory(extern/kamping)
-target_link_libraries(Code PUBLIC kamping::kamping)
+if(KASCADE_BUILD_BENCHMARKS)
+  add_subdirectory(bench)
+endif()
 
-set(MESSAGE_QUEUE_USE_BOOST ON)
-
-add_subdirectory(extern/message-queue)
-target_link_libraries(Code PUBLIC message-queue::message-queue)
-
-add_subdirectory(extern/fmt)
-target_link_libraries(Code PUBLIC fmt::fmt)
-
-target_compile_options(Code PUBLIC -O3 -march=native)
+FetchContent_Declare(
+  kaval
+  GIT_REPOSITORY https://github.com/niklas-uhl/kaval.git
+  GIT_TAG main
+  SOURCE_DIR ${CMAKE_CURRENT_LIST_DIR}/kaval)
+FetchContent_MakeAvailable(kaval)
