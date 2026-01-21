@@ -1,0 +1,55 @@
+#pragma once
+
+#include <algorithm>
+#include <cstddef>
+#include <vector>
+
+#include <kamping/collectives/allgather.hpp>
+#include <kamping/communicator.hpp>
+#include <kassert/kassert.hpp>
+
+#include "kascade/types.hpp"
+
+namespace kascade {
+class Distribution {
+public:
+  Distribution(std::size_t local_size, kamping::Communicator<> const& comm)
+      : counts_(comm.size()), inclusive_prefix_sum_(comm.size()) {
+    namespace kmp = kamping::params;
+    comm.allgather(kmp::send_buf(local_size), kmp::recv_buf(counts_));
+    std::inclusive_scan(counts_.begin(), counts_.end(), inclusive_prefix_sum_.begin());
+  }
+
+  [[nodiscard]] auto get_owner(idx_t idx) const -> std::size_t {
+    auto it =
+        std::ranges::upper_bound(inclusive_prefix_sum_, static_cast<std::size_t>(idx));
+    KASSERT(it != inclusive_prefix_sum_.end());
+    return static_cast<std::size_t>(std::distance(inclusive_prefix_sum_.begin(), it));
+  }
+
+  [[nodiscard]] auto get_owner_signed(idx_t idx) const -> int {
+    return static_cast<int>(get_owner(idx));
+  }
+
+  [[nodiscard]] auto get_count(std::size_t rank) const -> std::size_t {
+    return counts_[rank];
+  }
+
+  [[nodiscard]] auto get_exclusive_prefix(std::size_t rank) const -> std::size_t {
+    return inclusive_prefix_sum_[rank] - counts_[rank];
+  }
+
+  [[nodiscard]] auto get_local_idx(idx_t idx, std::size_t rank) const -> idx_t {
+    return idx - static_cast<idx_t>(inclusive_prefix_sum_[rank] - counts_[rank]);
+  }
+
+  [[nodiscard]] auto get_global_idx(idx_t idx, std::size_t rank) const -> idx_t {
+    return idx + static_cast<idx_t>(inclusive_prefix_sum_[rank] - counts_[rank]);
+  }
+
+private:
+  std::vector<std::size_t> counts_;
+  std::vector<std::size_t> inclusive_prefix_sum_;
+};
+
+}  // namespace kascade

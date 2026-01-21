@@ -3,6 +3,7 @@
 
 #include "./algorithm.hpp"
 #include "kascade/list_ranking.hpp"
+#include "kascade/pointer_doubling.hpp"
 
 class AlgorithmBase : public AbstractAlgorithm {
 public:
@@ -35,3 +36,12 @@ public:
     kascade::rank_on_root(succ_array_, rank_array_, root_array_, *comm_);
   }
 };
+
+class PointerDoubling : public AlgorithmBase {
+public:
+  PointerDoubling(kamping::Communicator<> const& comm) : AlgorithmBase(comm) {}
+  void run() override {
+    kascade::pointer_doubling(succ_array_, rank_array_, root_array_, *comm_);
+  }
+};
+

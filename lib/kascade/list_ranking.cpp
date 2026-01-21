@@ -84,4 +84,6 @@ void rank_on_root(std::span<const idx_t> succ_array,
                 kmp::recv_count(static_cast<int>(succ_array.size())));
   kamping::measurements::timer().stop();
 }
+
+
 }  // namespace kascade

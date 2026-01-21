@@ -9,6 +9,8 @@ auto get_algorithm(const Config& config, kamping::Communicator<> const& comm)
   switch (config.algorithm) {
     case Algorithm::GatherChase:
       return std::make_unique<GatherRank>(comm);
+    case Algorithm::PointerDoubling:
+      return std::make_unique<PointerDoubling>(comm);
     default:
     case Algorithm::invalid:
       throw std::runtime_error("Invalid algorithm selected.");
