@@ -20,46 +20,39 @@ namespace {
 void local_pointer_chasing(std::span<const idx_t> succ_array,
                            std::span<idx_t> rank_array,
                            std::span<idx_t> root_array) {
-  auto const n = static_cast<idx_t>(succ_array.size());
-  std::ranges::fill(rank_array, static_cast<idx_t>(-1));
-  std::ranges::fill(root_array, static_cast<idx_t>(-1));
-
-  std::vector<idx_t> stack;
-  stack.reserve(n);
-  for (idx_t cur = 0; cur < n; ++cur) {
-    if (rank_array[cur] != static_cast<idx_t>(-1)) {
-      continue;
+  std::vector<bool> has_pred(succ_array.size(), false);
+  auto const UNASSIGNED = static_cast<idx_t>(succ_array.size());
+  std::ranges::fill(rank_array, UNASSIGNED);
+  std::ranges::fill(root_array, UNASSIGNED);
+  // label roots and find leaves
+  for (idx_t idx{0}; idx < succ_array.size(); idx++) {
+    if (succ_array[idx] == idx) {
+      root_array[idx] = idx;
+      rank_array[idx] = 0;
     }
-    stack.clear();
+    has_pred[succ_array[idx]] = true;
+  }
+  auto leaves = std::views::iota(std::size_t {0}, succ_array.size()) |
+                std::views::filter([&](auto idx) { return !has_pred[idx]; });
 
-    // Follow predecessors until we reach a node whose dist is known
-    while (rank_array[cur] == static_cast<idx_t>(-1)) {
-      stack.push_back(cur);
-      idx_t succ = succ_array[cur];
-
-      if (succ == cur) {  // found root
-        rank_array[cur] = 0;
-        root_array[cur] = cur;
-        break;
-      }
-
-      // parent already knows its dist and root
-      if (rank_array[succ] != static_cast<idx_t>(-1)) {
-        break;
-      }
-      cur = succ;
+  std::vector<idx_t> path;
+  path.reserve(succ_array.size());
+  for (auto leaf : leaves) {
+    idx_t cur = leaf;
+    // follow successors until we reach a node whose rank is known
+    while (rank_array[cur] == UNASSIGNED) {
+      path.push_back(cur);
+      cur = succ_array[cur];
     }
-
-    // Now dist[cur] and root_of[cur] are known
-    idx_t rank = rank_array[cur];
+    // now assign back along the path
+    idx_t rank = rank_array[cur] + 1;
     idx_t root = root_array[cur];
-
-    // Assign distances going back along the stack
-    for (unsigned long& it : std::ranges::reverse_view(stack)) {
-      ++rank;
-      rank_array[it] = rank;
-      root_array[it] = root;
+    for (auto idx : std::ranges::reverse_view(path)) {
+      rank_array[idx] = rank;
+      root_array[idx] = root;
+      rank++;
     }
+    path.clear();
   }
 }
 }  // namespace
