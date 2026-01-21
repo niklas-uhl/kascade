@@ -11,6 +11,8 @@ auto get_algorithm(const Config& config, kamping::Communicator<> const& comm)
       return std::make_unique<GatherRank>(comm);
     case Algorithm::PointerDoubling:
       return std::make_unique<PointerDoubling>(comm);
+    case Algorithm::AsyncPointerDoubling:
+      return std::make_unique<AsyncPointerDoubling>(comm);
     default:
     case Algorithm::invalid:
       throw std::runtime_error("Invalid algorithm selected.");

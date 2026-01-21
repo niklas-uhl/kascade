@@ -1,7 +1,7 @@
 add_library(${CMAKE_PROJECT_NAME}_list_ranking)
 target_sources(
   ${CMAKE_PROJECT_NAME}_list_ranking
-  PRIVATE list_ranking.cpp pointer_doubling.cpp
+  PRIVATE list_ranking.cpp pointer_doubling.cpp async_pointer_doubling.cpp
   PUBLIC FILE_SET
          HEADERS
          BASE_DIRS
@@ -17,6 +17,7 @@ target_link_libraries(
   kamping::kamping
   PRIVATE
   ${CMAKE_PROJECT_NAME}_cxx_flags
+  BriefKAsten::BriefKAsten
   kassert::kassert
   fmt::fmt
   spdlog::spdlog

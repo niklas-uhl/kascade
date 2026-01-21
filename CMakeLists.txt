@@ -71,3 +71,11 @@ FetchContent_Declare(
   GIT_TAG main
   SOURCE_DIR ${CMAKE_CURRENT_LIST_DIR}/kaval)
 FetchContent_MakeAvailable(kaval)
+
+FetchContent_Declare(
+  BriefKAsten
+  GIT_REPOSITORY https://github.com/niklas-uhl/BriefKAsten
+  GIT_TAG v0.2.1
+  GIT_SHALLOW ON
+  SYSTEM)
+FetchContent_MakeAvailable(BriefKAsten)

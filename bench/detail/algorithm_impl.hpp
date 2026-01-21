@@ -45,3 +45,10 @@ public:
   }
 };
 
+class AsyncPointerDoubling : public AlgorithmBase {
+public:
+  AsyncPointerDoubling(kamping::Communicator<> const& comm) : AlgorithmBase(comm) {}
+  void run() override {
+    kascade::async_pointer_doubling(succ_array_, rank_array_, root_array_, *comm_);
+  }
+};

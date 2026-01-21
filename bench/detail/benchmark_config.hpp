@@ -12,6 +12,7 @@
 enum class Algorithm : std::uint8_t {
   GatherChase,
   PointerDoubling,
+  AsyncPointerDoubling,
   invalid,
 };
 

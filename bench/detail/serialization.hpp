@@ -9,7 +9,8 @@
 NLOHMANN_JSON_SERIALIZE_ENUM(Algorithm,
                              {{Algorithm::invalid, nullptr},
                               {Algorithm::GatherChase, "GatherChase"},
-                              {Algorithm::PointerDoubling, "PointerDoubling"}})
+                              {Algorithm::PointerDoubling, "PointerDoubling"},
+                              {Algorithm::AsyncPointerDoubling, "AsyncPointerDoubling"}})
 
 namespace kascade::input {
 NLOHMANN_JSON_SERIALIZE_ENUM(InputProcessing,
