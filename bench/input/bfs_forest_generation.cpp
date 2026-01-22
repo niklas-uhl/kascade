@@ -40,9 +40,7 @@ auto generate_bfs_tree(kagen::Graph const& kagen_graph,
     -> std::vector<kascade::idx_t> {
   std::vector<bool> visited(kagen_graph.NumberOfLocalVertices(), false);
 
-  spdlog::get("gather")->info("visited {}", visited);
   kacc::DistributedCSRGraph graph(kagen_graph, comm);
-  spdlog::get("gather")->info("graph ");
   std::vector<kascade::idx_t> parent_array(graph.num_local_vertices());
   std::size_t next_local_unvisited = 0;
   while (true) {
@@ -51,7 +49,6 @@ auto generate_bfs_tree(kagen::Graph const& kagen_graph,
     if (next_global_start >= graph.num_global_vertices()) {
       break;
     }
-    spdlog::get("gather")->info("global start {}", next_global_start);
     kacc::distributed_bfs(
         graph, next_global_start,
         [&](auto u, auto parent, auto) {
@@ -59,7 +56,6 @@ auto generate_bfs_tree(kagen::Graph const& kagen_graph,
         },
         visited, comm);
   }
-  spdlog::get("gather")->info("finished bfs");
   return parent_array;
 }
 }  // namespace kascade::input::internal

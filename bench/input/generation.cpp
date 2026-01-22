@@ -29,7 +29,6 @@ auto generate_input(Config const& config, kamping::Communicator<> const& comm)
     case InputProcessing::bfs: {
       auto G = gen.GenerateFromOptionString(config.kagen_option_string);
       auto succ_array = internal::generate_bfs_tree(G, comm);
-      spdlog::get("gather")->info("graph gen {} seconds.", succ_array);
       return succ_array;
     }
     case InputProcessing::invalid:
