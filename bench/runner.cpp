@@ -6,7 +6,6 @@
 
 #include "detail/algorithm_factory.hpp"
 #include "detail/algorithm_impl.hpp"
-#include "detail/generation.hpp"
 #include "detail/parsing.hpp"
 #include "detail/reporting.hpp"
 #include "detail/serialization.hpp"  // IWYU pragma: keep
@@ -25,7 +24,7 @@ auto main(int argc, char* argv[]) -> int {
     // IO
     auto config = parse_args(std::span{argv, static_cast<std::size_t>(argc)});
 
-    std::vector<kascade::idx_t> succ = generate_input(config, comm);
+    std::vector<kascade::idx_t> succ = kascade::input::generate_input(config.input, comm);
     comm.barrier();
 
     // reference implementation

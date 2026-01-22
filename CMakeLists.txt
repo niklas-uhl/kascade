@@ -20,6 +20,21 @@ if(KASCADE_CXX_FLAGS)
 endif()
 
 FetchContent_Declare(
+  fmt
+  GIT_REPOSITORY https://github.com/fmtlib/fmt
+  GIT_TAG 11.0.2
+  GIT_SHALLOW ON
+  SYSTEM FIND_PACKAGE_ARGS 11.0)
+set(SPDLOG_FMT_EXTERNAL_HO ON)
+FetchContent_Declare(
+  spdlog
+  GIT_REPOSITORY https://github.com/gabime/spdlog
+  GIT_TAG v1.16.0
+  GIT_SHALLOW ON
+  SYSTEM)
+FetchContent_MakeAvailable(fmt spdlog)
+
+FetchContent_Declare(
   kassert
   GIT_REPOSITORY https://github.com/kamping-site/kassert
   GIT_TAG v1.0.0

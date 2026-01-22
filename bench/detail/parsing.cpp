@@ -14,11 +14,20 @@ auto lexical_cast(const std::string& input, Algorithm& algo) -> bool {
   return algo != Algorithm::invalid;
 }
 
+namespace kascade::input {
+auto lexical_cast(const std::string& input, InputProcessing& processing) -> bool {
+  nlohmann::json input_json = input;
+  processing = input_json.template get<kascade::input::InputProcessing>();
+  return processing != kascade::input::InputProcessing::invalid;
+}
+}  // namespace kascade::input
+
 auto parse_args(std::span<char*> args) -> Config {
   Config config;
   CLI::App app;
   app.option_defaults()->always_capture_default();
-  app.add_option("--kagen_option_string", config.kagen_option_string)->required();
+  app.add_option("--kagen_option_string", config.input.kagen_option_string)->required();
+  app.add_option("--input-processing", config.input.input_processing)->required();
   app.add_option("--iterations", config.iterations);
   app.add_option("--output-file", config.output_path);
   app.add_option("--algorithm", config.algorithm)->required();
