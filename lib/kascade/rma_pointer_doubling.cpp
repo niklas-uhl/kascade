@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <functional>
 #include <ranges>
+#include <string>
 
 #include <mpi.h>
 
@@ -40,16 +41,24 @@ void rma_pointer_doubling(std::span<const idx_t> succ_array,
     }
   }
   MPI_Win win = MPI_WIN_NULL;
+  MPI_Info info = MPI_INFO_NULL;
+  MPI_Info_create(&info);
+  MPI_Info_set(info, "accumulate_ops", "same_op_no_op");
+  auto granularity = std::to_string(sizeof(Entry));
+  MPI_Info_set(info, "mpi_accumulate_granularity", granularity.c_str());
+  MPI_Info_set(info, "same_disp_unit", "true");
+  MPI_Info_set(info, "mpi_assert_memory_alloc_kinds", "system");
   MPI_Win_create(data_array.data(),
                  std::ranges::ssize(data_array) * static_cast<MPI_Aint>(sizeof(Entry)),
-                 sizeof(Entry), MPI_INFO_NULL, comm.mpi_communicator(), &win);
+                 sizeof(Entry), info, comm.mpi_communicator(), &win);
+  MPI_Info_free(&info);
   std::vector<bool> converged(data_array.size(), false);
   while (!std::ranges::all_of(converged, std::identity{})) {
     for (std::size_t i = 0; i < succ_array.size(); i++) {
       if (converged[i]) {
         continue;
       }
-      MPI_Win_lock(MPI_LOCK_SHARED, comm.rank_signed(), 0, win);
+      MPI_Win_lock(MPI_LOCK_SHARED, comm.rank_signed(), MPI_MODE_NOCHECK, win);
       Entry entry_i{};
       MPI_Get_accumulate(nullptr, 0, MPI_DATATYPE_NULL, &entry_i, 1,
                          kamping::mpi_datatype<Entry>(), comm.rank_signed(),
@@ -59,7 +68,7 @@ void rma_pointer_doubling(std::span<const idx_t> succ_array,
 
       auto parent_rank = dist.get_owner(entry_i.parent);
       auto parent_offset = dist.get_local_idx(entry_i.parent, parent_rank);
-      MPI_Win_lock(MPI_LOCK_SHARED, static_cast<int>(parent_rank), 0, win);
+      MPI_Win_lock(MPI_LOCK_SHARED, static_cast<int>(parent_rank), MPI_MODE_NOCHECK, win);
       Entry parent_entry{};
       MPI_Get_accumulate(nullptr, 0, MPI_DATATYPE_NULL, &parent_entry, 1,
                          kamping::mpi_datatype<Entry>(), static_cast<int>(parent_rank),
@@ -73,7 +82,7 @@ void rma_pointer_doubling(std::span<const idx_t> succ_array,
 
       entry_i.rank += parent_entry.rank;
       entry_i.parent = parent_entry.parent;
-      MPI_Win_lock(MPI_LOCK_SHARED, comm.rank_signed(), 0, win);
+      MPI_Win_lock(MPI_LOCK_SHARED, comm.rank_signed(), MPI_MODE_NOCHECK, win);
       MPI_Accumulate(&entry_i, 1, kamping::mpi_datatype<Entry>(), comm.rank_signed(),
                      static_cast<MPI_Aint>(i), 1, kamping::mpi_datatype<Entry>(),
                      MPI_REPLACE, win);
