@@ -8,6 +8,7 @@
 
 #include "git.h"
 #include "input/generation.hpp"
+#include "kascade/configuration.hpp"
 
 enum class Algorithm : std::uint8_t {
   GatherChase,
@@ -27,6 +28,7 @@ struct Config {
   std::size_t iterations = 1;
   kascade::input::Config input;
   Algorithm algorithm = Algorithm::invalid;
+  kascade::AsyncPointerChasingConfig async_pointer_chasing;
   std::size_t verify_level = 1;
   bool verify_continue_on_mismatch = false;
 };

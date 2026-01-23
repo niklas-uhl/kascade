@@ -2,10 +2,13 @@
 
 #include <kascade/pointer_doubling.hpp>
 #include <kascade/types.hpp>
+
+#include <absl/container/flat_hash_map.h>  // for flat_hash_map
 #include <fmt/ostream.h>
 
 #include "briefkasten/buffered_queue.hpp"
 #include "briefkasten/queue_builder.hpp"
+#include "kascade/configuration.hpp"
 #include "kascade/distribution.hpp"
 #include "spdlog/spdlog.h"
 
@@ -65,8 +68,12 @@ struct Msg {
 };
 
 struct SendEvent {
-  [[nodiscard]] auto is_sending_request_event() const -> bool { return !has_pe_rank_flag(msg.rank); }
-  [[nodiscard]] auto is_sending_reply_event() const -> bool { return has_pe_rank_flag(msg.rank); }
+  [[nodiscard]] auto is_sending_request_event() const -> bool {
+    return !has_pe_rank_flag(msg.rank);
+  }
+  [[nodiscard]] auto is_sending_reply_event() const -> bool {
+    return has_pe_rank_flag(msg.rank);
+  }
   Msg msg;
 };
 
@@ -76,13 +83,15 @@ struct SendEvent {
 template <>
 struct fmt::formatter<Msg> : ostream_formatter {};
 namespace kascade {
-void async_pointer_doubling(std::span<const idx_t> succ_array,
+void async_pointer_doubling(AsyncPointerChasingConfig const& config,
+                            std::span<const idx_t> succ_array,
                             std::span<idx_t> rank_array,
                             std::span<idx_t> root_array,
                             kamping::Communicator<> const& comm) {
   auto queue =
       briefkasten::BufferedMessageQueueBuilder<Msg>(comm.mpi_communicator()).build();
   Distribution dist(succ_array.size(), comm);
+  absl::flat_hash_map<idx_t, std::pair<idx_t, idx_t>> cache;
 
   // initialize rank and root array
   std::ranges::copy(succ_array, root_array.begin());
@@ -100,6 +109,15 @@ void async_pointer_doubling(std::span<const idx_t> succ_array,
     }
   }
 
+  auto process_recv_reply = [&](auto& msg) {
+    root_array[msg.write_back_idx] = msg.succ;
+    rank_array[msg.write_back_idx] += msg.rank;
+    if (!has_root_flag(msg.succ)) {
+      msg.rank = 0;
+      event_queue.emplace(msg);
+    }
+  };
+
   auto on_message = [&](auto env) {
     for (auto msg : env.message) {
       bool has_recv_request = has_pe_rank_flag(msg.rank);
@@ -107,14 +125,27 @@ void async_pointer_doubling(std::span<const idx_t> succ_array,
         event_queue.emplace(msg);
       } else {
         // has_recv_reply
-        root_array[msg.write_back_idx] = msg.succ;
-        rank_array[msg.write_back_idx] += msg.rank;
-        if (!has_root_flag(msg.succ)) {
-          msg.rank = 0;
-          event_queue.emplace(msg);
+        if (config.use_caching) {
+          cache[root_array[msg.write_back_idx]] = std::make_pair(msg.succ, msg.rank);
         }
+        process_recv_reply(msg);
       }
     }
+  };
+
+  auto do_cache_lookup = [&](auto& msg) -> bool {
+    if (!config.use_caching) {
+      return false;
+    }
+    auto it = cache.find(msg.succ);
+    if (it == cache.end()) {
+      return false;
+    }
+    // treat as if this was a remote recv reply
+    msg.succ = it->second.first;
+    msg.rank = it->second.second;
+    process_recv_reply(msg);
+    return true;
   };
 
   do {
@@ -123,12 +154,14 @@ void async_pointer_doubling(std::span<const idx_t> succ_array,
       event_queue.pop();
       if (event.is_sending_request_event()) {
         KASSERT(!has_root_flag(event.msg.succ),
-                "Do not continue on already finised elements.");
-
+                "Do not continue on already finished elements.");
         KASSERT(!has_pe_rank_flag(event.msg.rank), "Set pe rank flag at send time.");
-        event.msg.rank = set_pe_rank_flag(comm.rank());
-        int owner = dist.get_owner_signed(event.msg.succ);
-        queue.post_message_blocking(event.msg, owner, on_message);
+        auto successful_cache_lookup = do_cache_lookup(event.msg);
+        if (!successful_cache_lookup) {
+          event.msg.rank = set_pe_rank_flag(comm.rank());
+          int owner = dist.get_owner_signed(event.msg.succ);
+          queue.post_message_blocking(event.msg, owner, on_message);
+        }
       } else {
         // is sending reply event
         auto local_idx = dist.get_local_idx(event.msg.succ, comm.rank());

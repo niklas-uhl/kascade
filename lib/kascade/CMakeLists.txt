@@ -9,6 +9,7 @@ target_sources(
          FILES
          list_ranking.hpp
          pointer_doubling.hpp
+	 configuration.hpp
          types.hpp)
 target_link_libraries(
   ${CMAKE_PROJECT_NAME}_list_ranking
@@ -21,5 +22,6 @@ target_link_libraries(
   kassert::kassert
   fmt::fmt
   spdlog::spdlog
+  absl::flat_hash_map
 )
 target_compile_features(${CMAKE_PROJECT_NAME}_list_ranking PUBLIC cxx_std_20)

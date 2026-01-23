@@ -28,6 +28,7 @@ auto parse_args(std::span<char*> args) -> Config {
   app.option_defaults()->always_capture_default();
   app.add_option("--kagen_option_string", config.input.kagen_option_string)->required();
   app.add_option("--input-processing", config.input.input_processing)->required();
+  app.add_flag("--async-pointer-chasing-use-caching", config.async_pointer_chasing.use_caching);
   app.add_option("--iterations", config.iterations);
   app.add_option("--output-file", config.output_path);
   app.add_option("--algorithm", config.algorithm)->required();

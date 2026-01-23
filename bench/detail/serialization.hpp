@@ -5,6 +5,7 @@
 
 #include "benchmark_config.hpp"
 #include "input/generation.hpp"
+#include "kascade/configuration.hpp"
 
 NLOHMANN_JSON_SERIALIZE_ENUM(Algorithm,
                              {{Algorithm::invalid, nullptr},
@@ -22,6 +23,10 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Config, kagen_option_string, input_processing
 
 }  // namespace kascade::input
 
+namespace kascade {
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(AsyncPointerChasingConfig, use_caching);
+}
+
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Config,
                                    num_ranks,
                                    git_tag,
@@ -29,5 +34,6 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Config,
                                    iterations,
                                    input,
                                    algorithm,
+                                   async_pointer_chasing,
                                    verify_level,
                                    verify_continue_on_mismatch)

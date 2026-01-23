@@ -47,8 +47,14 @@ public:
 
 class AsyncPointerDoubling : public AlgorithmBase {
 public:
-  AsyncPointerDoubling(kamping::Communicator<> const& comm) : AlgorithmBase(comm) {}
+  AsyncPointerDoubling(kascade::AsyncPointerChasingConfig const& config,
+                       kamping::Communicator<> const& comm)
+      : AlgorithmBase(comm), config_{config} {}
   void run() override {
-    kascade::async_pointer_doubling(succ_array_, rank_array_, root_array_, *comm_);
+    kascade::async_pointer_doubling(config_, succ_array_, rank_array_, root_array_,
+                                    *comm_);
   }
+
+private:
+  kascade::AsyncPointerChasingConfig config_;
 };
