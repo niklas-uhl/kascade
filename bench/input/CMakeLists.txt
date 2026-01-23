@@ -14,6 +14,7 @@ target_sources(
          concepts.hpp)
 target_link_libraries(
   ${CMAKE_PROJECT_NAME}_input_generation
+  PRIVATE ${CMAKE_PROJECT_NAME}_cxx_flags
   PUBLIC kamping::kamping
          cmake_git_version_tracking
          KaGen::KaGen
