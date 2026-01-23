@@ -34,7 +34,7 @@ FetchContent_Declare(
   GIT_SHALLOW ON
   PATCH_COMMAND
     patch -p1 --forward <
-    ${CMAKE_CURRENT_SOURCE_DIR}/macos_no_define_xopen_source.patch || true
+    ${PROJECT_SOURCE_DIR}/cmake/patches/macos_no_define_xopen_source.patch || true
     EXCLUDE_FROM_ALL SYSTEM)
 
 FetchContent_MakeAvailable(nlohmann_json cli11 kamping-spdlog-adapter
