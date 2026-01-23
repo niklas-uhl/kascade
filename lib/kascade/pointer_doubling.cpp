@@ -55,22 +55,16 @@ auto do_doubling_step(std::span<kascade::idx_t> rank_array,
                       kamping::Communicator<> const& comm) -> std::span<kascade::idx_t> {
   namespace kmp = kamping::params;
   std::unordered_map<int, std::vector<Request>> send_bufs;
-  std::vector<int> send_counts(comm.size(), 0);
   for (auto& local_elem_idx : local_request_array) {
     auto succ = root_array[local_elem_idx];
     KASSERT(!has_root_flag(succ), "Do not continue on already finised elements.");
     int owner = dist.get_owner_signed(succ);
     send_bufs[owner].emplace_back(local_elem_idx, succ);
   }
-  // extend functionality of `with_flattened` to also get the recv counts?
-  for (auto const& [rank, send_buf] : send_bufs) {
-    send_counts[rank] = static_cast<int>(send_buf.size());
-  }
-  auto recv_counts = comm.alltoall(kmp::send_buf(send_counts));
-  auto recv_requests =
-      kamping::with_flattened(send_bufs, comm.size()).call([&](auto... flattened) {
-        return comm.alltoallv(std::move(flattened)...);
-      });
+  auto [send_buf, send_counts, send_displs] = kamping::flatten(send_bufs, comm.size());
+  auto [recv_requests, recv_counts] =
+      comm.alltoallv(kmp::send_buf(send_buf), kmp::send_counts(send_counts),
+                     kmp::send_displs(send_displs), kmp::recv_counts_out());
 
   std::vector<Reply> replies;
   replies.reserve(recv_requests.size());
