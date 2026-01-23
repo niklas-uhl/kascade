@@ -58,3 +58,11 @@ public:
 private:
   kascade::AsyncPointerChasingConfig config_;
 };
+
+class RMAPointerDoubling : public AlgorithmBase {
+public:
+  RMAPointerDoubling(kamping::Communicator<> const& comm) : AlgorithmBase(comm) {}
+  void run() override {
+    kascade::rma_pointer_doubling(succ_array_, rank_array_, root_array_, *comm_);
+  }
+};

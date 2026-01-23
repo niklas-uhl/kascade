@@ -1,7 +1,11 @@
 add_library(${CMAKE_PROJECT_NAME}_list_ranking)
 target_sources(
   ${CMAKE_PROJECT_NAME}_list_ranking
-  PRIVATE list_ranking.cpp pointer_doubling.cpp async_pointer_doubling.cpp
+  PRIVATE
+  list_ranking.cpp
+  pointer_doubling.cpp
+  async_pointer_doubling.cpp
+  rma_pointer_doubling.cpp
   PUBLIC FILE_SET
          HEADERS
          BASE_DIRS

@@ -19,4 +19,9 @@ void async_pointer_doubling(AsyncPointerChasingConfig const& config,
                             std::span<idx_t> root_array,
                             kamping::Communicator<> const& comm);
 
+void rma_pointer_doubling(std::span<const idx_t> succ_array,
+                            std::span<idx_t> rank_array,
+                            std::span<idx_t> root_array,
+                            kamping::Communicator<> const& comm);
+
 }  // namespace kascade
