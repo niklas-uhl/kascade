@@ -10,6 +10,7 @@
 #include <kamping/mpi_datatype.hpp>
 #include <spdlog/spdlog.h>
 
+#include "kascade/configuration.hpp"
 #include "kascade/distribution.hpp"
 #include "kascade/pointer_doubling.hpp"
 #include "kascade/types.hpp"
@@ -29,11 +30,12 @@ static constexpr fenced_t fenced{};
 }  // namespace rma::sync_mode
 
 namespace {
-void rma_pointer_doubling(std::span<const idx_t> succ_array,
+void rma_pointer_doubling(RMAPointerChasingConfig const& /* config */,
+                          std::span<const idx_t> succ_array,
                           std::span<idx_t> rank_array,
                           std::span<idx_t> root_array,
                           kamping::Communicator<> const& comm,
-                          rma::sync_mode::passive_target_t /*tag*/) {
+                          rma::sync_mode::passive_target_t /* tag */) {
   Distribution dist(succ_array.size(), comm);
   std::vector<Entry> data_array(succ_array.size());
   auto ranks =
@@ -107,11 +109,12 @@ void rma_pointer_doubling(std::span<const idx_t> succ_array,
   std::ranges::copy(parents, root_array.begin());
 }
 
-void rma_pointer_doubling(std::span<const idx_t> succ_array,
+void rma_pointer_doubling(RMAPointerChasingConfig const& /* config */,
+                          std::span<const idx_t> succ_array,
                           std::span<idx_t> rank_array,
                           std::span<idx_t> root_array,
                           kamping::Communicator<> const& comm,
-                          rma::sync_mode::fenced_t /*tag*/) {
+                          rma::sync_mode::fenced_t /* tag */) {
   Distribution dist(succ_array.size(), comm);
   std::vector<Entry> data_array(succ_array.size());
   auto ranks =
@@ -198,11 +201,22 @@ void rma_pointer_doubling(std::span<const idx_t> succ_array,
 }
 }  // namespace
 
-void rma_pointer_doubling(std::span<const idx_t> succ_array,
+void rma_pointer_doubling(RMAPointerChasingConfig const& config,
+                          std::span<const idx_t> succ_array,
                           std::span<idx_t> rank_array,
                           std::span<idx_t> root_array,
                           kamping::Communicator<> const& comm) {
-  rma_pointer_doubling(succ_array, rank_array, root_array, comm,
-                       rma::sync_mode::passive_target);
+  switch (config.sync_mode) {
+    case RMASyncMode::fenced:
+      rma_pointer_doubling(config, succ_array, rank_array, root_array, comm,
+                           rma::sync_mode::fenced);
+      break;
+    case RMASyncMode::passive_target:
+      rma_pointer_doubling(config, succ_array, rank_array, root_array, comm,
+                           rma::sync_mode::passive_target);
+      break;
+    case RMASyncMode::invalid:
+      throw std::runtime_error("Invalid RMA sync mode");
+  }
 };
 }  // namespace kascade

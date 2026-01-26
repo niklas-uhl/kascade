@@ -1,5 +1,6 @@
 #pragma once
 
+#include <nlohmann/detail/macro_scope.hpp>
 #include <nlohmann/json.hpp>
 
 #include "benchmark_config.hpp"
@@ -25,7 +26,12 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Config, kagen_option_string, input_processing
 
 namespace kascade {
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(AsyncPointerChasingConfig, use_caching);
-}
+NLOHMANN_JSON_SERIALIZE_ENUM(RMASyncMode,
+                             {{RMASyncMode::invalid, nullptr},
+                              {RMASyncMode::fenced, "fenced"},
+                              {RMASyncMode::passive_target, "passive_target"}});
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(RMAPointerChasingConfig, sync_mode);
+}  // namespace kascade
 
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Config,
                                    num_ranks,
@@ -35,5 +41,6 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Config,
                                    input,
                                    algorithm,
                                    async_pointer_chasing,
+                                   rma_pointer_chasing,
                                    verify_level,
                                    verify_continue_on_mismatch)

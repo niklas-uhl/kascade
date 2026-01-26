@@ -30,6 +30,7 @@ struct Config {
   kascade::input::Config input;
   Algorithm algorithm = Algorithm::invalid;
   kascade::AsyncPointerChasingConfig async_pointer_chasing;
+  kascade::RMAPointerChasingConfig rma_pointer_chasing;
   std::size_t verify_level = 1;
   bool verify_continue_on_mismatch = false;
 };

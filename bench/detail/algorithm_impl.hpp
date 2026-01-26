@@ -2,6 +2,7 @@
 #include <kamping/communicator.hpp>
 
 #include "./algorithm.hpp"
+#include "kascade/configuration.hpp"
 #include "kascade/list_ranking.hpp"
 #include "kascade/pointer_doubling.hpp"
 
@@ -61,8 +62,13 @@ private:
 
 class RMAPointerDoubling : public AlgorithmBase {
 public:
-  RMAPointerDoubling(kamping::Communicator<> const& comm) : AlgorithmBase(comm) {}
+  RMAPointerDoubling(kascade::RMAPointerChasingConfig const& config,
+                     kamping::Communicator<> const& comm)
+      : AlgorithmBase(comm), config_(config) {}
   void run() override {
-    kascade::rma_pointer_doubling(succ_array_, rank_array_, root_array_, *comm_);
+    kascade::rma_pointer_doubling(config_, succ_array_, rank_array_, root_array_, *comm_);
   }
+
+private:
+  kascade::RMAPointerChasingConfig config_;
 };
