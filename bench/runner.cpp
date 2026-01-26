@@ -31,10 +31,12 @@ auto main(int argc, char* argv[]) -> int {
     spdlog::stopwatch stopwatch;
     auto reference_impl = GatherRank(comm);
     if (config.verify_level > 0) {
+      kamping::measurements::timer().synchronize_and_start("reference_run");
       reference_impl.ingest(succ);
       reference_impl.run();
       SPDLOG_LOGGER_INFO(spdlog::get("root"), "Reference: Finished run in {} secs.",
                          stopwatch);
+      kamping::measurements::timer().stop();
     }
 
     // actual benchmark runs
