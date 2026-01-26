@@ -6,6 +6,7 @@
 #include <mpi.h>
 
 #include <fmt/ranges.h>
+#include <kamping/collectives/allreduce.hpp>
 #include <kamping/mpi_datatype.hpp>
 #include <spdlog/spdlog.h>
 
@@ -20,10 +21,19 @@ struct Entry {
   idx_t parent;
 };
 
+namespace rma::sync_mode {
+struct passive_target_t {};
+struct fenced_t {};
+static constexpr passive_target_t passive_target{};
+static constexpr fenced_t fenced{};
+}  // namespace rma::sync_mode
+
+namespace {
 void rma_pointer_doubling(std::span<const idx_t> succ_array,
                           std::span<idx_t> rank_array,
                           std::span<idx_t> root_array,
-                          kamping::Communicator<> const& comm) {
+                          kamping::Communicator<> const& comm,
+                          rma::sync_mode::passive_target_t /*tag*/) {
   Distribution dist(succ_array.size(), comm);
   std::vector<Entry> data_array(succ_array.size());
   auto ranks =
@@ -96,4 +106,103 @@ void rma_pointer_doubling(std::span<const idx_t> succ_array,
   std::ranges::copy(ranks, rank_array.begin());
   std::ranges::copy(parents, root_array.begin());
 }
+
+void rma_pointer_doubling(std::span<const idx_t> succ_array,
+                          std::span<idx_t> rank_array,
+                          std::span<idx_t> root_array,
+                          kamping::Communicator<> const& comm,
+                          rma::sync_mode::fenced_t /*tag*/) {
+  Distribution dist(succ_array.size(), comm);
+  std::vector<Entry> data_array(succ_array.size());
+  auto ranks =
+      data_array | std::views::transform([](auto& entry) -> auto& { return entry.rank; });
+  auto parents = data_array |
+                 std::views::transform([](auto& entry) -> auto& { return entry.parent; });
+  std::ranges::copy(succ_array, std::ranges::begin(parents));
+  std::ranges::fill(ranks, 1);
+
+  for (std::size_t local_idx = 0; local_idx < succ_array.size(); local_idx++) {
+    idx_t global_idx = dist.get_global_idx(local_idx, comm.rank());
+    auto& entry = data_array[local_idx];
+    if (entry.parent == global_idx) {
+      entry.rank = 0;
+    }
+  }
+  MPI_Win win = MPI_WIN_NULL;
+  MPI_Info info = MPI_INFO_NULL;
+  MPI_Info_create(&info);
+  // MPI_Info_set(info, "accumulate_ops", "same_op_no_op");
+  // auto granularity = std::to_string(sizeof(Entry));
+  // MPI_Info_set(info, "mpi_accumulate_granularity", granularity.c_str());
+  MPI_Info_set(info, "same_disp_unit", "true");
+  MPI_Info_set(info, "mpi_assert_memory_alloc_kinds", "system");
+  MPI_Win_create(data_array.data(),
+                 std::ranges::ssize(data_array) * static_cast<MPI_Aint>(sizeof(Entry)),
+                 sizeof(Entry), info, comm.mpi_communicator(), &win);
+  MPI_Info_free(&info);
+  std::vector<bool> has_converged(succ_array.size(), false);
+  std::size_t converged_indices = 0;
+  std::vector<Entry> buffer(succ_array.size());
+
+  while (true) {
+    bool has_locally_converged = converged_indices == has_converged.size();
+    bool has_globally_converged = has_locally_converged;
+    comm.allreduce(kamping::send_recv_buf(has_globally_converged),
+                   kamping::op(std::logical_and<>{}));
+    if (has_globally_converged) {
+      break;
+    }
+    MPI_Win_fence(0, win);
+    // remote access epoch
+    for (std::size_t i = 0; i < succ_array.size(); i++) {
+      if (has_locally_converged) {
+        break;
+      }
+      if (has_converged[i]) {
+        continue;
+      }
+      auto& entry_i = data_array[i];
+      auto parent_rank = dist.get_owner(entry_i.parent);
+      auto parent_offset = dist.get_local_idx(entry_i.parent, parent_rank);
+      if (parent_rank == comm.rank()) {
+        buffer[i] = data_array[parent_offset];
+      } else {
+        MPI_Get(&buffer[i], 1, kamping::mpi_datatype<Entry>(),
+                static_cast<int>(parent_rank), static_cast<MPI_Aint>(parent_offset), 1,
+                kamping::mpi_datatype<Entry>(), win);
+      }
+    }
+    MPI_Win_fence(0, win);
+    // local epoch
+    for (std::size_t i = 0; i < succ_array.size(); i++) {
+      if (has_locally_converged) {
+        break;
+      }
+      if (has_converged[i]) {
+        continue;
+      }
+      if (buffer[i].rank == 0) {
+        has_converged[i] = true;
+        converged_indices++;
+      }
+      auto& entry_i = data_array[i];
+      entry_i.rank += buffer[i].rank;
+      entry_i.parent = buffer[i].parent;
+    }
+  }
+  MPI_Win_fence(0, win);
+
+  MPI_Win_free(&win);
+  std::ranges::copy(ranks, rank_array.begin());
+  std::ranges::copy(parents, root_array.begin());
+}
+}  // namespace
+
+void rma_pointer_doubling(std::span<const idx_t> succ_array,
+                          std::span<idx_t> rank_array,
+                          std::span<idx_t> root_array,
+                          kamping::Communicator<> const& comm) {
+  rma_pointer_doubling(succ_array, rank_array, root_array, comm,
+                       rma::sync_mode::passive_target);
+};
 }  // namespace kascade
