@@ -53,7 +53,8 @@ void rma_pointer_doubling(std::span<const idx_t> succ_array,
                  sizeof(Entry), info, comm.mpi_communicator(), &win);
   MPI_Info_free(&info);
   std::vector<bool> converged(data_array.size(), false);
-  while (!std::ranges::all_of(converged, std::identity{})) {
+  std::size_t converged_indices = 0;
+  while (converged_indices != converged.size()) {
     for (std::size_t i = 0; i < succ_array.size(); i++) {
       if (converged[i]) {
         continue;
@@ -77,6 +78,7 @@ void rma_pointer_doubling(std::span<const idx_t> succ_array,
       MPI_Win_unlock(static_cast<int>(parent_rank), win);
       if (parent_entry.rank == 0) {
         converged[i] = true;
+        converged_indices++;
         continue;
       }
 
