@@ -155,7 +155,7 @@ void rma_pointer_doubling(RMAPointerChasingConfig const& /* config */,
     if (has_globally_converged) {
       break;
     }
-    MPI_Win_fence(0, win);
+    MPI_Win_fence(MPI_MODE_NOPRECEDE | MPI_MODE_NOPUT, win);
     // remote access epoch
     for (std::size_t i = 0; i < succ_array.size(); i++) {
       if (has_locally_converged) {
@@ -175,7 +175,7 @@ void rma_pointer_doubling(RMAPointerChasingConfig const& /* config */,
                 kamping::mpi_datatype<Entry>(), win);
       }
     }
-    MPI_Win_fence(0, win);
+    MPI_Win_fence(MPI_MODE_NOSTORE | MPI_MODE_NOPUT | MPI_MODE_NOSUCCEED, win);
     // local epoch
     for (std::size_t i = 0; i < succ_array.size(); i++) {
       if (has_locally_converged) {
@@ -193,7 +193,7 @@ void rma_pointer_doubling(RMAPointerChasingConfig const& /* config */,
       entry_i.parent = buffer[i].parent;
     }
   }
-  MPI_Win_fence(0, win);
+  MPI_Win_fence(MPI_MODE_NOPRECEDE | MPI_MODE_NOPUT | MPI_MODE_NOSUCCEED, win);
 
   MPI_Win_free(&win);
   std::ranges::copy(ranks, rank_array.begin());
