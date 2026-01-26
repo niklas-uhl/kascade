@@ -57,6 +57,10 @@ void rma_pointer_doubling(RMAPointerChasingConfig const& /* config */,
   MPI_Info_create(&info);
   MPI_Info_set(info, "accumulate_ops", "same_op_no_op");
   auto granularity = std::to_string(sizeof(Entry));
+  // according to MPI standard, accumulate_ordering only refers to operations from the
+  // same rank to the same target location. Since we only access one location per epoch,
+  // we can set it to none (hopefully improving performance)
+  MPI_Info_set(info, "accumulate_ordering", "none");
   MPI_Info_set(info, "mpi_accumulate_granularity", granularity.c_str());
   MPI_Info_set(info, "same_disp_unit", "true");
   MPI_Info_set(info, "mpi_assert_memory_alloc_kinds", "system");
@@ -134,11 +138,9 @@ void rma_pointer_doubling(RMAPointerChasingConfig const& /* config */,
   MPI_Win win = MPI_WIN_NULL;
   MPI_Info info = MPI_INFO_NULL;
   MPI_Info_create(&info);
-  // MPI_Info_set(info, "accumulate_ops", "same_op_no_op");
-  // auto granularity = std::to_string(sizeof(Entry));
-  // MPI_Info_set(info, "mpi_accumulate_granularity", granularity.c_str());
   MPI_Info_set(info, "same_disp_unit", "true");
   MPI_Info_set(info, "mpi_assert_memory_alloc_kinds", "system");
+  MPI_Info_set(info, "no_lock", "true");
   MPI_Win_create(data_array.data(),
                  std::ranges::ssize(data_array) * static_cast<MPI_Aint>(sizeof(Entry)),
                  sizeof(Entry), info, comm.mpi_communicator(), &win);
