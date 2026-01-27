@@ -30,7 +30,7 @@ static constexpr fenced_t fenced{};
 }  // namespace rma::sync_mode
 
 namespace {
-void rma_pointer_doubling(RMAPointerChasingConfig const& /* config */,
+void rma_pointer_doubling(RMAPointerChasingConfig const& config,
                           std::span<const idx_t> succ_array,
                           std::span<idx_t> rank_array,
                           std::span<idx_t> root_array,
@@ -70,40 +70,63 @@ void rma_pointer_doubling(RMAPointerChasingConfig const& /* config */,
   MPI_Info_free(&info);
   std::vector<bool> converged(data_array.size(), false);
   std::size_t converged_indices = 0;
+
+  auto batch_size = std::min(config.batch_size, succ_array.size());
+  SPDLOG_LOGGER_INFO(spdlog::get("root"),
+                     "passive target RMA pointer doubling, batch_size={}", batch_size);
+  auto indices = std::views::iota(std::size_t{0}, succ_array.size());
+  auto batches = indices | std::views::chunk(batch_size);
+  std::vector<Entry> buffer(batch_size);
   while (converged_indices != converged.size()) {
-    for (std::size_t i = 0; i < succ_array.size(); i++) {
-      if (converged[i]) {
-        continue;
+    SPDLOG_TRACE("converged={}/{}", converged_indices, succ_array.size());
+    for (auto batch : batches) {
+      // fetch parent entries
+      MPI_Win_lock_all(MPI_MODE_NOCHECK, win);
+      for (auto [idx, buffer] : std::views::zip(batch, buffer)) {
+        if (converged[idx]) {
+          continue;
+        }
+        auto& entry_i = data_array[idx];
+        auto parent_rank = dist.get_owner(entry_i.parent);
+        auto parent_offset = dist.get_local_idx(entry_i.parent, parent_rank);
+        if (parent_rank == comm.rank()) {
+          // we can read locally via load, since nobody we only update our local array by
+          // ourselves
+          buffer = data_array[parent_offset];
+          continue;
+        }
+        // this get might happen concurrently with a local store on the target rank, so we
+        // have to use an atomic operation
+        MPI_Get_accumulate(nullptr, 0, MPI_DATATYPE_NULL, &buffer, 1,
+                           kamping::mpi_datatype<Entry>(), static_cast<int>(parent_rank),
+                           static_cast<MPI_Aint>(parent_offset), 1,
+                           kamping::mpi_datatype<Entry>(), MPI_NO_OP, win);
       }
-      MPI_Win_lock(MPI_LOCK_SHARED, comm.rank_signed(), MPI_MODE_NOCHECK, win);
-      Entry entry_i{};
-      MPI_Get_accumulate(nullptr, 0, MPI_DATATYPE_NULL, &entry_i, 1,
-                         kamping::mpi_datatype<Entry>(), comm.rank_signed(),
-                         static_cast<MPI_Aint>(i), 1, kamping::mpi_datatype<Entry>(),
-                         MPI_NO_OP, win);
-      MPI_Win_unlock(comm.rank_signed(), win);
-
-      auto parent_rank = dist.get_owner(entry_i.parent);
-      auto parent_offset = dist.get_local_idx(entry_i.parent, parent_rank);
-      MPI_Win_lock(MPI_LOCK_SHARED, static_cast<int>(parent_rank), MPI_MODE_NOCHECK, win);
-      Entry parent_entry{};
-      MPI_Get_accumulate(nullptr, 0, MPI_DATATYPE_NULL, &parent_entry, 1,
-                         kamping::mpi_datatype<Entry>(), static_cast<int>(parent_rank),
-                         static_cast<MPI_Aint>(parent_offset), 1,
-                         kamping::mpi_datatype<Entry>(), MPI_NO_OP, win);
-      MPI_Win_unlock(static_cast<int>(parent_rank), win);
-      if (parent_entry.rank == 0) {
-        converged[i] = true;
-        converged_indices++;
-        continue;
+      MPI_Win_unlock_all(win);
+      // update local entries
+      for (auto [idx, buffer_entry] : std::views::zip(batch, buffer)) {
+        if (converged[idx]) {
+          // already converged, copy the old value back
+          buffer_entry = data_array[idx];
+          continue;
+        }
+        if (buffer_entry.rank == 0) {
+          converged[idx] = true;
+          converged_indices++;
+          // copy the old value back
+          buffer_entry = data_array[idx];
+          continue;
+        }
+        buffer_entry.rank += data_array[idx].rank;
+        // buffer_entry.parent = buffer_entry.parent // NOOP, already set
       }
-
-      entry_i.rank += parent_entry.rank;
-      entry_i.parent = parent_entry.parent;
+      // write back updated entries batched
       MPI_Win_lock(MPI_LOCK_SHARED, comm.rank_signed(), MPI_MODE_NOCHECK, win);
-      MPI_Accumulate(&entry_i, 1, kamping::mpi_datatype<Entry>(), comm.rank_signed(),
-                     static_cast<MPI_Aint>(i), 1, kamping::mpi_datatype<Entry>(),
-                     MPI_REPLACE, win);
+      MPI_Accumulate(buffer.data(), static_cast<int>(std::ranges::size(batch)),
+                     kamping::mpi_datatype<Entry>(), comm.rank_signed(),
+                     static_cast<MPI_Aint>(batch.front()),
+                     static_cast<int>(std::ranges::size(batch)),
+                     kamping::mpi_datatype<Entry>(), MPI_REPLACE, win);
       MPI_Win_unlock(comm.rank_signed(), win);
     }
   }
@@ -157,6 +180,7 @@ void rma_pointer_doubling(RMAPointerChasingConfig const& /* config */,
     if (has_globally_converged) {
       break;
     }
+    SPDLOG_TRACE("converged={}/{}", converged_indices, succ_array.size());
     MPI_Win_fence(MPI_MODE_NOPRECEDE | MPI_MODE_NOPUT, win);
     // remote access epoch
     for (std::size_t i = 0; i < succ_array.size(); i++) {

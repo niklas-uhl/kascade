@@ -1,5 +1,6 @@
 #include "parsing.hpp"
 
+#include <charconv>
 #include <cstdlib>
 
 #include <CLI/CLI.hpp>
@@ -31,6 +32,21 @@ auto lexical_cast(const std::string& input, InputProcessing& processing) -> bool
 }  // namespace input
 }  // namespace kascade
 
+namespace {
+namespace {
+template <std::integral T>
+auto parse_integral_or_inf(std::string_view input, T& out) -> bool {
+  if (input == "inf" || input == "INF") {
+    out = std::numeric_limits<T>::max();
+    return true;
+  }
+
+  auto [ptr, ec] = std::from_chars(input.begin(), input.end(), out);
+  return ec == std::errc{} && ptr == input.end();
+}
+}  // namespace
+}  // namespace
+
 auto parse_args(std::span<char*> args) -> Config {
   Config config;
   CLI::App app;
@@ -48,6 +64,15 @@ auto parse_args(std::span<char*> args) -> Config {
                config.async_pointer_chasing.use_caching);
   // RMA poiner doubling
   app.add_option("--rma-pointer-chasing-sync-mode", config.rma_pointer_chasing.sync_mode);
+  app.add_option_function<std::string>(
+      "--rma-pointer-chasing-batch-size", [&](const std::string& value) {
+        std::size_t parsed{};
+        if (!parse_integral_or_inf(value, parsed)) {
+          throw CLI::ValidationError("--rma-pointer-chasing-batch-size",
+                                     "Expected a non-negative integer or 'inf'");
+        }
+        config.rma_pointer_chasing.batch_size = parsed;
+      });
 
   try {
     app.parse(static_cast<int>(args.size()), args.data());

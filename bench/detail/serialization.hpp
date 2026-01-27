@@ -30,7 +30,7 @@ NLOHMANN_JSON_SERIALIZE_ENUM(RMASyncMode,
                              {{RMASyncMode::invalid, nullptr},
                               {RMASyncMode::fenced, "fenced"},
                               {RMASyncMode::passive_target, "passive_target"}});
-NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(RMAPointerChasingConfig, sync_mode);
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(RMAPointerChasingConfig, sync_mode, batch_size);
 }  // namespace kascade
 
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Config,
