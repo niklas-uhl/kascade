@@ -2,11 +2,17 @@
 
 #include <kascade/list_ranking.hpp>
 
+#include <absl/container/flat_hash_map.h>
+#include <absl/container/flat_hash_set.h>
+#include <kamping/collectives/allreduce.hpp>
+#include <kamping/collectives/alltoall.hpp>
 #include <kamping/collectives/gather.hpp>
 #include <kamping/collectives/scatter.hpp>
+#include <kamping/communicator.hpp>
 #include <kamping/measurements/timer.hpp>
-#include <kamping/named_parameters.hpp>
+#include <kamping/utils/flatten.hpp>
 
+#include "kascade/distribution.hpp"
 #include "kascade/types.hpp"
 
 namespace kascade {
@@ -32,7 +38,7 @@ void local_pointer_chasing(std::span<const idx_t> succ_array,
     }
     has_pred[succ_array[idx]] = true;
   }
-  auto leaves = std::views::iota(std::size_t {0}, succ_array.size()) |
+  auto leaves = std::views::iota(std::size_t{0}, succ_array.size()) |
                 std::views::filter([&](auto idx) { return !has_pred[idx]; });
 
   std::vector<idx_t> path;
@@ -85,5 +91,40 @@ void rank_on_root(std::span<const idx_t> succ_array,
   kamping::measurements::timer().stop();
 }
 
+/// Check if the given successor array represents a list (no node has more than one
+/// predecessor)
+auto is_list(std::span<const idx_t> succ_array, kamping::Communicator<> const& comm)
+    -> bool {
+  Distribution dist{succ_array.size(), comm};
+  absl::flat_hash_map<int, std::vector<idx_t>> requests;
+  auto indices = std::views::iota(idx_t{0}, static_cast<idx_t>(succ_array.size())) |
+                 std::views::transform([&](auto local_idx) {
+                   return dist.get_global_idx(local_idx, comm.rank());
+                 });
+  for (auto [idx, succ] : std::views::zip(indices, succ_array)) {
+    if (succ == idx) {
+      continue;
+    }
+    auto owner = dist.get_owner_signed(succ);
+    requests[owner].push_back(succ);
+  }
+  auto [send_buf, send_counts, send_displs] = kamping::flatten(requests, comm.size());
+  requests.clear();
+  auto recv_buf =
+      comm.alltoallv(kamping::send_buf(send_buf), kamping::send_counts(send_counts),
+                     kamping::send_displs(send_displs));
+  // if we receive a duplicate request, it's not a list
+  absl::flat_hash_set<idx_t> received;
+  bool duplicate_found = false;
+  for (auto succ : recv_buf) {
+    if (!received.insert(succ).second) {
+      duplicate_found = true;
+      break;
+    }
+  }
+  bool is_list = !duplicate_found;
+  comm.allreduce(kamping::send_recv_buf(is_list), kamping::op(std::logical_and{}));
+  return is_list;
+}
 
 }  // namespace kascade

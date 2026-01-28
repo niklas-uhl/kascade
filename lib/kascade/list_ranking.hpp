@@ -19,4 +19,7 @@ void rank_on_root(std::span<const idx_t> succ_array,
                   std::span<idx_t> root_array,
                   kamping::Communicator<> const& comm);
 
+auto is_list(std::span<const idx_t> succ_array, kamping::Communicator<> const& comm)
+    -> bool;
+
 }  // namespace kascade

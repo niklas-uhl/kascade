@@ -10,6 +10,7 @@
 #include "detail/reporting.hpp"
 #include "detail/serialization.hpp"  // IWYU pragma: keep
 #include "detail/verification.hpp"
+#include "kascade/list_ranking.hpp"
 #include "spdlog/stopwatch.h"
 
 auto main(int argc, char* argv[]) -> int {
@@ -31,6 +32,10 @@ auto main(int argc, char* argv[]) -> int {
     spdlog::stopwatch stopwatch;
     auto reference_impl = GatherRank(comm);
     if (config.verify_level > 0) {
+      kamping::measurements::timer().synchronize_and_start("list_check");
+      bool is_list = kascade::is_list(succ, comm);
+      SPDLOG_LOGGER_INFO(spdlog::get("root"), "Input is list? {}", is_list);
+      kamping::measurements::timer().stop();
       kamping::measurements::timer().synchronize_and_start("reference_run");
       reference_impl.ingest(succ);
       reference_impl.run();
