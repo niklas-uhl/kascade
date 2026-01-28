@@ -11,6 +11,7 @@ target_sources(
   async_pointer_doubling.cpp
   rma_pointer_doubling.cpp
   grid_communicator.cpp
+  sparse_ruling_set.cpp
   PUBLIC FILE_SET
          HEADERS
          BASE_DIRS
@@ -21,7 +22,8 @@ target_sources(
 	 successor_utils.hpp
          pointer_doubling.hpp
 	 configuration.hpp
-         types.hpp)
+         types.hpp
+       )
 target_link_libraries(
   ${CMAKE_PROJECT_NAME}_list_ranking
   PUBLIC
