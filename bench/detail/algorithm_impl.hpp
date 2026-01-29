@@ -42,7 +42,9 @@ class PointerDoubling : public AlgorithmBase {
 public:
   PointerDoubling(kamping::Communicator<> const& comm) : AlgorithmBase(comm) {}
   void run() override {
-    kascade::pointer_doubling(succ_array_, rank_array_, root_array_, *comm_);
+    auto dist =
+        kascade::set_initial_ranking_state(succ_array_, root_array_, rank_array_, *comm_);
+    kascade::pointer_doubling(root_array_, rank_array_, dist, *comm_);
   }
 };
 

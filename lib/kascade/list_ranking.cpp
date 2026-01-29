@@ -127,4 +127,26 @@ auto is_list(std::span<const idx_t> succ_array, kamping::Communicator<> const& c
   return is_list;
 }
 
+auto set_initial_ranking_state(std::span<const idx_t> succ_array,
+                std::span<idx_t> root_array,
+                std::span<idx_t> rank_array,
+                kamping::Communicator<> const& comm) -> Distribution {
+  KASSERT(root_array.size() == succ_array.size());
+  KASSERT(rank_array.size() == succ_array.size());
+  Distribution dist{succ_array.size(), comm};
+  std::ranges::copy(succ_array, root_array.begin());
+  std::ranges::fill(rank_array, 1);
+  auto global_indices =
+      std::views::iota(idx_t{0}, static_cast<idx_t>(succ_array.size())) |
+      std::views::transform(
+          [&](auto local_idx) { return dist.get_global_idx(local_idx, comm.rank()); });
+  for (auto [idx, root, rank] : std::views::zip(global_indices, root_array, rank_array)) {
+    if (idx == root) {
+      rank = 0;
+    }
+  }
+
+  return dist;
+}
+
 }  // namespace kascade
