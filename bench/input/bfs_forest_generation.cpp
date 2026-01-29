@@ -32,6 +32,20 @@ auto get_next_global_start(std::size_t local_start,
 
   return comm.allreduce_single(kmp::send_buf(global_idx), kmp::op(kamping::ops::min<>{}));
 }
+
+/// @brief Mark isolated vertices as roots/visited to prevent global termination checks on
+/// them
+void handle_isolated_vertices(std::vector<bool>& visited,
+                              std::vector<kascade::idx_t>& parent_array,
+                              kacc::DistributedCSRGraph const& graph) {
+  for (std::size_t i = 0; i < graph.num_local_vertices(); ++i) {
+    auto global_id = graph.to_global(i);
+    if (graph.neighbors(global_id).empty()) {
+      visited[i] = true;
+      parent_array[i] = static_cast<kascade::idx_t>(global_id);
+    }
+  }
+}
 }  // namespace
 //
 namespace kascade::input::internal {
@@ -42,6 +56,8 @@ auto generate_bfs_tree(kagen::Graph const& kagen_graph,
 
   kacc::DistributedCSRGraph graph(kagen_graph, comm);
   std::vector<kascade::idx_t> parent_array(graph.num_local_vertices());
+  handle_isolated_vertices(visited, parent_array, graph);
+
   std::size_t next_local_unvisited = 0;
   while (true) {
     std::size_t next_global_start =
