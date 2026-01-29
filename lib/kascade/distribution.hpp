@@ -51,6 +51,10 @@ public:
     return idx + static_cast<idx_t>(inclusive_prefix_sum_[rank] - counts_[rank]);
   }
 
+  [[nodiscard]] auto get_global_size() const -> std::size_t {
+    return counts_.back() + inclusive_prefix_sum_.back();
+  }
+
 private:
   std::vector<std::size_t> counts_;
   std::vector<std::size_t> inclusive_prefix_sum_;

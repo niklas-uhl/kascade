@@ -4,6 +4,7 @@
 #include <nlohmann/json.hpp>
 
 #include "benchmark_config.hpp"
+#include "detail/stats.hpp"
 #include "input/generation.hpp"
 #include "kascade/configuration.hpp"
 
@@ -32,6 +33,8 @@ NLOHMANN_JSON_SERIALIZE_ENUM(RMASyncMode,
                               {RMASyncMode::passive_target, "passive_target"}});
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(RMAPointerChasingConfig, sync_mode, batch_size);
 }  // namespace kascade
+
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_ONLY_SERIALIZE(Stats, num_roots, max_rank, avg_rank)
 
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Config,
                                    num_ranks,

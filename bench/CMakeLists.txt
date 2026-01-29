@@ -34,8 +34,8 @@ FetchContent_Declare(
   GIT_SHALLOW ON
   PATCH_COMMAND
     patch -p1 --forward <
-    ${PROJECT_SOURCE_DIR}/cmake/patches/macos_no_define_xopen_source.patch || true
-    EXCLUDE_FROM_ALL SYSTEM)
+    ${PROJECT_SOURCE_DIR}/cmake/patches/macos_no_define_xopen_source.patch ||
+    true EXCLUDE_FROM_ALL SYSTEM)
 
 FetchContent_MakeAvailable(nlohmann_json cli11 kamping-spdlog-adapter
                            kamping-nlohmann-json-adapter absl)
@@ -47,7 +47,7 @@ add_executable(kascade)
 target_sources(
   kascade
   PRIVATE runner.cpp detail/parsing.cpp detail/algorithm_factory.cpp
-          detail/reporting.cpp detail/verification.cpp
+          detail/reporting.cpp detail/verification.cpp detail/stats.cpp
   PRIVATE FILE_SET
           HEADERS
           BASE_DIRS
@@ -61,6 +61,7 @@ target_sources(
           detail/algorithm.hpp
           detail/algorithm_factory.hpp
           detail/algorithm_impl.hpp
+          detail/stats.hpp
           detail/reporting.hpp)
 
 target_link_libraries(

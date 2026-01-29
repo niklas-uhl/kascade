@@ -61,6 +61,9 @@ auto main(int argc, char* argv[]) -> int {
 
       verify(succ, reference_impl, *algo, config.verify_level,
              config.verify_continue_on_mismatch, comm);
+      report.push_stats("input_stats", [&]() {
+        return Stats{algo->get_root_array(), algo->get_rank_array(), comm};
+      });
       report.step_iteration();
     }
 
