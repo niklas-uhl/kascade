@@ -31,27 +31,19 @@ static constexpr fenced_t fenced{};
 
 namespace {
 void rma_pointer_doubling(RMAPointerChasingConfig const& config,
-                          std::span<const idx_t> succ_array,
+                          std::span<idx_t> succ_array,
                           std::span<idx_t> rank_array,
-                          std::span<idx_t> root_array,
+                          Distribution const& dist,
                           kamping::Communicator<> const& comm,
                           rma::sync_mode::passive_target_t /* tag */) {
-  Distribution dist(succ_array.size(), comm);
   std::vector<Entry> data_array(succ_array.size());
   auto ranks =
       data_array | std::views::transform([](auto& entry) -> auto& { return entry.rank; });
   auto parents = data_array |
                  std::views::transform([](auto& entry) -> auto& { return entry.parent; });
   std::ranges::copy(succ_array, std::ranges::begin(parents));
-  std::ranges::fill(ranks, 1);
+  std::ranges::copy(rank_array, std::ranges::begin(ranks));
 
-  for (std::size_t local_idx = 0; local_idx < succ_array.size(); local_idx++) {
-    idx_t global_idx = dist.get_global_idx(local_idx, comm.rank());
-    auto& entry = data_array[local_idx];
-    if (entry.parent == global_idx) {
-      entry.rank = 0;
-    }
-  }
   MPI_Win win = MPI_WIN_NULL;
   MPI_Info info = MPI_INFO_NULL;
   MPI_Info_create(&info);
@@ -70,15 +62,22 @@ void rma_pointer_doubling(RMAPointerChasingConfig const& config,
   MPI_Info_free(&info);
   std::vector<bool> converged(data_array.size(), false);
   std::size_t converged_indices = 0;
+  for (std::size_t local_idx = 0; local_idx < data_array.size(); local_idx++) {
+    if (data_array[local_idx].parent == dist.get_global_idx(local_idx, comm.rank())) {
+      KASSERT(data_array[local_idx].rank == 0);
+      converged[local_idx] = true;
+      converged_indices++;
+    }
+  }
 
-  auto batch_size = std::min(config.batch_size, succ_array.size());
+  auto batch_size = std::min(config.batch_size, data_array.size());
   SPDLOG_LOGGER_INFO(spdlog::get("root"),
                      "passive target RMA pointer doubling, batch_size={}", batch_size);
-  auto indices = std::views::iota(std::size_t{0}, succ_array.size());
+  auto indices = std::views::iota(std::size_t{0}, data_array.size());
   auto batches = indices | std::views::chunk(batch_size);
   std::vector<Entry> buffer(batch_size);
   while (converged_indices != converged.size()) {
-    SPDLOG_TRACE("converged={}/{}", converged_indices, succ_array.size());
+    SPDLOG_TRACE("converged={}/{}", converged_indices, converged.size());
     for (auto batch : batches) {
       // fetch parent entries
       MPI_Win_lock_all(MPI_MODE_NOCHECK, win);
@@ -133,31 +132,23 @@ void rma_pointer_doubling(RMAPointerChasingConfig const& config,
 
   MPI_Win_free(&win);
   std::ranges::copy(ranks, rank_array.begin());
-  std::ranges::copy(parents, root_array.begin());
+  std::ranges::copy(parents, succ_array.begin());
 }
 
 void rma_pointer_doubling(RMAPointerChasingConfig const& /* config */,
-                          std::span<const idx_t> succ_array,
+                          std::span<idx_t> succ_array,
                           std::span<idx_t> rank_array,
-                          std::span<idx_t> root_array,
+                          Distribution const& dist,
                           kamping::Communicator<> const& comm,
                           rma::sync_mode::fenced_t /* tag */) {
-  Distribution dist(succ_array.size(), comm);
   std::vector<Entry> data_array(succ_array.size());
   auto ranks =
       data_array | std::views::transform([](auto& entry) -> auto& { return entry.rank; });
   auto parents = data_array |
                  std::views::transform([](auto& entry) -> auto& { return entry.parent; });
   std::ranges::copy(succ_array, std::ranges::begin(parents));
-  std::ranges::fill(ranks, 1);
+  std::ranges::copy(rank_array, std::ranges::begin(ranks));
 
-  for (std::size_t local_idx = 0; local_idx < succ_array.size(); local_idx++) {
-    idx_t global_idx = dist.get_global_idx(local_idx, comm.rank());
-    auto& entry = data_array[local_idx];
-    if (entry.parent == global_idx) {
-      entry.rank = 0;
-    }
-  }
   MPI_Win win = MPI_WIN_NULL;
   MPI_Info info = MPI_INFO_NULL;
   MPI_Info_create(&info);
@@ -170,8 +161,15 @@ void rma_pointer_doubling(RMAPointerChasingConfig const& /* config */,
   MPI_Info_free(&info);
   std::vector<bool> has_converged(succ_array.size(), false);
   std::size_t converged_indices = 0;
-  std::vector<Entry> buffer(succ_array.size());
+  for (std::size_t local_idx = 0; local_idx < succ_array.size(); local_idx++) {
+    if (data_array[local_idx].parent == dist.get_global_idx(local_idx, comm.rank())) {
+      KASSERT(data_array[local_idx].rank == 0);
+      has_converged[local_idx] = true;
+      converged_indices++;
+    }
+  }
 
+  std::vector<Entry> buffer(succ_array.size());
   while (true) {
     bool has_locally_converged = converged_indices == has_converged.size();
     bool has_globally_converged = has_locally_converged;
@@ -223,22 +221,22 @@ void rma_pointer_doubling(RMAPointerChasingConfig const& /* config */,
 
   MPI_Win_free(&win);
   std::ranges::copy(ranks, rank_array.begin());
-  std::ranges::copy(parents, root_array.begin());
+  std::ranges::copy(parents, succ_array.begin());
 }
 }  // namespace
 
 void rma_pointer_doubling(RMAPointerChasingConfig const& config,
-                          std::span<const idx_t> succ_array,
+                          std::span<idx_t> succ_array,
                           std::span<idx_t> rank_array,
-                          std::span<idx_t> root_array,
+                          Distribution const& dist,
                           kamping::Communicator<> const& comm) {
   switch (config.sync_mode) {
     case RMASyncMode::fenced:
-      rma_pointer_doubling(config, succ_array, rank_array, root_array, comm,
+      rma_pointer_doubling(config, succ_array, rank_array, dist, comm,
                            rma::sync_mode::fenced);
       break;
     case RMASyncMode::passive_target:
-      rma_pointer_doubling(config, succ_array, rank_array, root_array, comm,
+      rma_pointer_doubling(config, succ_array, rank_array, dist, comm,
                            rma::sync_mode::passive_target);
       break;
     case RMASyncMode::invalid:

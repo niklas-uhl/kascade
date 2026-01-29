@@ -34,9 +34,9 @@ void async_pointer_doubling(AsyncPointerChasingConfig const& config,
 /// @param[inout] rank_array Array of ranks; initialize with distance to successor (0 for
 /// roots, > 1 otherwise). Upon completion, contains distance to the root.
 void rma_pointer_doubling(RMAPointerChasingConfig const& config,
-                          std::span<const idx_t> succ_array,
+                          std::span<idx_t> succ_array,
                           std::span<idx_t> rank_array,
-                          std::span<idx_t> root_array,
+                          Distribution const& dist,
                           kamping::Communicator<> const& comm);
 
 }  // namespace kascade
