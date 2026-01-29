@@ -89,23 +89,19 @@ auto do_doubling_step(std::span<kascade::idx_t> rank_array,
 }
 }  // namespace
 
-void kascade::pointer_doubling(std::span<const idx_t> succ_array,
+void kascade::pointer_doubling(std::span<idx_t> succ_array,
                                std::span<idx_t> rank_array,
-                               std::span<idx_t> root_array,
+                               Distribution const& dist,
                                kamping::Communicator<> const& comm) {
   kamping::measurements::timer().synchronize_and_start("pointer_doubling_alltoall");
-  Distribution dist(succ_array.size(), comm);
 
-  // initialize rank and root array
-  std::ranges::copy(succ_array, root_array.begin());
-  std::ranges::fill(rank_array, 1);
   std::vector<idx_t> local_req_storage;
   local_req_storage.reserve(succ_array.size());
   for (std::size_t i = 0; i < succ_array.size(); ++i) {
     idx_t global_idx = dist.get_global_idx(i, comm.rank());
     if (succ_array[i] == global_idx) {
-      root_array[i] = set_root_flag(global_idx);
-      rank_array[i] = 0;
+      KASSERT(rank_array[i] == 0);
+      succ_array[i] = set_root_flag(global_idx);
     } else {
       local_req_storage.emplace_back(i);
     }
@@ -114,11 +110,11 @@ void kascade::pointer_doubling(std::span<const idx_t> succ_array,
   // do pointer doubling
   std::span<idx_t> local_req_idxs = local_req_storage;
   while (!is_finished(local_req_idxs.size(), comm)) {
-    local_req_idxs = do_doubling_step(rank_array, root_array, local_req_idxs, dist, comm);
+    local_req_idxs = do_doubling_step(rank_array, succ_array, local_req_idxs, dist, comm);
   }
 
   // clear result
-  std::ranges::transform(root_array, root_array.begin(),
+  std::ranges::transform(succ_array, succ_array.begin(),
                          [](idx_t elem) { return clear_root_flag(elem); });
   kamping::measurements::timer().stop();
 }
