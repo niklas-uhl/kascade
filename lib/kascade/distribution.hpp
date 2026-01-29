@@ -52,7 +52,7 @@ public:
   }
 
   [[nodiscard]] auto get_global_size() const -> std::size_t {
-    return counts_.back() + inclusive_prefix_sum_.back();
+    return inclusive_prefix_sum_.back();
   }
 
 private:

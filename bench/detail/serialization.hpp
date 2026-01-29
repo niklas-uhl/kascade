@@ -15,6 +15,12 @@ NLOHMANN_JSON_SERIALIZE_ENUM(Algorithm,
                               {Algorithm::AsyncPointerDoubling, "AsyncPointerDoubling"},
                               {Algorithm::RMAPointerDoubling, "RMAPointerDoubling"}})
 
+NLOHMANN_JSON_SERIALIZE_ENUM(StatsLevel,
+                             {{StatsLevel::invalid, nullptr},
+                              {StatsLevel::none, "none"},
+                              {StatsLevel::basic, "basic"},
+                              {StatsLevel::extensive, "extensive"}})
+
 namespace kascade::input {
 NLOHMANN_JSON_SERIALIZE_ENUM(InputProcessing,
                              {{InputProcessing::invalid, nullptr},
@@ -34,7 +40,12 @@ NLOHMANN_JSON_SERIALIZE_ENUM(RMASyncMode,
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(RMAPointerChasingConfig, sync_mode, batch_size);
 }  // namespace kascade
 
-NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_ONLY_SERIALIZE(Stats, num_roots, max_rank, avg_rank)
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_ONLY_SERIALIZE(TreeStats, size, max_rank, rank_sum);
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_ONLY_SERIALIZE(Stats,
+                                                  tree_stats,
+                                                  num_roots,
+                                                  max_rank,
+                                                  avg_rank)
 
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Config,
                                    num_ranks,
@@ -46,4 +57,5 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Config,
                                    async_pointer_chasing,
                                    rma_pointer_chasing,
                                    verify_level,
-                                   verify_continue_on_mismatch)
+                                   verify_continue_on_mismatch,
+                                   statistics_level)

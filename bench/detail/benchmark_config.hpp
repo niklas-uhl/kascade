@@ -6,6 +6,7 @@
 
 #include <kamping/communicator.hpp>
 
+#include "detail/stats.hpp"
 #include "git.h"
 #include "input/generation.hpp"
 #include "kascade/configuration.hpp"
@@ -33,4 +34,5 @@ struct Config {
   kascade::RMAPointerChasingConfig rma_pointer_chasing;
   std::size_t verify_level = 1;
   bool verify_continue_on_mismatch = false;
+  StatsLevel statistics_level = StatsLevel::none;
 };

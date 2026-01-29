@@ -16,6 +16,12 @@ auto lexical_cast(const std::string& input, Algorithm& algo) -> bool {
   return algo != Algorithm::invalid;
 }
 
+auto lexical_cast(const std::string& input, StatsLevel& stats_level) -> bool {
+  nlohmann::json input_json = input;
+  stats_level = input_json.template get<StatsLevel>();
+  return stats_level != StatsLevel::invalid;
+}
+
 namespace kascade {
 auto lexical_cast(const std::string& input, RMASyncMode& sync_mode) -> bool {
   nlohmann::json input_json = input;
@@ -58,6 +64,7 @@ auto parse_args(std::span<char*> args) -> Config {
   app.add_option("--algorithm", config.algorithm)->required();
   app.add_option("--verify-level", config.verify_level);
   app.add_flag("--verify-continue-on-mismatch", config.verify_continue_on_mismatch);
+  app.add_option("--statistics-level", config.statistics_level);
 
   // async pointer doubling
   app.add_flag("--async-pointer-chasing-use-caching",
