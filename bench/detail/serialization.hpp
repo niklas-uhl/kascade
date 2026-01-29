@@ -19,7 +19,9 @@ NLOHMANN_JSON_SERIALIZE_ENUM(StatsLevel,
                              {{StatsLevel::invalid, nullptr},
                               {StatsLevel::none, "none"},
                               {StatsLevel::basic, "basic"},
-                              {StatsLevel::extensive, "extensive"}})
+                              {StatsLevel::extensive, "extensive"},
+                              {StatsLevel::reduced_extensive,
+                               "extensive-reduced-output"}})
 
 namespace kascade::input {
 NLOHMANN_JSON_SERIALIZE_ENUM(InputProcessing,
@@ -41,11 +43,20 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(RMAPointerChasingConfig, sync_mode, batch_siz
 }  // namespace kascade
 
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_ONLY_SERIALIZE(TreeStats, size, max_rank, rank_sum);
-NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_ONLY_SERIALIZE(Stats,
-                                                  tree_stats,
-                                                  num_roots,
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_ONLY_SERIALIZE(BasicStats,
+                                                  num_trees,
                                                   max_rank,
                                                   avg_rank)
+
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_ONLY_SERIALIZE(ExtensiveStats,
+                                                  // num_trees,
+                                                  num_nontrivial_trees,
+                                                  // nontrivial_size_sum,
+                                                  avg_size,
+                                                  nontrivial_avg_size,
+                                                  per_tree_stats)
+
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_ONLY_SERIALIZE(Stats, basic_stats, extensive_stats)
 
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Config,
                                    num_ranks,
