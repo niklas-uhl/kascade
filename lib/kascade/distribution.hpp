@@ -31,6 +31,10 @@ public:
     return static_cast<int>(get_owner(idx));
   }
 
+  [[nodiscard]] auto counts() const -> std::vector<std::size_t> const& {
+    return counts_;
+  }
+
   [[nodiscard]] auto get_count(std::size_t rank) const -> std::size_t {
     return counts_[rank];
   }

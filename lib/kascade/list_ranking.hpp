@@ -16,9 +16,9 @@ void rank(std::span<const idx_t> succ_array,
           std::span<idx_t> root_array,
           kamping::Communicator<> const& comm);
 
-void rank_on_root(std::span<const idx_t> succ_array,
+void rank_on_root(std::span<idx_t> succ_array,
                   std::span<idx_t> rank_array,
-                  std::span<idx_t> root_array,
+                  Distribution const& dist,
                   kamping::Communicator<> const& comm);
 
 auto is_list(std::span<const idx_t> succ_array, kamping::Communicator<> const& comm)
@@ -37,8 +37,8 @@ auto is_list(std::span<const idx_t> succ_array, kamping::Communicator<> const& c
 /// @param comm The communicator.
 /// @return Distribution object describing the global-to-local index mapping across ranks.
 auto set_initial_ranking_state(std::span<const idx_t> succ_array,
-                std::span<idx_t> root_array,
-                std::span<idx_t> rank_array,
-                kamping::Communicator<> const& comm) -> Distribution;
+                               std::span<idx_t> root_array,
+                               std::span<idx_t> rank_array,
+                               kamping::Communicator<> const& comm) -> Distribution;
 
 }  // namespace kascade

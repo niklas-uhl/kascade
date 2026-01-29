@@ -34,7 +34,9 @@ class GatherRank : public AlgorithmBase {
 public:
   GatherRank(kamping::Communicator<> const& comm) : AlgorithmBase(comm) {}
   void run() override {
-    kascade::rank_on_root(succ_array_, rank_array_, root_array_, *comm_);
+    auto dist =
+        kascade::set_initial_ranking_state(succ_array_, root_array_, rank_array_, *comm_);
+    kascade::rank_on_root(root_array_, rank_array_, dist, *comm_);
   }
 };
 
