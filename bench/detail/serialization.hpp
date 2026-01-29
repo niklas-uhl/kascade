@@ -52,8 +52,10 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_ONLY_SERIALIZE(ExtensiveStats,
                                                   // num_trees,
                                                   num_nontrivial_trees,
                                                   // nontrivial_size_sum,
+                                                  max_size,
                                                   avg_size,
                                                   nontrivial_avg_size,
+                                                  nontrivial_avg_rank,
                                                   per_tree_stats)
 
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_ONLY_SERIALIZE(Stats, basic_stats, extensive_stats)
