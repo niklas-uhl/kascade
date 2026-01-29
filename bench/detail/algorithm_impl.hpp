@@ -54,8 +54,9 @@ public:
                        kamping::Communicator<> const& comm)
       : AlgorithmBase(comm), config_{config} {}
   void run() override {
-    kascade::async_pointer_doubling(config_, succ_array_, rank_array_, root_array_,
-                                    *comm_);
+    auto dist =
+        kascade::set_initial_ranking_state(succ_array_, root_array_, rank_array_, *comm_);
+    kascade::async_pointer_doubling(config_, root_array_, rank_array_, dist, *comm_);
   }
 
 private:

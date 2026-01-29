@@ -84,33 +84,29 @@ template <>
 struct fmt::formatter<Msg> : ostream_formatter {};
 namespace kascade {
 void async_pointer_doubling(AsyncPointerChasingConfig const& config,
-                            std::span<const idx_t> succ_array,
+                            std::span<idx_t> succ_array,
                             std::span<idx_t> rank_array,
-                            std::span<idx_t> root_array,
+                            Distribution const& dist,
                             kamping::Communicator<> const& comm) {
   auto queue =
       briefkasten::BufferedMessageQueueBuilder<Msg>(comm.mpi_communicator()).build();
-  Distribution dist(succ_array.size(), comm);
   absl::flat_hash_map<idx_t, std::pair<idx_t, idx_t>> cache;
 
-  // initialize rank and root array
-  std::ranges::copy(succ_array, root_array.begin());
-  std::ranges::fill(rank_array, 1);
   std::queue<SendEvent> event_queue;
   // update_requests.reserve(succ_array.size());
   for (std::size_t i = 0; i < succ_array.size(); ++i) {
     idx_t global_idx = dist.get_global_idx(i, comm.rank());
     if (succ_array[i] == global_idx) {
-      root_array[i] = set_root_flag(global_idx);
-      rank_array[i] = 0;
+      KASSERT(rank_array[i] == 0);
+      succ_array[i] = set_root_flag(global_idx);
     } else {
       event_queue.emplace(
-          SendEvent{.msg = Msg{.write_back_idx = i, .succ = root_array[i], .rank = 0}});
+          SendEvent{.msg = Msg{.write_back_idx = i, .succ = succ_array[i], .rank = 0}});
     }
   }
 
   auto process_recv_reply = [&](auto& msg) {
-    root_array[msg.write_back_idx] = msg.succ;
+    succ_array[msg.write_back_idx] = msg.succ;
     rank_array[msg.write_back_idx] += msg.rank;
     if (!has_root_flag(msg.succ)) {
       msg.rank = 0;
@@ -126,7 +122,7 @@ void async_pointer_doubling(AsyncPointerChasingConfig const& config,
       } else {
         // has_recv_reply
         if (config.use_caching) {
-          cache[root_array[msg.write_back_idx]] = std::make_pair(msg.succ, msg.rank);
+          cache[succ_array[msg.write_back_idx]] = std::make_pair(msg.succ, msg.rank);
         }
         process_recv_reply(msg);
       }
@@ -165,7 +161,7 @@ void async_pointer_doubling(AsyncPointerChasingConfig const& config,
       } else {
         // is sending reply event
         auto local_idx = dist.get_local_idx(event.msg.succ, comm.rank());
-        event.msg.succ = root_array[local_idx];
+        event.msg.succ = succ_array[local_idx];
         std::size_t owner = clear_pe_rank_flag(event.msg.rank);
         event.msg.rank = rank_array[local_idx];
         queue.post_message_blocking(event.msg, static_cast<int>(owner), on_message);
@@ -173,7 +169,7 @@ void async_pointer_doubling(AsyncPointerChasingConfig const& config,
       queue.poll_throttled(on_message);
     }
   } while (!queue.terminate(on_message));
-  std::ranges::transform(root_array, root_array.begin(),
+  std::ranges::transform(succ_array, succ_array.begin(),
                          [](idx_t elem) { return clear_root_flag(elem); });
 }
 }  // namespace kascade
