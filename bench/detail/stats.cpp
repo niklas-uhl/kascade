@@ -61,6 +61,7 @@ auto compute_per_tree_stats(bool gather_tree_stats,
 
   for (auto const& [root, tree_stats] : local_stats) {
     ++stats.num_trees;
+    stats.max_size = std::max(stats.max_size, tree_stats.size);
     if (tree_stats.size > 1) {
       ++stats.num_nontrivial_trees;
       stats.nontrivial_size_sum += tree_stats.size;
@@ -86,7 +87,9 @@ auto compute_per_tree_stats(bool gather_tree_stats,
       comm.reduce_single(kmp::send_buf(stats.nontrivial_rank_sum), kmp::op(std::plus<>{}))
           .value_or(0U);
 
-
+  stats.max_size =
+      comm.reduce_single(kmp::send_buf(stats.max_size), kmp::op(kamping::ops::max<>{}))
+          .value_or(0U);
 
   if (comm.is_root()) {
     std::size_t num_trivial_trees = stats.num_trees - stats.num_nontrivial_trees;

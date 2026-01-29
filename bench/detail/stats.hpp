@@ -31,6 +31,7 @@ struct ExtensiveStats {
   std::size_t num_nontrivial_trees = 0;
   std::size_t nontrivial_size_sum = 0;
   std::size_t nontrivial_rank_sum = 0;
+  std::size_t max_size = 0;
   double avg_size = 0.;             // somewhat redundant remove?
   double nontrivial_avg_size = 0.;  // somewhat redundant remove?
   double nontrivial_avg_rank = 0.;  // somewhat redundant remove?
