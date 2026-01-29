@@ -11,13 +11,9 @@
 #include <spdlog/spdlog.h>
 
 #include "kascade/distribution.hpp"
+#include "kascade/successor_utils.hpp"
 
 namespace {
-auto is_root(std::size_t prefix_count,
-             std::size_t local_idx,
-             std::span<kascade::idx_t const> root_array) -> bool {
-  return root_array[local_idx] == static_cast<kascade::idx_t>(prefix_count + local_idx);
-}
 
 template <typename T>
 constexpr auto safe_division(T dividend, T divisor) noexcept -> double {
@@ -119,12 +115,11 @@ BasicStats compute_basic_stats(std::span<kascade::idx_t const> root_array,
                                kascade::Distribution const& dist,
                                kamping::Communicator<> const& comm) {
   namespace kmp = kamping::params;
-  std::size_t const prefix_count = dist.get_exclusive_prefix(comm.rank());
 
   BasicStats stats;
   std::size_t const local_num_roots = std::ranges::count_if(
       std::ranges::views::iota(0U, root_array.size()),
-      [&](std::size_t i) { return is_root(prefix_count, i, root_array); });
+      [&](std::size_t i) { return is_root(i, root_array, dist, comm); });
 
   std::size_t const local_max_rank =
       std::ranges::max(rank_array, std::ranges::less{},

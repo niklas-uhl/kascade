@@ -3,6 +3,7 @@ target_sources(
   ${CMAKE_PROJECT_NAME}_list_ranking
   PRIVATE
   list_ranking.cpp
+  successor_utils.cpp
   pointer_doubling.cpp
   async_pointer_doubling.cpp
   rma_pointer_doubling.cpp
@@ -12,6 +13,7 @@ target_sources(
          ${CMAKE_CURRENT_LIST_DIR}/..
          FILES
          list_ranking.hpp
+	 successor_utils.hpp
          pointer_doubling.hpp
 	 configuration.hpp
          types.hpp)

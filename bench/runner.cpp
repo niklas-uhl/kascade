@@ -10,7 +10,7 @@
 #include "detail/reporting.hpp"
 #include "detail/serialization.hpp"  // IWYU pragma: keep
 #include "detail/verification.hpp"
-#include "kascade/list_ranking.hpp"
+#include "kascade/successor_utils.hpp"
 #include "spdlog/stopwatch.h"
 
 auto main(int argc, char* argv[]) -> int {

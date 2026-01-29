@@ -21,9 +21,6 @@ void rank_on_root(std::span<idx_t> succ_array,
                   Distribution const& dist,
                   kamping::Communicator<> const& comm);
 
-auto is_list(std::span<const idx_t> succ_array, kamping::Communicator<> const& comm)
-    -> bool;
-
 /// Initialize root and rank arrays for a distributed successor list.
 /// - Copies each local successor into the corresponding root entry.
 /// - Sets all ranks to 1, then sets ranks of global roots (indices equal to their
