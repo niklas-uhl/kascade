@@ -64,6 +64,7 @@ auto compute_per_tree_stats(bool gather_tree_stats,
     if (tree_stats.size > 1) {
       ++stats.num_nontrivial_trees;
       stats.nontrivial_size_sum += tree_stats.size;
+      stats.nontrivial_rank_sum += tree_stats.rank_sum;
       stats.per_tree_stats->emplace_back(tree_stats.size, tree_stats.max_rank,
                                          tree_stats.rank_sum);
     }
@@ -81,6 +82,12 @@ auto compute_per_tree_stats(bool gather_tree_stats,
       comm.reduce_single(kmp::send_buf(stats.nontrivial_size_sum), kmp::op(std::plus<>{}))
           .value_or(0U);
 
+  stats.nontrivial_rank_sum =
+      comm.reduce_single(kmp::send_buf(stats.nontrivial_rank_sum), kmp::op(std::plus<>{}))
+          .value_or(0U);
+
+
+
   if (comm.is_root()) {
     std::size_t num_trivial_trees = stats.num_trees - stats.num_nontrivial_trees;
     stats.avg_size =
@@ -90,6 +97,9 @@ auto compute_per_tree_stats(bool gather_tree_stats,
                               stats.num_trees, stats.avg_size);
     stats.nontrivial_avg_size =
         safe_division(stats.nontrivial_size_sum, stats.num_nontrivial_trees);
+
+    stats.nontrivial_avg_rank =
+        safe_division(stats.nontrivial_rank_sum, stats.nontrivial_size_sum);
   }
 
   if (gather_tree_stats) {
