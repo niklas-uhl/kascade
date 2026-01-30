@@ -1,6 +1,9 @@
 #include "kascade/sparse_ruling_set.hpp"
 
+#include <algorithm>
 #include <queue>
+#include <random>
+#include <ranges>
 
 #include <briefkasten/queue_builder.hpp>
 #include <kassert/kassert.hpp>
@@ -8,13 +11,22 @@
 #include "kascade/assertion_levels.hpp"
 #include "kascade/distribution.hpp"
 #include "kascade/successor_utils.hpp"
+#include "kascade/types.hpp"
 
 namespace kascade {
 namespace {
-auto pick_rulers(std::span<const idx_t> succ_array, std::size_t local_num_rulers)
-    -> std::vector<idx_t> {
-  // TODO implement
-  return {};
+auto pick_rulers(std::span<const idx_t> succ_array,
+                 std::size_t local_num_rulers,
+                 std::mt19937::result_type seed) -> std::vector<idx_t> {
+  std::vector<idx_t> rulers(local_num_rulers);
+  std::mt19937 rng{seed};
+  auto indices = std::views::iota(idx_t{0}, static_cast<idx_t>(succ_array.size()));
+  auto it = std::ranges::sample(
+      indices, rulers.begin(),
+      static_cast<std::ranges::range_difference_t<decltype(indices)>>(local_num_rulers),
+      rng);
+  rulers.erase(it, rulers.end());
+  return rulers;
 }
 }  // namespace
 
@@ -23,9 +35,13 @@ void sparse_ruling_set(std::span<idx_t> succ_array,
                        Distribution const& dist,
                        kamping::Communicator<> const& comm) {
   KASSERT(is_list(succ_array, dist, comm), kascade::assert::with_communication);
-  // std::vector<bool> is_ruler(succ_array.size(), false);
-  // std::size_t local_num_rulers = 10;  // FIXME
-  // auto rulers = pick_rulers(succ_array, local_num_rulers);
+  auto leaves = kascade::leaves(succ_array, dist, comm);
+  std::vector<bool> is_ruler(succ_array.size(), false);
+  std::size_t local_num_rulers = 10;  // FIXME
+
+  auto rulers = pick_rulers(succ_array, local_num_rulers, 42 + comm.rank());
+  
+  
   // for (auto ruler : rulers) {
   //   is_ruler[ruler] = true;
   // }
