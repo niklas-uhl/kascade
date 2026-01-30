@@ -60,19 +60,15 @@ auto is_root(std::size_t local_idx,
   return succ_array[local_idx] == dist.get_global_idx(local_idx, comm.rank());
 }
 
-auto leaves(std::span<const idx_t> succ_array,
-            Distribution const& dist,
-            kamping::Communicator<> const& comm) -> std::vector<idx_t> {
+leaf_info::leaf_info(std::span<const idx_t> succ_array,
+                     Distribution const& dist_ref,
+                     kamping::Communicator<> const& comm_ref)
+    : has_pred(succ_array.size(), false), dist(&dist_ref), comm(&comm_ref) {
   absl::flat_hash_map<int, std::vector<idx_t>> requests;
-  std::vector<bool> has_pred(succ_array.size(), false);
-  for (idx_t i = 0; i < succ_array.size(); i++) {
-    if (is_root(i, succ_array, dist, comm)) {
-      continue;
-    }
-    auto succ = succ_array[i];
-    auto owner = dist.get_owner(succ);
-    if (owner == comm.rank()) {
-      has_pred[dist.get_local_idx(succ, comm.rank())] = true;
+  for (auto const& succ : succ_array) {
+    auto owner = dist->get_owner(succ);
+    if (owner == comm->rank()) {
+      has_pred[dist->get_local_idx(succ, comm->rank())] = true;
       continue;
     }
     requests[static_cast<int>(owner)].push_back(succ);
@@ -84,22 +80,31 @@ auto leaves(std::span<const idx_t> succ_array,
     buf.erase(result.begin(), result.end());
   }
   auto preds =
-      kamping::with_flattened(requests, comm.size()).call([&](auto... flattened) {
-        return comm.alltoallv(std::move(flattened)...);
+      kamping::with_flattened(requests, comm->size()).call([&](auto... flattened) {
+        return comm->alltoallv(std::move(flattened)...);
       });
   for (auto& pred : preds) {
-    KASSERT(dist.get_owner(pred) == comm.rank());
-    auto local_idx = dist.get_local_idx(pred, comm.rank());
+    KASSERT(dist->get_owner(pred) == comm->rank());
+    auto local_idx = dist->get_local_idx(pred, comm->rank());
     has_pred[local_idx] = true;
   }
-  std::vector<idx_t> leaf_indices;
-  for (idx_t i = 0; i < succ_array.size(); i++) {
-    if (!has_pred[i] && !is_root(i, succ_array, dist, comm)) {
-      leaf_indices.push_back(i);
-    }
-  }
-  return leaf_indices;
+};
+
+auto leaf_info::is_leaf(idx_t local_idx) const -> bool {
+  return !has_pred[local_idx];
+};
+
+auto leaves(std::span<const idx_t> succ_array,
+            Distribution const& dist,
+            kamping::Communicator<> const& comm) -> std::vector<idx_t> {
+  leaf_info info{succ_array, dist, comm};
+  auto indices = std::views::iota(idx_t{0}, static_cast<idx_t>(succ_array.size()));
+
+  return indices |
+         std::views::filter([&](auto local_idx) { return info.is_leaf(local_idx); }) |
+         std::ranges::to<std::vector>();
 }
+
 auto roots(std::span<const idx_t> succ_array,
            Distribution const& dist,
            kamping::Communicator<> const& comm) -> std::vector<idx_t> {

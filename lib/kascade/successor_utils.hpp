@@ -22,6 +22,20 @@ auto is_root(std::size_t local_idx,
              Distribution const& dist,
              kamping::Communicator<> const& comm) -> bool;
 
+struct leaf_info {
+private:
+  std::vector<bool> has_pred;  // per-local index
+  Distribution const* dist;
+  kamping::Communicator<> const* comm;
+
+public:
+  leaf_info(std::span<const idx_t> succ_array,
+            Distribution const& dist,
+            kamping::Communicator<> const& comm);
+
+  [[nodiscard]] auto is_leaf(idx_t local_idx) const -> bool;
+};
+
 auto roots(std::span<const idx_t> succ_array,
            Distribution const& dist,
            kamping::Communicator<> const& comm) -> std::vector<idx_t>;
