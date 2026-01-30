@@ -3,3 +3,5 @@ build/
 build-*/
 kaval/
 /experiment_data/
+.env
+/_deps/
