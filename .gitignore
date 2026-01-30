@@ -2,3 +2,4 @@ CMakeUserPresets.json
 build/
 build-*/
 kaval/
+/experiment_data/

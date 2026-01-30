@@ -1,0 +1,50 @@
+name: async-pointer-doubling
+executable: bench/kascade
+output_path_option_name: "output-file"
+ncores: [64, 128, 256, 512, 1024, 2048]
+time_limit: 2
+threads_per_rank: [1]
+# tasks_per_node: 64
+graphs:
+  - generator: kagen
+    type: path
+    N: 18
+    extra_args:
+      statistics-level: extensive-reduced-output
+      input-processing: none
+      verify-level: 1
+      iterations: 5
+    scale_weak: True
+  - generator: kagen
+    type: gnm-undirected
+    N: 18
+    M: 22
+    extra_args:
+      statistics-level: extensive-reduced-output
+      input-processing: bfs
+      verify-level: 1
+      iterations: 5
+    scale_weak: True
+  - generator: kagen
+    type: rmat
+    N: 18
+    M: 22
+    extra_args:
+      statistics-level: extensive-reduced-output
+      input-processing: bfs
+      verify-level: 1
+      iterations: 5
+    scale_weak: True
+  - generator: kagen
+    type: rgg2d
+    N: 18
+    M: 22
+    extra_args:
+      statistics-level: extensive-reduced-output
+      input-processing: bfs
+      verify-level: 1
+      iterations: 5
+    scale_weak: True
+config:
+  - algorithm: AsyncPointerDoubling
+    async-pointer-chasing-use-caching: [False, True]
