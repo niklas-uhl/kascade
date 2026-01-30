@@ -1,0 +1,5 @@
+fetch-from-horeka:
+    rsync -aP horeka:kascade/experiment_data/ data/horeka
+
+fetch-from-supermuc:
+    rsync -aP supermuc:kascade/experiment_data/ data/supermuc
