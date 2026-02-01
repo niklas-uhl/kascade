@@ -25,42 +25,6 @@ void rank(std::span<const idx_t> /*succ_array*/,
           std::span<idx_t> /*root_array*/,
           kamping::Communicator<> const& /*comm*/) {}
 
-namespace {
-void local_pointer_chasing(std::span<idx_t> succ_array, std::span<idx_t> rank_array) {
-  std::vector<bool> has_pred(succ_array.size(), false);
-  // find leaves, verify roots
-  for (idx_t idx{0}; idx < succ_array.size(); idx++) {
-    if (succ_array[idx] == idx) {
-      KASSERT(rank_array[idx] == 0);
-    }
-    has_pred[succ_array[idx]] = true;
-  }
-  auto leaves = std::views::iota(std::size_t{0}, succ_array.size()) |
-                std::views::filter([&](auto idx) { return !has_pred[idx]; });
-
-  std::vector<idx_t> path;
-  path.reserve(succ_array.size());
-  // we go up from each leaf, until we reach a root, then assign back down the path and
-  // contract the path
-  // since we contract paths as we go, each node is only visited once
-  for (auto leaf : leaves) {
-    idx_t cur = leaf;
-    // follow successors until we reach a root
-    while (succ_array[cur] != cur) {
-      path.push_back(cur);
-      cur = succ_array[cur];
-    }
-    // now assign back along the path
-    idx_t root = cur;
-    for (auto idx : std::ranges::reverse_view(path)) {
-      rank_array[idx] += rank_array[succ_array[idx]];
-      succ_array[idx] = root;
-    }
-    path.clear();
-  }
-}
-}  // namespace
-
 void rank_on_root(std::span<idx_t> succ_array,
                   std::span<idx_t> rank_array,
                   Distribution const& dist,

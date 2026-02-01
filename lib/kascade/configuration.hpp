@@ -14,4 +14,8 @@ struct RMAPointerChasingConfig {
   RMASyncMode sync_mode = RMASyncMode::passive_target;
   std::size_t batch_size = 1;
 };
+
+struct PointerDoublingConfig {
+  bool use_local_preprocessing = false;
+};
 }  // namespace kascade

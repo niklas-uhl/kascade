@@ -32,6 +32,7 @@ struct Config {
   Algorithm algorithm = Algorithm::invalid;
   kascade::AsyncPointerChasingConfig async_pointer_chasing;
   kascade::RMAPointerChasingConfig rma_pointer_chasing;
+  kascade::PointerDoublingConfig pointer_doubling;
   std::size_t verify_level = 1;
   bool verify_continue_on_mismatch = false;
   StatsLevel statistics_level = StatsLevel::none;

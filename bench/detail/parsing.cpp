@@ -80,6 +80,8 @@ auto parse_args(std::span<char*> args) -> Config {
         }
         config.rma_pointer_chasing.batch_size = parsed;
       });
+  app.add_flag("--pointer-doubling-use-local-preprocessing",
+               config.pointer_doubling.use_local_preprocessing);
 
   try {
     app.parse(static_cast<int>(args.size()), args.data());

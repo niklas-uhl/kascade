@@ -42,12 +42,17 @@ public:
 
 class PointerDoubling : public AlgorithmBase {
 public:
-  PointerDoubling(kamping::Communicator<> const& comm) : AlgorithmBase(comm) {}
+  PointerDoubling(kascade::PointerDoublingConfig const& config,
+                  kamping::Communicator<> const& comm)
+      : AlgorithmBase(comm), config_{config} {}
   void run() override {
     auto dist =
         kascade::set_initial_ranking_state(succ_array_, root_array_, rank_array_, *comm_);
-    kascade::pointer_doubling(root_array_, rank_array_, dist, *comm_);
+    kascade::pointer_doubling(config_, root_array_, rank_array_, dist, *comm_);
   }
+
+private:
+  kascade::PointerDoublingConfig config_;
 };
 
 class AsyncPointerDoubling : public AlgorithmBase {

@@ -7,6 +7,7 @@
 #include <kamping/utils/flatten.hpp>
 
 #include "kascade/distribution.hpp"
+#include "kascade/list_ranking.hpp"
 #include "kascade/types.hpp"
 
 namespace {
@@ -89,10 +90,17 @@ auto do_doubling_step(std::span<kascade::idx_t> rank_array,
 }
 }  // namespace
 
-void kascade::pointer_doubling(std::span<idx_t> succ_array,
+void kascade::pointer_doubling(kascade::PointerDoublingConfig config,
+                               std::span<idx_t> succ_array,
                                std::span<idx_t> rank_array,
                                Distribution const& dist,
                                kamping::Communicator<> const& comm) {
+  if (config.use_local_preprocessing) {
+    kamping::measurements::timer().synchronize_and_start("local_preprocessing");
+    local_pointer_chasing(succ_array, rank_array, comm.rank(), dist);
+    kamping::measurements::timer().stop();
+  }
+
   kamping::measurements::timer().synchronize_and_start("pointer_doubling_alltoall");
 
   std::vector<idx_t> local_req_storage;
