@@ -17,5 +17,6 @@ struct RMAPointerChasingConfig {
 
 struct PointerDoublingConfig {
   bool use_local_preprocessing = false;
+  bool use_local_aggregation = false;
 };
 }  // namespace kascade

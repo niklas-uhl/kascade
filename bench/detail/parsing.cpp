@@ -82,6 +82,8 @@ auto parse_args(std::span<char*> args) -> Config {
       });
   app.add_flag("--pointer-doubling-use-local-preprocessing",
                config.pointer_doubling.use_local_preprocessing);
+  app.add_flag("--pointer-doubling-use-local-aggregation",
+               config.pointer_doubling.use_local_aggregation);
 
   try {
     app.parse(static_cast<int>(args.size()), args.data());
