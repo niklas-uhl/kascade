@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <ranges>
 #include <vector>
 
 #include <kamping/collectives/allgather.hpp>
@@ -31,9 +32,7 @@ public:
     return static_cast<int>(get_owner(idx));
   }
 
-  [[nodiscard]] auto counts() const -> std::vector<std::size_t> const& {
-    return counts_;
-  }
+  [[nodiscard]] auto counts() const -> std::vector<std::size_t> const& { return counts_; }
 
   [[nodiscard]] auto get_count(std::size_t rank) const -> std::size_t {
     return counts_[rank];
@@ -53,6 +52,18 @@ public:
 
   [[nodiscard]] auto get_global_size() const -> std::size_t {
     return inclusive_prefix_sum_.back();
+  }
+
+  [[nodiscard]] auto local_indices(std::size_t rank) const
+      -> std::ranges::iota_view<idx_t, idx_t> {
+    return std::views::iota(idx_t{0}, idx_t{counts_[rank]});
+  }
+
+  [[nodiscard]] auto global_indices(std::size_t rank) const
+      -> std::ranges::iota_view<idx_t, idx_t> {
+    return std::views::iota(
+        static_cast<idx_t>(inclusive_prefix_sum_[rank] - counts_[rank]),
+        static_cast<idx_t>(inclusive_prefix_sum_[rank]));
   }
 
 private:
