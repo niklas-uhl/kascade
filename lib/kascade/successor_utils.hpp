@@ -45,6 +45,12 @@ public:
   [[nodiscard]] auto is_leaf(idx_t local_idx) const -> bool;
 
   [[nodiscard]] auto num_local_leaves() const -> std::size_t;
+  [[nodiscard]] auto leaves() const {
+    auto indices = std::views::iota(idx_t{0}, static_cast<idx_t>(has_pred_.size()));
+
+    return indices |
+           std::views::filter([&](auto local_idx) { return this->is_leaf(local_idx); });
+  }
 };
 
 auto roots(std::span<const idx_t> succ_array,

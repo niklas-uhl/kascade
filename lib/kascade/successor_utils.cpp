@@ -118,11 +118,7 @@ auto leaves(std::span<const idx_t> succ_array,
             Distribution const& dist,
             kamping::Communicator<> const& comm) -> std::vector<idx_t> {
   LeafInfo info{succ_array, dist, comm};
-  auto indices = std::views::iota(idx_t{0}, static_cast<idx_t>(succ_array.size()));
-
-  return indices |
-         std::views::filter([&](auto local_idx) { return info.is_leaf(local_idx); }) |
-         std::ranges::to<std::vector>();
+  return info.leaves() | std::ranges::to<std::vector>();
 }
 
 auto roots(std::span<const idx_t> succ_array,

@@ -14,7 +14,8 @@ namespace kascade {
 /// indices.
 /// @param[inout] rank_array Array of ranks; initialize with distance to successor (0 for
 /// roots, > 1 otherwise). Upon completion, contains distance to the root.
-void pointer_doubling(PointerDoublingConfig config, std::span<idx_t> succ_array,
+void pointer_doubling(PointerDoublingConfig config,
+                      std::span<idx_t> succ_array,
                       std::span<idx_t> rank_array,
                       Distribution const& dist,
                       kamping::Communicator<> const& comm);
