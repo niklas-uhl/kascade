@@ -13,7 +13,8 @@ NLOHMANN_JSON_SERIALIZE_ENUM(Algorithm,
                               {Algorithm::GatherChase, "GatherChase"},
                               {Algorithm::PointerDoubling, "PointerDoubling"},
                               {Algorithm::AsyncPointerDoubling, "AsyncPointerDoubling"},
-                              {Algorithm::RMAPointerDoubling, "RMAPointerDoubling"}})
+                              {Algorithm::RMAPointerDoubling, "RMAPointerDoubling"},
+                              {Algorithm::SparseRulingSet, "SparseRulingSet"}})
 
 NLOHMANN_JSON_SERIALIZE_ENUM(StatsLevel,
                              {{StatsLevel::invalid, nullptr},

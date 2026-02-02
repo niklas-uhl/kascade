@@ -5,6 +5,7 @@
 #include "kascade/configuration.hpp"
 #include "kascade/list_ranking.hpp"
 #include "kascade/pointer_doubling.hpp"
+#include "kascade/sparse_ruling_set.hpp"
 
 class AlgorithmBase : public AbstractAlgorithm {
 public:
@@ -83,4 +84,14 @@ public:
 
 private:
   kascade::RMAPointerChasingConfig config_;
+};
+
+class SparseRulingSet : public AlgorithmBase {
+public:
+  explicit SparseRulingSet(kamping::Communicator<> const& comm) : AlgorithmBase(comm) {}
+  void run() override {
+    auto dist =
+        kascade::set_initial_ranking_state(succ_array_, root_array_, rank_array_, *comm_);
+    kascade::sparse_ruling_set(root_array_, rank_array_, dist, *comm_);
+  }
 };

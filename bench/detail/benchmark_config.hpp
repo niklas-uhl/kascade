@@ -16,6 +16,7 @@ enum class Algorithm : std::uint8_t {
   PointerDoubling,
   AsyncPointerDoubling,
   RMAPointerDoubling,
+  SparseRulingSet,
   invalid,
 };
 
