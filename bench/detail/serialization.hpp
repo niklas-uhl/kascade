@@ -34,6 +34,13 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Config, kagen_option_string, input_processing
 }  // namespace kascade::input
 
 namespace kascade {
+NLOHMANN_JSON_SERIALIZE_ENUM(AggregationLevel,
+                             {{AggregationLevel::invalid, nullptr},
+                              {AggregationLevel::none, "none"},
+                              {AggregationLevel::local, "local"},
+                              {AggregationLevel::remote, "remote"},
+                              {AggregationLevel::all, "all"}})
+
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(AsyncPointerChasingConfig, use_caching);
 NLOHMANN_JSON_SERIALIZE_ENUM(RMASyncMode,
                              {{RMASyncMode::invalid, nullptr},
@@ -42,7 +49,7 @@ NLOHMANN_JSON_SERIALIZE_ENUM(RMASyncMode,
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(RMAPointerChasingConfig, sync_mode, batch_size);
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(PointerDoublingConfig,
                                    use_local_preprocessing,
-                                   use_local_aggregation);
+                                   aggregation_level);
 }  // namespace kascade
 
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_ONLY_SERIALIZE(TreeStats, size, max_rank, rank_sum);
