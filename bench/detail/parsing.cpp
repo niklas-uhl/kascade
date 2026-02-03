@@ -23,6 +23,12 @@ auto lexical_cast(const std::string& input, StatsLevel& stats_level) -> bool {
 }
 
 namespace kascade {
+
+auto lexical_cast(const std::string& input, AggregationLevel& aggregation_level) -> bool {
+  nlohmann::json input_json = input;
+  aggregation_level = input_json.template get<kascade::AggregationLevel>();
+  return aggregation_level != kascade::AggregationLevel::invalid;
+}
 auto lexical_cast(const std::string& input, RMASyncMode& sync_mode) -> bool {
   nlohmann::json input_json = input;
   sync_mode = input_json.template get<kascade::RMASyncMode>();
@@ -82,8 +88,8 @@ auto parse_args(std::span<char*> args) -> Config {
       });
   app.add_flag("--pointer-doubling-use-local-preprocessing",
                config.pointer_doubling.use_local_preprocessing);
-  app.add_flag("--pointer-doubling-use-local-aggregation",
-               config.pointer_doubling.use_local_aggregation);
+  app.add_option("--pointer-doubling-aggregation-level",
+               config.pointer_doubling.aggregation_level);
 
   try {
     app.parse(static_cast<int>(args.size()), args.data());

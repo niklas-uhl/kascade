@@ -4,6 +4,8 @@
 #include <cstdint>
 
 namespace kascade {
+enum class AggregationLevel : std::uint8_t { none, local, remote, all, invalid };
+
 struct AsyncPointerChasingConfig {
   bool use_caching = false;
 };
@@ -17,6 +19,6 @@ struct RMAPointerChasingConfig {
 
 struct PointerDoublingConfig {
   bool use_local_preprocessing = false;
-  bool use_local_aggregation = false;
+  AggregationLevel aggregation_level = AggregationLevel::none;
 };
 }  // namespace kascade

@@ -8,11 +8,13 @@ target_sources(
   pointer_doubling.cpp
   async_pointer_doubling.cpp
   rma_pointer_doubling.cpp
+  grid_communicator.cpp
   PUBLIC FILE_SET
          HEADERS
          BASE_DIRS
          ${CMAKE_CURRENT_LIST_DIR}/..
          FILES
+	 grid_communicator.hpp
          list_ranking.hpp
 	 successor_utils.hpp
          pointer_doubling.hpp
