@@ -19,7 +19,7 @@ auto get_algorithm(const Config& config, kamping::Communicator<> const& comm)
     case Algorithm::RMAPointerDoubling:
       return std::make_unique<RMAPointerDoubling>(config.rma_pointer_chasing, comm);
     case Algorithm::SparseRulingSet:
-      return std::make_unique<SparseRulingSet>(comm);
+      return std::make_unique<SparseRulingSet>(config.sparse_ruling_set, comm);
     case Algorithm::invalid:
       throw std::runtime_error("Invalid algorithm selected.");
   }

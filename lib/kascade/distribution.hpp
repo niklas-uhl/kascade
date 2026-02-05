@@ -54,9 +54,13 @@ public:
     return inclusive_prefix_sum_.back();
   }
 
+  [[nodiscard]] auto get_local_size(std::size_t rank) const -> std::size_t {
+    return counts_[rank];
+  }
+
   [[nodiscard]] auto local_indices(std::size_t rank) const
       -> std::ranges::iota_view<idx_t, idx_t> {
-    return std::views::iota(idx_t{0}, idx_t{counts_[rank]});
+    return std::views::iota(idx_t{0}, idx_t{get_local_size(rank)});
   }
 
   [[nodiscard]] auto global_indices(std::size_t rank) const

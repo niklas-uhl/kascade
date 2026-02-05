@@ -1,9 +1,11 @@
 #include "kascade/sparse_ruling_set.hpp"
 
 #include <algorithm>
+#include <cstdint>
 #include <queue>
 #include <random>
 #include <ranges>
+#include <utility>
 
 #include <absl/container/flat_hash_map.h>
 #include <briefkasten/queue_builder.hpp>
@@ -22,6 +24,27 @@
 
 namespace kascade {
 namespace {
+auto compute_local_num_rulers(SparseRulingSetConfig const& config,
+                              Distribution const& dist,
+                              kamping::Communicator<> const& comm) -> std::size_t {
+  switch (config.ruler_selection) {
+    case RulerSelectionStrategy::dehne:
+      // pick O(n/p) rulers in total
+      return static_cast<std::size_t>(config.dehne_factor *
+                                      (static_cast<double>(dist.get_global_size()) /
+                                       static_cast<double>(comm.size()))) /
+             comm.size();
+    case RulerSelectionStrategy::heuristic:
+      // pick heuristic_factor * local_num_leaves per PE
+      return static_cast<std::size_t>(
+          config.heuristic_factor *
+          static_cast<double>(dist.get_local_size(comm.rank())));
+    case RulerSelectionStrategy::invalid:
+      throw std::runtime_error("Invalid ruler selection strategy");
+      break;
+  }
+  std::unreachable();
+}
 auto pick_rulers(std::span<const idx_t> succ_array,
                  std::size_t local_num_rulers,
                  std::mt19937::result_type seed,
@@ -39,7 +62,8 @@ auto pick_rulers(std::span<const idx_t> succ_array,
 }
 }  // namespace
 
-void sparse_ruling_set(std::span<idx_t> succ_array,
+void sparse_ruling_set(SparseRulingSetConfig const& config,
+                       std::span<idx_t> succ_array,
                        std::span<idx_t> rank_array,
                        Distribution const& dist,
                        kamping::Communicator<> const& comm) {
@@ -48,7 +72,12 @@ void sparse_ruling_set(std::span<idx_t> succ_array,
 
   LeafInfo leaf_info{succ_array, dist, comm};
 
-  std::size_t local_num_rulers = 2;  // FIXME
+  std::int64_t local_num_rulers =
+      static_cast<std::int64_t>(compute_local_num_rulers(config, dist, comm)) -
+      leaf_info.num_local_leaves();
+  local_num_rulers = std::max(local_num_rulers, std::int64_t{0});
+  SPDLOG_DEBUG("picking {} rulers", local_num_rulers);
+
   auto rulers =
       pick_rulers(succ_array, local_num_rulers, 42 + comm.rank(), [&](idx_t local_idx) {
         return !is_root(local_idx, succ_array, dist, comm) &&

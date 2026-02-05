@@ -88,10 +88,13 @@ private:
 
 class SparseRulingSet : public AlgorithmBase {
 public:
-  explicit SparseRulingSet(kamping::Communicator<> const& comm) : AlgorithmBase(comm) {}
+  explicit SparseRulingSet(kascade::SparseRulingSetConfig const& config, kamping::Communicator<> const& comm) : AlgorithmBase(comm), config_(config) {}
   void run() override {
     auto dist =
         kascade::set_initial_ranking_state(succ_array_, root_array_, rank_array_, *comm_);
-    kascade::sparse_ruling_set(root_array_, rank_array_, dist, *comm_);
+    kascade::sparse_ruling_set(config_, root_array_, rank_array_, dist, *comm_);
   }
+
+private:
+  kascade::SparseRulingSetConfig config_;
 };

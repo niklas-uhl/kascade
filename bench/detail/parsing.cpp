@@ -34,6 +34,12 @@ auto lexical_cast(const std::string& input, RMASyncMode& sync_mode) -> bool {
   sync_mode = input_json.template get<kascade::RMASyncMode>();
   return sync_mode != kascade::RMASyncMode::invalid;
 }
+auto lexical_cast(const std::string& input,
+                  RulerSelectionStrategy& ruler_selection_strategy) -> bool {
+  nlohmann::json input_json = input;
+  ruler_selection_strategy = input_json.template get<kascade::RulerSelectionStrategy>();
+  return ruler_selection_strategy != kascade::RulerSelectionStrategy::invalid;
+}
 
 namespace input {
 auto lexical_cast(const std::string& input, InputProcessing& processing) -> bool {
@@ -89,7 +95,17 @@ auto parse_args(std::span<char*> args) -> Config {
   app.add_flag("--pointer-doubling-use-local-preprocessing",
                config.pointer_doubling.use_local_preprocessing);
   app.add_option("--pointer-doubling-aggregation-level",
-               config.pointer_doubling.aggregation_level);
+                 config.pointer_doubling.aggregation_level);
+
+  app.add_option("--sparse-ruling-set-ruler-selection",
+                 config.sparse_ruling_set.ruler_selection)
+      ->group("Sparse Ruling Set");
+  app.add_option("--sparse-ruling-set-dehne-factor",
+                 config.sparse_ruling_set.dehne_factor)
+      ->group("Sparse Ruling Set");
+  app.add_option("--sparse-ruling-set-heuristic-factor",
+                 config.sparse_ruling_set.heuristic_factor)
+      ->group("Sparse Ruling Set");
 
   try {
     app.parse(static_cast<int>(args.size()), args.data());

@@ -21,4 +21,12 @@ struct PointerDoublingConfig {
   bool use_local_preprocessing = false;
   AggregationLevel aggregation_level = AggregationLevel::none;
 };
+
+enum class RulerSelectionStrategy : std::uint8_t { dehne, heuristic, invalid };
+
+struct SparseRulingSetConfig {
+  RulerSelectionStrategy ruler_selection = RulerSelectionStrategy::dehne;
+  double dehne_factor = 1.0;
+  double heuristic_factor = 0.01;
+};
 }  // namespace kascade

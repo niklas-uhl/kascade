@@ -51,6 +51,14 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(RMAPointerChasingConfig, sync_mode, batch_siz
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(PointerDoublingConfig,
                                    use_local_preprocessing,
                                    aggregation_level);
+NLOHMANN_JSON_SERIALIZE_ENUM(RulerSelectionStrategy,
+                             {{RulerSelectionStrategy::invalid, nullptr},
+                              {RulerSelectionStrategy::dehne, "dehne"},
+                              {RulerSelectionStrategy::heuristic, "heuristic"}});
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(SparseRulingSetConfig,
+                                   ruler_selection,
+                                   dehne_factor,
+                                   heuristic_factor);
 }  // namespace kascade
 
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_ONLY_SERIALIZE(TreeStats, size, max_rank, rank_sum);
