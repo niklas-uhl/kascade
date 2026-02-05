@@ -11,6 +11,7 @@
 #include <kamping/utils/flatten.hpp>
 #include <spdlog/spdlog.h>
 
+#include "kascade/bits.hpp"
 #include "kascade/configuration.hpp"
 #include "kascade/distribution.hpp"
 #include "kascade/grid_communicator.hpp"
@@ -20,24 +21,6 @@
 
 namespace kascade {
 namespace {
-using std::size_t;
-
-constexpr kascade::idx_t root_flag_mask =
-    kascade::idx_t(1) << (std::numeric_limits<kascade::idx_t>::digits - 1);
-
-[[nodiscard]] constexpr auto set_root_flag(kascade::idx_t value) noexcept
-    -> kascade::idx_t {
-  return value | root_flag_mask;
-}
-
-[[nodiscard]] constexpr auto clear_root_flag(kascade::idx_t value) noexcept
-    -> kascade::idx_t {
-  return value & ~root_flag_mask;
-}
-
-[[nodiscard]] constexpr auto has_root_flag(kascade::idx_t value) noexcept -> bool {
-  return (value & root_flag_mask) != 0;
-}
 
 template <typename MakeRequestsFn, typename SendRequestsFn, typename UpdateFn>
 auto do_doubling_step_skeleton(std::span<kascade::idx_t> rank_array,
@@ -77,7 +60,7 @@ struct update_via_writeback {
       // local index
       root_array[write_back_idx] = succ;
       rank_array[write_back_idx] += rank;
-      if (!has_root_flag(succ)) {
+      if (!bits::has_root_flag(succ)) {
         local_request_array[unfinished_elems++] = write_back_idx;
       }
     }
@@ -104,7 +87,7 @@ struct update_via_lookup {
       auto const& [succ, rank] = it->second;
       root_array[local_elem_idx] = succ;
       rank_array[local_elem_idx] += rank;
-      if (!has_root_flag(succ)) {
+      if (!bits::has_root_flag(succ)) {
         local_request_array[unfinished_elems++] = local_elem_idx;
       }
     }
@@ -115,7 +98,7 @@ struct update_via_lookup {
 auto make_requests(std::span<idx_t> root_array, std::span<idx_t> local_request_array) {
   return local_request_array | std::views::transform([=](idx_t local_elem_idx) {
            auto succ = root_array[local_elem_idx];
-           KASSERT(!has_root_flag(succ), "Do not continue on already finised elements.");
+           KASSERT(!bits::has_root_flag(succ), "Do not continue on already finised elements.");
            return succ;
          });
 }
@@ -124,7 +107,7 @@ auto make_requests_with_writeback(std::span<idx_t> root_array,
                                   std::span<idx_t> local_request_array) {
   return local_request_array | std::views::transform([=](idx_t local_elem_idx) {
            auto succ = root_array[local_elem_idx];
-           KASSERT(!has_root_flag(succ), "Do not continue on already finised elements.");
+           KASSERT(!bits::has_root_flag(succ), "Do not continue on already finised elements.");
            return Request{.write_back_idx = local_elem_idx, .succ = succ};
          });
 }
@@ -135,7 +118,7 @@ auto make_aggregated_requests(std::span<idx_t> root_array,
   absl::flat_hash_set<idx_t> request_buffer;
   for (auto& local_elem_idx : local_request_array) {
     auto succ = root_array[local_elem_idx];
-    KASSERT(!has_root_flag(succ), "Do not continue on already finised elements.");
+    KASSERT(!bits::has_root_flag(succ), "Do not continue on already finised elements.");
     request_buffer.emplace(succ);
   }
   return request_buffer;
@@ -310,7 +293,7 @@ auto initialize_active_vertices(std::span<idx_t> succ_array,
     idx_t global_idx = dist.get_global_idx(i, comm.rank());
     if (succ_array[i] == global_idx) {
       KASSERT(rank_array[i] == 0);
-      succ_array[i] = set_root_flag(global_idx);
+      succ_array[i] = bits::set_root_flag(global_idx);
     } else {
       active_vertices.emplace_back(i);
     }
@@ -354,8 +337,9 @@ void pointer_doubling_generic(PointerDoublingConfig config,
   }
 
   // clear result
-  std::ranges::transform(succ_array, succ_array.begin(),
-                         [](idx_t elem) { return clear_root_flag(elem); });
+  for (std::size_t local_idx : active_local_indices) {
+    succ_array[local_idx] = bits::clear_root_flag(succ_array[local_idx]);
+  }
   kamping::measurements::timer().stop();
 }
 }  // namespace kascade
