@@ -54,7 +54,7 @@ set(KAGEN_USE_XXHASH ON)
 FetchContent_Declare(
   kagen
   GIT_REPOSITORY https://github.com/KarlsruheGraphGeneration/KaGen
-  GIT_TAG main
+  GIT_TAG feature/propabilistic-path #main
   GIT_SHALLOW ON
   EXCLUDE_FROM_ALL SYSTEM)
 
