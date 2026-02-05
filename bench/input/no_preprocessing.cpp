@@ -4,7 +4,7 @@ namespace kascade::input::internal {
 auto write_graph_to_succ_array(kagen::Graph const& kagen_graph,
                                kamping::Communicator<> const& comm)
     -> std::vector<kascade::idx_t> {
-  kacc::DistributedCSRGraph graph(kagen_graph, comm);
+  kascade::graph::DistributedCSRGraph graph(kagen_graph, comm);
   std::vector<kascade::idx_t> succ_array(graph.num_local_vertices());
   for (std::size_t i = 0; i < graph.num_local_vertices(); ++i) {
     auto global_id = graph.to_global(i);

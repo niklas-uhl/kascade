@@ -1,11 +1,11 @@
 #pragma once
 
-#include "input/bfs.hpp"
-#include "input/graph.hpp"
 #include <kagen.h>
 #include <kamping/collectives/allreduce.hpp>
 #include <kamping/communicator.hpp>
 
+#include "input/bfs.hpp"
+#include "kascade/graph/graph.hpp"
 #include "kascade/types.hpp"
 
 namespace kascade::input::internal {

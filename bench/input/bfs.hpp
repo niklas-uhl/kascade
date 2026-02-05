@@ -14,10 +14,9 @@
 #include <kamping/utils/flatten.hpp>
 #include <spdlog/spdlog.h>
 
-#include "concepts.hpp"
-#include "graph.hpp"
+#include "kascade/graph/graph.hpp"
 
-namespace kacc {
+namespace kascade::input {
 
 template <typename T, typename VertexType>
 concept VertexVisitor = std::invocable<T, VertexType, VertexType, std::size_t>;
@@ -28,21 +27,25 @@ concept EdgePredicate = std::predicate<F, VertexType, VertexType>;
 template <typename F>
 concept LevelCompletionHook = std::invocable<F, std::size_t>;
 
-auto distributed_bfs(DistributedCSRGraph const& G,
-                     DistributedCSRGraph::VId start_vertex,
-                     VertexVisitor<DistributedCSRGraph::VId> auto&& visit_vertex,
-                     EdgePredicate<DistributedCSRGraph::VId> auto&& edge_predicate,
-                     LevelCompletionHook auto&& complete_level,
-                     std::vector<bool>& visited,
-                     kamping::Communicator<> const& comm) {
-  std::vector<std::pair<DistributedCSRGraph::VId, DistributedCSRGraph::VId>> frontier;
+auto distributed_bfs(
+    kascade::graph::DistributedCSRGraph const& G,
+    kascade::graph::DistributedCSRGraph::VId start_vertex,
+    VertexVisitor<kascade::graph::DistributedCSRGraph::VId> auto&& visit_vertex,
+    EdgePredicate<kascade::graph::DistributedCSRGraph::VId> auto&& edge_predicate,
+    LevelCompletionHook auto&& complete_level,
+    std::vector<bool>& visited,
+    kamping::Communicator<> const& comm) {
+  std::vector<std::pair<kascade::graph::DistributedCSRGraph::VId,
+                        kascade::graph::DistributedCSRGraph::VId>>
+      frontier;
   assert(visited.size() == G.num_local_vertices());
   if (G.is_local(start_vertex)) {
     frontier.emplace_back(start_vertex, start_vertex);
   }
   std::size_t round = 0;
-  absl::flat_hash_map<
-      int, std::vector<std::pair<DistributedCSRGraph::VId, DistributedCSRGraph::VId>>>
+  absl::flat_hash_map<int,
+                      std::vector<std::pair<kascade::graph::DistributedCSRGraph::VId,
+                                            kascade::graph::DistributedCSRGraph::VId>>>
       next_frontier;
 
   while (!comm.allreduce_single(kamping::send_buf(frontier.empty()),
@@ -74,22 +77,24 @@ auto distributed_bfs(DistributedCSRGraph const& G,
   }
 }
 
-auto distributed_bfs(DistributedCSRGraph const& G,
-                     DistributedCSRGraph::VId start_vertex,
-                     VertexVisitor<DistributedCSRGraph::VId> auto&& visit_vertex,
-                     std::vector<bool>& visited,
-                     kamping::Communicator<> const& comm) {
+auto distributed_bfs(
+    kascade::graph::DistributedCSRGraph const& G,
+    kascade::graph::DistributedCSRGraph::VId start_vertex,
+    VertexVisitor<kascade::graph::DistributedCSRGraph::VId> auto&& visit_vertex,
+    std::vector<bool>& visited,
+    kamping::Communicator<> const& comm) {
   distributed_bfs(
       G, start_vertex, std::forward<decltype(visit_vertex)>(visit_vertex),
       [](auto, auto) { return true; }, [](auto) {}, visited, comm);
 }
 
-auto distributed_bfs(DistributedCSRGraph const& G,
-                     DistributedCSRGraph::VId start_vertex,
-                     VertexVisitor<DistributedCSRGraph::VId> auto&& visit_vertex,
-                     kamping::Communicator<> const& comm) {
+auto distributed_bfs(
+    kascade::graph::DistributedCSRGraph const& G,
+    kascade::graph::DistributedCSRGraph::VId start_vertex,
+    VertexVisitor<kascade::graph::DistributedCSRGraph::VId> auto&& visit_vertex,
+    kamping::Communicator<> const& comm) {
   std::vector<bool> visited(G.num_local_vertices(), false);
   distributed_bfs(G, start_vertex, std::forward<decltype(visit_vertex)>(visit_vertex),
                   visited, comm);
 }
-}  // namespace kacc
+}  // namespace kascade::input

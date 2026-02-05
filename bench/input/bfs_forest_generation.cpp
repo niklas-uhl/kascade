@@ -5,7 +5,7 @@
 #include <kamping/types/unsafe/utility.hpp>
 
 #include "input/bfs.hpp"
-#include "input/graph.hpp"
+#include "kascade/graph/graph.hpp"
 #include "kascade/types.hpp"
 
 namespace {
@@ -22,7 +22,7 @@ auto next_unvisited(std::size_t start, std::vector<bool> const& visited)
 
 auto get_next_global_start(std::size_t local_start,
                            std::vector<bool> const& visited,
-                           kacc::DistributedCSRGraph const& graph,
+                           kascade::graph::DistributedCSRGraph const& graph,
                            kamping::Communicator<> const& comm) -> std::size_t {
   namespace kmp = kamping::params;
 
@@ -37,7 +37,7 @@ auto get_next_global_start(std::size_t local_start,
 /// them
 void handle_isolated_vertices(std::vector<bool>& visited,
                               std::vector<kascade::idx_t>& parent_array,
-                              kacc::DistributedCSRGraph const& graph) {
+                              kascade::graph::DistributedCSRGraph const& graph) {
   for (std::size_t i = 0; i < graph.num_local_vertices(); ++i) {
     auto global_id = graph.to_global(i);
     if (graph.neighbors(global_id).empty()) {
@@ -54,7 +54,7 @@ auto generate_bfs_tree(kagen::Graph const& kagen_graph,
     -> std::vector<kascade::idx_t> {
   std::vector<bool> visited(kagen_graph.NumberOfLocalVertices(), false);
 
-  kacc::DistributedCSRGraph graph(kagen_graph, comm);
+  kascade::graph::DistributedCSRGraph graph(kagen_graph, comm);
   std::vector<kascade::idx_t> parent_array(graph.num_local_vertices());
   handle_isolated_vertices(visited, parent_array, graph);
 
@@ -65,7 +65,7 @@ auto generate_bfs_tree(kagen::Graph const& kagen_graph,
     if (next_global_start >= graph.num_global_vertices()) {
       break;
     }
-    kacc::distributed_bfs(
+    kascade::input::distributed_bfs(
         graph, next_global_start,
         [&](auto u, auto parent, auto) {
           parent_array[graph.to_local(u)] = static_cast<kascade::idx_t>(parent);

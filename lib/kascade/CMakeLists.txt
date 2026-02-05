@@ -1,3 +1,5 @@
+add_subdirectory(graph)
+
 add_library(${CMAKE_PROJECT_NAME}_list_ranking)
 target_sources(
   ${CMAKE_PROJECT_NAME}_list_ranking
@@ -25,6 +27,7 @@ target_link_libraries(
   PUBLIC
   MPI::MPI_CXX
   kamping::kamping
+  ${CMAKE_PROJECT_NAME}_graph
   PRIVATE
   ${CMAKE_PROJECT_NAME}_cxx_flags
   BriefKAsten::BriefKAsten

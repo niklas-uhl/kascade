@@ -1,4 +1,4 @@
-// taken and adapted from KaCCv2, Tim Niklas Uhl, 2026
+// taken and adapted from kascadev2, Tim Niklas Uhl, 2026
 #pragma once
 
 #include <absl/container/flat_hash_map.h>  // for flat_hash_map
@@ -22,7 +22,7 @@
 #include <utility>                    // for move, make_pair, pair
 #include <vector>                     // for vector
 
-namespace kacc {
+namespace kascade::graph {
 
 enum class NeighborPartition : std::uint8_t { first, second, full };
 
@@ -154,4 +154,4 @@ private:
 
 auto format_as(DistributedCSRGraph const& G) -> std::string;
 
-}  // namespace kacc
+}  // namespace kascade

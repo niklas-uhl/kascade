@@ -1,11 +1,11 @@
-// taken and adapted from KaCCv2, Tim Niklas Uhl, 2026
+// taken and adapted from kascadev2, Tim Niklas Uhl, 2026
 #pragma once
 
 #include <concepts>
 #include <ranges>
 #include <type_traits>
 
-namespace kacc::graph {
+namespace kascade::graph {
 
 template <typename G>
 struct vertex_id {
@@ -57,4 +57,4 @@ auto to_local(Graph auto const& G, vertex_id_t<decltype(G)> v) -> std::size_t {
     return static_cast<std::size_t>(v);
   }
 }
-}  // namespace kacc::graph
+}  // namespace kascade::graph

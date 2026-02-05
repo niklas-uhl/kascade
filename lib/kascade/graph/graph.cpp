@@ -1,4 +1,4 @@
-// taken and adapted from KaCCv2, Tim Niklas Uhl, 2026
+// taken and adapted from kascadev2, Tim Niklas Uhl, 2026
 
 #include "graph.hpp"
 
@@ -8,7 +8,7 @@
 #include <kagen/tools/converter.h>
 #include <kamping/collectives/allreduce.hpp>
 
-namespace kacc {
+namespace kascade::graph {
 
 DistributedCSRGraph::DistributedCSRGraph(kagen::Graph G,
                                          kamping::Communicator<> const& comm)
@@ -78,4 +78,4 @@ auto format_as(DistributedCSRGraph const& G) -> std::string {
                });
   return fmt::format("{}", range);
 }
-}  // namespace kacc
+}  // namespace kascade::graph
