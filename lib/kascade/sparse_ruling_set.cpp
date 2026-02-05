@@ -13,9 +13,9 @@
 #include <spdlog/spdlog.h>
 
 #include "kascade/assertion_levels.hpp"
+#include "kascade/bits.hpp"
 #include "kascade/configuration.hpp"
 #include "kascade/distribution.hpp"
-#include "kascade/pointer_doubling.hpp"
 #include "kascade/pointer_doubling_generic.hpp"
 #include "kascade/successor_utils.hpp"
 #include "kascade/types.hpp"
@@ -44,123 +44,131 @@ void sparse_ruling_set(std::span<idx_t> succ_array,
                        Distribution const& dist,
                        kamping::Communicator<> const& comm) {
   KASSERT(is_list(succ_array, dist, comm), kascade::assert::with_communication);
-  SPDLOG_TRACE("succ={}, ranks={}", succ_array, rank_array);
   invert_list(succ_array, rank_array, succ_array, rank_array, dist, comm);
-  SPDLOG_TRACE("inverted: succ={}, ranks={}", succ_array, rank_array);
+
   LeafInfo leaf_info{succ_array, dist, comm};
 
-  std::vector<bool> is_ruler(succ_array.size(), false);
   std::size_t local_num_rulers = 2;  // FIXME
   auto rulers =
       pick_rulers(succ_array, local_num_rulers, 42 + comm.rank(), [&](idx_t local_idx) {
         return !is_root(local_idx, succ_array, dist, comm) &&
                !leaf_info.is_leaf(local_idx);
       });
-  for (auto const& ruler : rulers) {
-    is_ruler[ruler] = true;
-  }
-  SPDLOG_TRACE("rulers={}, roots={}, leaves={}", rulers, roots(succ_array, dist, comm),
-               leaves(succ_array, dist, comm));
 
-  std::vector<idx_t> ruler_array(succ_array.size(), -1);
-  std::vector<idx_t> dist_from_ruler_array(succ_array.size());
-
-  std::queue<idx_t> local_queue;
-
-  for (std::size_t local_idx : dist.local_indices(comm.rank())) {
-    if (is_ruler[local_idx] || leaf_info.is_leaf(local_idx)) {
-      auto global_idx = dist.get_global_idx(local_idx, comm.rank());
-      local_queue.push(global_idx);
-      ruler_array[local_idx] = global_idx;
-      dist_from_ruler_array[local_idx] = 0;
-    }
-  }
-  // SPDLOG_TRACE("ruler_array={}", ruler_array);
-  using message_type = struct {
+  struct RulerMessage {
     idx_t target_idx;
     idx_t ruler;
-    idx_t ruler_dist;
+    idx_t dist_from_ruler;
   };
+
+  //////////////////////
+  // Ruler chasing    //
+  //////////////////////
+
   auto queue =
-      briefkasten::BufferedMessageQueueBuilder<message_type>(comm.mpi_communicator())
+      briefkasten::BufferedMessageQueueBuilder<RulerMessage>(comm.mpi_communicator())
           .build();
+  std::queue<RulerMessage> local_queue;
+  // message handler just enqueues ruler messages to local queue
   auto on_message = [&](auto env) {
-    for (message_type const& msg : env.message) {
-      auto target_idx = msg.target_idx;
-      KASSERT(dist.get_owner(target_idx) == comm.rank());
-      auto target_idx_local = dist.get_local_idx(target_idx, comm.rank());
-      ruler_array[target_idx_local] = msg.ruler;
-      dist_from_ruler_array[target_idx_local] = msg.ruler_dist;
-      if (is_ruler[target_idx_local] ||
-          is_root(target_idx_local, succ_array, dist, comm)) {
-        continue;
-      }
-      local_queue.push(target_idx);
+    for (RulerMessage const& msg : env.message) {
+      KASSERT(dist.get_owner(msg.target_idx) == comm.rank());
+      local_queue.push(msg);
     }
   };
+
+  // initialization
+  for (auto leaf : leaf_info.leaves()) {
+    rulers.push_back(leaf);
+  }
+  for (auto const& ruler_local : rulers) {
+    auto ruler = dist.get_global_idx(ruler_local, comm.rank());
+    auto target_idx = ruler;
+    if (leaf_info.is_leaf(ruler_local)) {
+      // this is a leaf, so set the msb to distinguish it from normal rulers, which will
+      // help to avoid them requesting their ruler's information in the end
+      ruler = bits::set_root_flag(ruler);
+    }
+    local_queue.push(
+        RulerMessage{.target_idx = target_idx, .ruler = ruler, .dist_from_ruler = 0});
+  }
+  // chasing loop
   do {  // NOLINT(*-avoid-do-while)
     while (!local_queue.empty()) {
       queue.poll_throttled(on_message);
-      auto idx = local_queue.front();
+      auto [idx, ruler, dist_from_ruler] = local_queue.front();
       local_queue.pop();
       KASSERT(dist.get_owner(idx) == comm.rank());
       auto idx_local = dist.get_local_idx(idx, comm.rank());
-      // if (is_ruler[idx_local] || is_root(idx, succ_array, dist, comm)) {
-      //   continue;
-      // }
       auto succ = succ_array[idx_local];
-      auto ruler = ruler_array[idx_local];
-      auto dist_from_ruler = dist_from_ruler_array[idx_local];
       auto dist_to_succ = rank_array[idx_local];
+      succ_array[idx_local] = ruler;
+      rank_array[idx_local] = dist_from_ruler;
+      if (succ == idx) {
+        // this is either a root, or a ruler, which points to itself after initialization
+        continue;
+      }
       auto succ_rank = dist.get_owner_signed(succ);
       if (succ_rank == comm.rank_signed()) {
-        auto succ_local = dist.get_local_idx(succ, comm.rank());
-        ruler_array[succ_local] = ruler;
-        dist_from_ruler_array[succ_local] = dist_from_ruler + dist_to_succ;
-        if (is_ruler[succ_local] || is_root(succ_local, succ_array, dist, comm)) {
-          continue;
-        }
-        local_queue.push(succ);
+        local_queue.push({.target_idx = succ,
+                          .ruler = ruler,
+                          .dist_from_ruler = dist_from_ruler + dist_to_succ});
         continue;
       }
       queue.post_message_blocking({.target_idx = succ,
                                    .ruler = ruler,
-                                   .ruler_dist = dist_from_ruler + dist_to_succ},
+                                   .dist_from_ruler = dist_from_ruler + dist_to_succ},
                                   succ_rank, on_message);
     }
   } while (!queue.terminate(on_message));
-  SPDLOG_TRACE("rulers={}, dist_from_ruler={}", ruler_array, dist_from_ruler_array);
-  PointerDoublingConfig conf;
-  for (auto leaf : leaf_info.leaves()) {
-    rulers.push_back(leaf);
+  // resetting the leafs' msb
+  for (auto local_idx : rulers) {
+    succ_array[local_idx] = bits::clear_root_flag(succ_array[local_idx]);
   }
-  pointer_doubling_generic(conf, ruler_array, dist_from_ruler_array, dist, rulers, comm);
-  SPDLOG_TRACE("after recursion: rulers={}, dist_from_ruler={}", ruler_array,
-               dist_from_ruler_array);
+
+  PointerDoublingConfig conf;
+  pointer_doubling_generic(conf, succ_array, rank_array, dist, rulers, comm);
+
+  // set msb for all rulers to avoid them requesting their ruler's information in the next
+  // step
+  for (auto local_idx : rulers) {
+    succ_array[local_idx] = bits::set_root_flag(succ_array[local_idx]);
+  }
+
+  ///////////////////////////////////////
+  // Request rank and root from rulers //
+  ///////////////////////////////////////
+
   struct ruler_request {
     idx_t requester;
     idx_t ruler;
   };
   absl::flat_hash_map<int, std::vector<ruler_request>> requests;
   for (auto local_idx : dist.local_indices(comm.rank())) {
-    if (!(is_ruler[local_idx] || leaf_info.is_leaf(local_idx))) {
-      auto ruler = ruler_array[local_idx];
-      if (dist.get_owner(ruler) == comm.rank()) {
-        auto ruler_local = dist.get_local_idx(ruler, comm.rank());
-        ruler_array[local_idx] = ruler_array[ruler_local];
-        dist_from_ruler_array[local_idx] =
-            dist_from_ruler_array[ruler_local] + dist_from_ruler_array[local_idx];
-        continue;
-      }
-      requests[dist.get_owner_signed(ruler)].push_back(ruler_request{
-          .requester = dist.get_global_idx(local_idx, comm.rank()), .ruler = ruler});
+    if (bits::has_root_flag(succ_array[local_idx])) {
+      // this is a ruler, so skip
+      continue;
     }
+    auto ruler = succ_array[local_idx];
+    if (dist.get_owner(ruler) == comm.rank()) {
+      auto ruler_local = dist.get_local_idx(ruler, comm.rank());
+      succ_array[local_idx] = bits::clear_root_flag(succ_array[ruler_local]);
+      rank_array[local_idx] = rank_array[ruler_local] + rank_array[local_idx];
+      continue;
+    }
+    requests[dist.get_owner_signed(ruler)].push_back(ruler_request{
+        .requester = dist.get_global_idx(local_idx, comm.rank()), .ruler = ruler});
   }
+  for (auto local_idx : dist.local_indices(comm.rank())) {
+    succ_array[local_idx] = bits::clear_root_flag(succ_array[local_idx]);
+  }
+
   auto requests_received =
       kamping::with_flattened(requests, comm.size()).call([&](auto... flattened) {
         requests.clear();
         return comm.alltoallv(std::move(flattened)...);
       });
+
   struct ruler_reply {
     idx_t requester;
     idx_t ruler;
@@ -170,10 +178,11 @@ void sparse_ruling_set(std::span<idx_t> succ_array,
   for (auto const& msg : requests_received) {
     KASSERT(dist.get_owner(msg.ruler) == comm.rank());
     auto ruler_local = dist.get_local_idx(msg.ruler, comm.rank());
+    KASSERT(!leaf_info.is_leaf(ruler_local));
     replies[dist.get_owner_signed(msg.requester)].push_back(
         ruler_reply{.requester = msg.requester,
-                    .ruler = ruler_array[ruler_local],
-                    .dist = dist_from_ruler_array[ruler_local]});
+                    .ruler = succ_array[ruler_local],
+                    .dist = rank_array[ruler_local]});
   }
   requests_received.clear();
   auto replies_received =
@@ -184,20 +193,8 @@ void sparse_ruling_set(std::span<idx_t> succ_array,
   for (auto const& msg : replies_received) {
     KASSERT(dist.get_owner(msg.requester) == comm.rank());
     auto requester_local = dist.get_local_idx(msg.requester, comm.rank());
-    ruler_array[requester_local] = msg.ruler;
-    dist_from_ruler_array[requester_local] += msg.dist;
+    succ_array[requester_local] = msg.ruler;
+    rank_array[requester_local] += msg.dist;
   }
-
-  std::ranges::copy(ruler_array, succ_array.begin());
-  std::ranges::copy(dist_from_ruler_array, rank_array.begin());
-
-  // Distribution sub_dist{sub_succ.size(), comm};
-  // pointer_doubling(conf, sub_succ, sub_rank, sub_dist, comm);
-  // std::ranges::copy(sub_arrays_zipped, subproblem.begin());
-  // SPDLOG_TRACE("final: succ={}, ranks={}", succ_array, rank_array);
-
-  // pointer_doubling(, std::span<idx_t> succ_array, std::span<idx_t> rank_array, const
-  // Distribution &dist, const kamping::Communicator<> &comm) SPDLOG_TRACE("sub_succ={},
-  // sub_rank={}", sub_succ, sub_rank);
 }
 }  // namespace kascade
