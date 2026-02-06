@@ -5,6 +5,7 @@ using AlgebraOfGraphics
 using CairoMakie
 
 include("KascadeEval.jl")
+import .KascadeEval
 
 dirs = [
     "./data/horeka/pointer-doubling_26_01_30/",
@@ -14,17 +15,29 @@ dirs = [
 # -------------------------
 # Data loading & transform
 # -------------------------
-
-function to_config_name(algorithm, caching)
+algo_params = [
+    :algorithm,
+    :async_caching,
+    :pointer_doubling_aggregation_level,
+    :pointer_doubling_use_local_preprocessing,
+]
+function to_config_name(;kwargs...)
+    algorithm = kwargs[:algorithm]
     name = "$(algorithm)"
-    if algorithm == "AsyncPointerDoubling" && caching
+    if algorithm == "AsyncPointerDoubling" && kwargs[:async_caching]
         name *= "+cache"
+    end
+    if algorithm == "PointerDoubling"
+        if kwargs[:pointer_doubling_use_local_preprocessing]
+            name *= "+preprocessing"
+        end
+        name *= " agg=$(kwargs[:pointer_doubling_aggregation_level])"
     end
     return name
 end
 
 df = vcat(KascadeEval.read.(dirs)...)
-@transform!(df, :config = to_config_name.(:algorithm, :async_caching))
+transform!(df, AsTable(algo_params) => ByRow(t -> to_config_name(;t...)) => :config)
 
 grouped = @by df [:p, :config, :graph] begin
     :total_time_mean = mean(:total_time)
