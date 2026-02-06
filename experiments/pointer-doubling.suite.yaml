@@ -8,42 +8,75 @@ threads_per_rank: [1]
 graphs:
   - generator: kagen
     type: path
-    N: 18
+    N: 20
     extra_args:
       statistics-level: extensive-reduced-output
       input-processing: none
-      verify-level: 1
+      verify-level: 0
+      iterations: 5
+    scale_weak: True
+  - generator: kagen
+    type: path
+    N: 20
+    permute: True
+    extra_args:
+      statistics-level: extensive-reduced-output
+      input-processing: none
+      verify-level: 0
+      iterations: 5
+    scale_weak: True
+  - generator: kagen
+    type: path
+    N: 20
+    p: 0.99
+    extra_args:
+      statistics-level: extensive-reduced-output
+      input-processing: none
+      verify-level: 0
+      iterations: 5
+    scale_weak: True
+  - generator: kagen
+    type: path
+    N: 20
+    p: 0.99
+    permute: True
+    extra_args:
+      statistics-level: extensive-reduced-output
+      input-processing: none
+      verify-level: 0
       iterations: 5
     scale_weak: True
   - generator: kagen
     type: gnm-undirected
-    N: 18
-    M: 22
+    N: 20
+    M: 24
     extra_args:
       statistics-level: extensive-reduced-output
       input-processing: bfs
-      verify-level: 1
+      verify-level: 0
       iterations: 5
     scale_weak: True
   - generator: kagen
     type: rmat
-    N: 18
-    M: 22
+    N: 20
+    M: 24
     extra_args:
       statistics-level: extensive-reduced-output
       input-processing: bfs
-      verify-level: 1
+      verify-level: 0
       iterations: 5
     scale_weak: True
   - generator: kagen
     type: rgg2d
-    N: 18
-    M: 22
+    N: 20
+    M: 24
     extra_args:
       statistics-level: extensive-reduced-output
       input-processing: bfs
-      verify-level: 1
+      verify-level: 0
       iterations: 5
     scale_weak: True
 config:
   - algorithm: PointerDoubling
+    pointer-doubling-use-local-preprocessing: [False, True]
+    pointer-doubling-aggregation-level: [none, all]
