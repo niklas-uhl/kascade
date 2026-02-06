@@ -19,6 +19,7 @@ graphs:
     type: path
     N: 20
     permute: True
+    time_limit: 5
     extra_args:
       statistics-level: extensive-reduced-output
       input-processing: none
@@ -40,6 +41,7 @@ graphs:
     N: 20
     p: 0.99
     permute: True
+    time_limit: 5
     extra_args:
       statistics-level: extensive-reduced-output
       input-processing: none
