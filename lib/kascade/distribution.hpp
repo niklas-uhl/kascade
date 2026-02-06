@@ -28,6 +28,12 @@ public:
     return static_cast<std::size_t>(std::distance(inclusive_prefix_sum_.begin(), it));
   }
 
+  [[nodiscard]] auto is_local(idx_t idx, std::size_t rank) const -> bool {
+    auto begin = inclusive_prefix_sum_[rank] - counts_[rank];
+    auto end = inclusive_prefix_sum_[rank];
+    return static_cast<std::size_t>(idx) >= begin && static_cast<std::size_t>(idx) < end;
+  }
+
   [[nodiscard]] auto get_owner_signed(idx_t idx) const -> int {
     return static_cast<int>(get_owner(idx));
   }

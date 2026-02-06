@@ -96,7 +96,7 @@ LeafInfo::LeafInfo(std::span<const idx_t> succ_array,
         return comm_->alltoallv(std::move(flattened)...);
       });
   for (auto& pred : preds) {
-    KASSERT(dist_->get_owner(pred) == comm_->rank());
+    KASSERT(dist_->is_local(pred, comm_->rank()));
     auto local_idx = dist_->get_local_idx(pred, comm_->rank());
     if (!has_pred_[local_idx]) {
       num_local_leaves_--;

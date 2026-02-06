@@ -101,7 +101,7 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
   // message handler just enqueues ruler messages to local queue
   auto on_message = [&](auto env) {
     for (RulerMessage const& msg : env.message) {
-      KASSERT(dist.get_owner(msg.target_idx) == comm.rank());
+      KASSERT(dist.is_local(msg.target_idx, comm.rank()));
       local_queue.push(msg);
     }
   };
@@ -127,7 +127,7 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
       queue.poll_throttled(on_message);
       auto [idx, ruler, dist_from_ruler] = local_queue.front();
       local_queue.pop();
-      KASSERT(dist.get_owner(idx) == comm.rank());
+      KASSERT(dist.is_local(idx, comm.rank()));
       auto idx_local = dist.get_local_idx(idx, comm.rank());
       auto succ = succ_array[idx_local];
       auto dist_to_succ = rank_array[idx_local];
@@ -179,7 +179,7 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
       continue;
     }
     auto ruler = succ_array[local_idx];
-    if (dist.get_owner(ruler) == comm.rank()) {
+    if (dist.is_local(ruler, comm.rank())) {
       auto ruler_local = dist.get_local_idx(ruler, comm.rank());
       succ_array[local_idx] = bits::clear_root_flag(succ_array[ruler_local]);
       rank_array[local_idx] = rank_array[ruler_local] + rank_array[local_idx];
@@ -205,7 +205,7 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
   };
   absl::flat_hash_map<idx_t, std::vector<ruler_reply>> replies;
   for (auto const& msg : requests_received) {
-    KASSERT(dist.get_owner(msg.ruler) == comm.rank());
+    KASSERT(dist.is_local(msg.ruler, comm.rank()));
     auto ruler_local = dist.get_local_idx(msg.ruler, comm.rank());
     KASSERT(!leaf_info.is_leaf(ruler_local));
     replies[dist.get_owner_signed(msg.requester)].push_back(
@@ -220,7 +220,7 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
         return comm.alltoallv(std::move(flattened)...);
       });
   for (auto const& msg : replies_received) {
-    KASSERT(dist.get_owner(msg.requester) == comm.rank());
+    KASSERT(dist.is_local(msg.requester, comm.rank()));
     auto requester_local = dist.get_local_idx(msg.requester, comm.rank());
     succ_array[requester_local] = msg.ruler;
     rank_array[requester_local] += msg.dist;
