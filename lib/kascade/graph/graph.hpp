@@ -1,26 +1,28 @@
 // taken and adapted from kascadev2, Tim Niklas Uhl, 2026
 #pragma once
 
+#include <algorithm>    // for __is_sorted_fn, is_sorted
+#include <cassert>      // for assert
+#include <cstddef>      // for size_t
+#include <cstdint>      // for uint8_t
+#include <functional>   // for identity, less
+#include <iterator>     // for pair, distance
+#include <ranges>       // for _Iota, iota, iota_view, views
+#include <span>         // for span
+#include <type_traits>  // for invoke_result_t
+#include <utility>      // for move, make_pair, pair
+#include <vector>       // for vector
+
+#include <mpi.h>
+
 #include <absl/container/flat_hash_map.h>  // for flat_hash_map
 #include <fmt/format.h>
 #include <fmt/ranges.h>
-#include <kagen/kagen.h>  // for Graph, PEID, SInt
-#include <mpi.h>
-#include <algorithm>                         // for __is_sorted_fn, is_sorted
-#include <cassert>                           // for assert
-#include <cstddef>                           // for size_t
-#include <cstdint>                           // for uint8_t
-#include <functional>                        // for identity, less
-#include <iterator>                          // for pair, distance
+#include <kagen/kagen.h>                     // for Graph, PEID, SInt
 #include <kamping/collectives/alltoall.hpp>  // IWYU pragma: keep
 #include <kamping/communicator.hpp>          // for Communicator
 #include <kamping/mpi_datatype.hpp>
 #include <kamping/utils/flatten.hpp>  // for with_flattened
-#include <ranges>                     // for _Iota, iota, iota_view, views
-#include <span>                       // for span
-#include <type_traits>                // for invoke_result_t
-#include <utility>                    // for move, make_pair, pair
-#include <vector>                     // for vector
 
 namespace kascade::graph {
 
@@ -29,6 +31,9 @@ enum class NeighborPartition : std::uint8_t { first, second, full };
 class DistributedCSRGraph : kagen::Graph {
 public:
   using VId = kagen::SInt;
+  using Weight = kagen::SSInt;
+  struct with_weights {};
+
   DistributedCSRGraph(kagen::Graph G, kamping::Communicator<> const& comm);
 
   [[nodiscard]] auto num_local_vertices() const -> std::size_t;
@@ -50,21 +55,7 @@ public:
   [[nodiscard]] auto degree(VId const& v) const -> std::size_t;
 
   [[nodiscard]] auto neighbors(VId const& v) const -> std::span<const VId>;
-
-  template <NeighborPartition part = NeighborPartition::full,
-            class Comp = std::ranges::less,
-            class Proj = std::identity>
-  void sort_neighborhood(VId const& v, Comp comp = {}, Proj proj = {}) {
-    std::ranges::sort(neighborhood_span<part>(v), std::move(comp), std::move(proj));
-  }
-
-  template <class Proj = std::identity, class Pred>
-  void partition_neighborhood(VId const& v, Pred pred, Proj proj = {}) {
-    auto tail =
-        std::ranges::partition(neighborhood_span(v), std::move(pred), std::move(proj));
-    partition_offset[to_local(v)] =
-        std::distance(neighborhood_span(v).begin(), tail.begin());
-  }
+  [[nodiscard]] auto neighbors(VId const& v, with_weights /*tag*/) const;
 
   template <class VertexToData, class MetaData = std::invoke_result_t<VertexToData, VId>>
   [[nodiscard]] auto exchange_ghost_metadata(VertexToData vertex_to_data) const
@@ -147,6 +138,19 @@ private:
     return std::span(adjncy).subspan(nb_begin, nb_end - nb_begin);
   }
 
+  template <NeighborPartition part = NeighborPartition::full>
+  [[nodiscard]] auto neighborhood_weights_span(VId const& v) const
+      -> std::span<const Weight> {
+    auto [nb_begin, nb_end] = neighborhood_begin_end<part>(v);
+    return std::span(edge_weights).subspan(nb_begin, nb_end - nb_begin);
+  }
+
+  template <NeighborPartition part = NeighborPartition::full>
+  auto neighborhood_weights_span(VId const& v) -> std::span<Weight> {
+    auto [nb_begin, nb_end] = neighborhood_begin_end<part>(v);
+    return std::span(edge_weights).subspan(nb_begin, nb_end - nb_begin);
+  }
+
   std::vector<VId> vtx_dist;
   std::vector<VId> partition_offset;
   kamping::Communicator<> const* comm_;
@@ -154,4 +158,4 @@ private:
 
 auto format_as(DistributedCSRGraph const& G) -> std::string;
 
-}  // namespace kascade
+}  // namespace kascade::graph
