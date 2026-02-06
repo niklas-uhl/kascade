@@ -51,11 +51,11 @@ plt = data(grouped) *
       mapping(:p, :total_time_mean,
           color=:config,
           marker=:config,
-          row=:graph) * 
+          layout=:graph) * 
       visual(ScatterLines)
 
 axis = (; xscale=log2)
-facet = (;linkyaxes = :minimal)
-
-figuregrid = draw(plt; axis, facet)
+facet = (; linkyaxes=:minimal)
+figure = (; size=(1000, 1200))
+figuregrid = draw(plt; axis, facet, figure)
 display(figuregrid)
