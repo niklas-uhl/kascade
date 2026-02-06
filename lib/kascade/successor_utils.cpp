@@ -6,7 +6,10 @@
 #include <absl/container/flat_hash_set.h>
 #include <kamping/collectives/allreduce.hpp>
 #include <kamping/collectives/alltoall.hpp>
+#include <kamping/collectives/exscan.hpp>
+#include <kamping/types/unsafe/tuple.hpp>
 #include <kamping/utils/flatten.hpp>
+#include <spdlog/spdlog.h>
 
 #include "kascade/assertion_levels.hpp"
 #include "kascade/distribution.hpp"
@@ -167,6 +170,165 @@ auto invert_list(std::span<const idx_t> succ_array,
     dist_to_pred[local_idx] = msg.dist_pred_succ;
   }
   KASSERT(is_list(pred_array, dist, comm), kascade::assert::with_communication);
-};
+}
+
+namespace {
+
+auto make_graph(std::ranges::forward_range auto&& recv_edges,
+                Distribution const& dist,
+                kamping::Communicator<> const& comm) -> graph::DistributedCSRGraph {
+  kagen::Graph kagen_graph;
+  kagen_graph.vertex_range.first = dist.get_exclusive_prefix(comm.rank());
+  kagen_graph.vertex_range.second =
+      kagen_graph.vertex_range.first + dist.get_count(comm.rank());
+  kagen_graph.xadj.clear();
+  kagen_graph.xadj.resize(dist.get_count(comm.rank()) + 1, 0);  // edge offsets
+  kagen_graph.adjncy.clear();                                   // edges
+  kagen_graph.adjncy.resize(recv_edges.size());                 // edges
+  kagen_graph.edge_weights.resize(recv_edges.size());           // edges
+
+  for (const auto& [src, dst, w] : recv_edges) {
+    ++kagen_graph.xadj[dist.get_local_idx(src, comm.rank())];
+  }
+  std::inclusive_scan(kagen_graph.xadj.begin(), kagen_graph.xadj.end(),
+                      kagen_graph.xadj.begin());
+  for (const auto& [src, dst, w] : recv_edges) {
+    auto local_src = dist.get_local_idx(src, comm.rank());
+    auto insert_pos = --kagen_graph.xadj[local_src];
+    kagen_graph.adjncy[insert_pos] = dst;
+    kagen_graph.edge_weights[insert_pos] = w;
+  }
+  return graph::DistributedCSRGraph(std::move(kagen_graph), comm);
+}
+
+}  // namespace
+auto invert_list_to_graph(std::span<idx_t const> succ_array,
+                          std::span<idx_t const> dist_to_succ,
+                          Distribution const& dist,
+                          kamping::Communicator<> const& comm)
+    -> graph::DistributedCSRGraph {
+  namespace kmp = kamping::params;
+  struct Edge {
+    idx_t src;
+    idx_t dst;
+    idx_t weight;
+  };
+  auto is_root = [&](auto i) {
+    idx_t global_idx = dist.get_global_idx(i, comm.rank());
+    return succ_array[i] == global_idx;
+  };
+  absl::flat_hash_map<int, std::vector<Edge>> send_bufs;
+  for (idx_t i = 0; i < succ_array.size(); ++i) {
+    if (is_root(i)) {
+      continue;
+    }
+    auto src = dist.get_global_idx(i, comm.rank());
+    auto dst = succ_array[i];
+    int target_rank = dist.get_owner_signed(dst);
+    send_bufs[target_rank].emplace_back(dst, src, dist_to_succ[i]);
+  }
+  auto [send_buf, send_counts, send_displs] = kamping::flatten(send_bufs, comm.size());
+  auto recv_edges = comm.alltoallv(kmp::send_buf(send_buf), kmp::send_counts(send_counts),
+                                   kmp::send_displs(send_displs));
+
+  return make_graph(std::move(recv_edges), dist, comm);
+}
+
+auto invert_list_to_graph_with_local_high_degree_handling(
+    std::span<idx_t const> succ_array,
+    std::span<idx_t const> dist_to_succ,
+    Distribution const& dist,
+    kamping::Communicator<> const& comm) -> graph::DistributedCSRGraph {
+  namespace kmp = kamping::params;
+  struct Edge {
+    idx_t src;
+    idx_t dst;
+    idx_t weight;
+  };
+
+  auto is_root = [&](auto i) {
+    idx_t global_idx = dist.get_global_idx(i, comm.rank());
+    return succ_array[i] == global_idx;
+  };
+
+  auto encode_local_proxy_id = [](idx_t local_proxy_id) {
+    return -(static_cast<std::int64_t>(local_proxy_id) + 1);
+  };
+  auto decode_local_proxy_id = [](std::int64_t encoded_id) {
+    KASSERT(encoded_id < 0);
+    return static_cast<idx_t>(-(encoded_id + 1));
+  };
+
+  // count remote parents
+  absl::flat_hash_map<idx_t, std::int64_t> remote_info;
+  for (idx_t succ : succ_array) {
+    if (dist.get_owner(succ) != comm.rank()) {
+      ++remote_info[succ];
+    }
+  }
+
+  // compute proxy vertices
+  std::size_t const threshold = 1;
+  std::size_t next_proxy_id = 0;
+  for (auto& kv : remote_info) {
+    if (kv.second > static_cast<std::int64_t>(threshold)) {
+      kv.second = encode_local_proxy_id(next_proxy_id);
+      ++next_proxy_id;
+    }
+  }
+  std::size_t num_proxies = next_proxy_id;
+
+  Distribution new_distribution(succ_array.size() + num_proxies, comm);
+
+  auto to_new_global = [&](idx_t global_id, std::size_t owner) {
+    const auto local = dist.get_local_idx(global_id, owner);
+    return new_distribution.get_global_idx(local, owner);
+  };
+
+  auto proxy_to_global = [&](std::size_t local_proxy_id) {
+    return new_distribution.get_global_idx(
+        dist.get_count(comm.rank()) + static_cast<idx_t>(local_proxy_id), comm.rank());
+  };
+
+  // vertex -> {parent or proxy}
+  absl::flat_hash_map<int, std::vector<Edge>> send_bufs;
+  for (idx_t i = 0; i < succ_array.size(); ++i) {
+    if (is_root(i)) {
+      continue;
+    }
+    const idx_t v = new_distribution.get_global_idx(i, comm.rank());
+    const idx_t parent = succ_array[i];
+    const idx_t weight = dist_to_succ[i];
+
+    auto it = remote_info.find(parent);
+    if (it != remote_info.end() && it->second < 0) {
+      // v -> local proxy
+      auto local_proxy_id = static_cast<idx_t>(-(it->second + 1));
+      auto proxy_id = proxy_to_global(local_proxy_id);
+      send_bufs[comm.rank_signed()].emplace_back(proxy_id, v, weight);
+    } else {
+      // v -> parent
+      auto parent_owner = dist.get_owner(parent);
+      send_bufs[static_cast<int>(parent_owner)].emplace_back(
+          to_new_global(parent, parent_owner), v, weight);
+    }
+  }
+
+  // proxy -> real parent
+  for (auto const& [parent, proxy_info] : remote_info) {
+    if (proxy_info < 0) {
+      const auto local_proxy_id = decode_local_proxy_id(proxy_info);
+      const auto owner = dist.get_owner(parent);
+      send_bufs[static_cast<int>(owner)].emplace_back(to_new_global(parent, owner),
+                                                      proxy_to_global(local_proxy_id), 0);
+    }
+  }
+
+  auto [send_buf, send_counts, send_displs] = kamping::flatten(send_bufs, comm.size());
+  auto recv_edges = comm.alltoallv(kmp::send_buf(send_buf), kmp::send_counts(send_counts),
+                                   kmp::send_displs(send_displs));
+
+  return make_graph(std::move(recv_edges), new_distribution, comm);
+}
 
 }  // namespace kascade
