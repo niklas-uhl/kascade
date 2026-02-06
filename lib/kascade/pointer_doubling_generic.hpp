@@ -18,6 +18,7 @@
 #include "kascade/list_ranking.hpp"
 #include "kascade/request_aggregation_scheme.hpp"
 #include "kascade/types.hpp"
+#include "successor_utils.hpp"
 
 namespace kascade {
 namespace {
@@ -98,7 +99,8 @@ struct update_via_lookup {
 auto make_requests(std::span<idx_t> root_array, std::span<idx_t> local_request_array) {
   return local_request_array | std::views::transform([=](idx_t local_elem_idx) {
            auto succ = root_array[local_elem_idx];
-           KASSERT(!bits::has_root_flag(succ), "Do not continue on already finised elements.");
+           KASSERT(!bits::has_root_flag(succ),
+                   "Do not continue on already finised elements.");
            return succ;
          });
 }
@@ -107,7 +109,8 @@ auto make_requests_with_writeback(std::span<idx_t> root_array,
                                   std::span<idx_t> local_request_array) {
   return local_request_array | std::views::transform([=](idx_t local_elem_idx) {
            auto succ = root_array[local_elem_idx];
-           KASSERT(!bits::has_root_flag(succ), "Do not continue on already finised elements.");
+           KASSERT(!bits::has_root_flag(succ),
+                   "Do not continue on already finised elements.");
            return Request{.write_back_idx = local_elem_idx, .succ = succ};
          });
 }
@@ -310,6 +313,20 @@ void pointer_doubling_generic(PointerDoublingConfig config,
                               Distribution const& dist,
                               R const& active_local_indices,
                               kamping::Communicator<> const& comm) {
+  auto get_max_degree = [](auto const& graph) {
+    std::size_t max_degree = 0;
+    for (const auto v : graph.vertices()) {
+      max_degree = std::max(max_degree, graph.degree(v));
+    }
+    return max_degree;
+  };
+  auto tree = invert_list_to_graph(succ_array, rank_array, dist, comm);
+  spdlog::get("gather")->info("max degree tree: {}", get_max_degree(tree));
+
+  auto tree_hdh = invert_list_to_graph_with_local_high_degree_handling(
+      succ_array, rank_array, dist, comm);
+  spdlog::get("gather")->info("max degree tree HDH: {}", get_max_degree(tree_hdh));
+
   if (config.use_local_preprocessing) {
     kamping::measurements::timer().synchronize_and_start("local_preprocessing");
     local_pointer_chasing(succ_array, rank_array, comm.rank(), dist);
