@@ -46,36 +46,6 @@ graphs:
       verify-level: 0
       iterations: 5
     scale_weak: True
-  - generator: kagen
-    type: gnm-undirected
-    N: 20
-    M: 24
-    extra_args:
-      statistics-level: extensive-reduced-output
-      input-processing: bfs
-      verify-level: 0
-      iterations: 5
-    scale_weak: True
-  - generator: kagen
-    type: rmat
-    N: 20
-    M: 24
-    extra_args:
-      statistics-level: extensive-reduced-output
-      input-processing: bfs
-      verify-level: 0
-      iterations: 5
-    scale_weak: True
-  - generator: kagen
-    type: rgg2d
-    N: 20
-    M: 24
-    extra_args:
-      statistics-level: extensive-reduced-output
-      input-processing: bfs
-      verify-level: 0
-      iterations: 5
-    scale_weak: True
 config:
   - algorithm: SparseRulingSet
     sparse-ruling-set-ruler-selection: dehne
