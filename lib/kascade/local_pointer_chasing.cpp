@@ -2,7 +2,9 @@
 #include <span>
 #include <vector>
 
+#include <fmt/ranges.h>
 #include <kassert/kassert.hpp>
+#include <spdlog/spdlog.h>
 
 #include "kascade/distribution.hpp"
 #include "kascade/types.hpp"
@@ -23,7 +25,7 @@ void local_pointer_chasing(std::span<idx_t> succ_array,
   for (idx_t idx{0}; idx < succ_array.size(); idx++) {
     auto const succ = succ_array[idx];
     if (succ == to_global(idx)) {
-      KASSERT(rank_array[idx] == 0);
+       KASSERT(rank_array[idx] == 0);
     }
     if (is_local_vertex(succ)) {
       has_pred[to_local(succ)] = true;

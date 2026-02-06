@@ -4,9 +4,12 @@
 #include <span>
 #include <vector>
 
+#include <kamping/collectives/gather.hpp>
 #include <kamping/communicator.hpp>
+#include <spdlog/spdlog.h>
 
 #include "kascade/distribution.hpp"
+#include "kascade/eulertour.hpp"
 #include "kascade/graph/graph.hpp"
 #include "kascade/types.hpp"
 
@@ -29,18 +32,17 @@ auto reverse_list(std::span<const idx_t> succ_array,
 auto reverse_rooted_tree(std::span<const idx_t> succ_array,
                          std::span<const rank_t> dist_to_succ,
                          Distribution const& dist,
-                         kamping::Communicator<> const& comm)
-    -> graph::DistributedCSRGraph;
+                         kamping::Communicator<> const& comm,
+                         bool add_back_edge = false) -> graph::DistributedCSRGraph;
 
 struct resolve_high_degree_tag {};
 static constexpr resolve_high_degree_tag resolve_high_degree{};
 
-auto reverse_rooted_tree(
-    std::span<const idx_t> succ_array,
-    std::span<const rank_t> dist_to_succ,
-    Distribution const& dist,
-    kamping::Communicator<> const& comm,
-    resolve_high_degree_tag) -> graph::DistributedCSRGraph;
+auto reverse_rooted_tree(std::span<const idx_t> succ_array,
+                         std::span<const rank_t> dist_to_succ,
+                         Distribution const& dist,
+                         kamping::Communicator<> const& comm,
+                         resolve_high_degree_tag) -> graph::DistributedCSRGraph;
 
 auto is_root(std::size_t local_idx,
              std::span<const idx_t> succ_array,
@@ -77,4 +79,8 @@ auto roots(std::span<const idx_t> succ_array,
 auto leaves(std::span<const idx_t> succ_array,
             Distribution const& dist,
             kamping::Communicator<> const& comm) -> std::vector<idx_t>;
+
+auto trace_successor_list(std::span<const idx_t> root_array,
+                          std::span<const rank_t> rank_array,
+                          const kamping::Communicator<>& comm) -> std::string;
 }  // namespace kascade

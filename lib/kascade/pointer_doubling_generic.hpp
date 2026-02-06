@@ -18,6 +18,7 @@
 #include "kascade/list_ranking.hpp"
 #include "kascade/request_aggregation_scheme.hpp"
 #include "kascade/types.hpp"
+#include "successor_utils.hpp"
 
 namespace kascade {
 namespace {
@@ -325,14 +326,12 @@ void pointer_doubling_generic(PointerDoublingConfig config,
 
   kamping::measurements::timer().synchronize_and_start("pointer_doubling_alltoall");
 
-  std::size_t rounds = 0;
   auto active_vertices_storage = initialize_active_vertices(succ_array, rank_array, dist,
                                                             active_local_indices, comm);
   std::span<idx_t> active_vertices = active_vertices_storage;
 
   while (!is_finished(active_vertices.size(), comm)) {
-    kamping::measurements::timer().synchronize_and_start("pointer_doubling_step_" +
-                                                         std::to_string(rounds++));
+    kamping::measurements::timer().synchronize_and_start("pointer_doubling_step");
     active_vertices = do_doubling_step(config, rank_array, succ_array, active_vertices,
                                        dist, comm, grid_comm_ptr.get());
     kamping::measurements::timer().stop_and_append();

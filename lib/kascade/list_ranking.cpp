@@ -17,6 +17,7 @@
 
 #include "kascade/distribution.hpp"
 #include "kascade/types.hpp"
+#include "successor_utils.hpp"
 
 namespace kascade {
 

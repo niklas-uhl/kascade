@@ -11,15 +11,6 @@
 #include "input/generation.hpp"
 #include "kascade/configuration.hpp"
 
-enum class Algorithm : std::uint8_t {
-  GatherChase,
-  PointerDoubling,
-  AsyncPointerDoubling,
-  RMAPointerDoubling,
-  SparseRulingSet,
-  invalid,
-};
-
 struct Config {
   std::size_t num_ranks = kamping::world_size();
   // std::string hostname = KACC_HOSTNAME;
@@ -30,11 +21,12 @@ struct Config {
   std::string output_path = "stdout";
   std::size_t iterations = 1;
   kascade::input::Config input;
-  Algorithm algorithm = Algorithm::invalid;
+  kascade::Algorithm algorithm = kascade::Algorithm::invalid;
   kascade::AsyncPointerChasingConfig async_pointer_chasing;
   kascade::RMAPointerChasingConfig rma_pointer_chasing;
   kascade::PointerDoublingConfig pointer_doubling;
   kascade::SparseRulingSetConfig sparse_ruling_set;
+  kascade::EulerTourConfig euler_tour;
   std::size_t verify_level = 1;
   bool verify_continue_on_mismatch = false;
   StatsLevel statistics_level = StatsLevel::none;

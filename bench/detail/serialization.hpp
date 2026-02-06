@@ -8,14 +8,6 @@
 #include "input/generation.hpp"
 #include "kascade/configuration.hpp"
 
-NLOHMANN_JSON_SERIALIZE_ENUM(Algorithm,
-                             {{Algorithm::invalid, nullptr},
-                              {Algorithm::GatherChase, "GatherChase"},
-                              {Algorithm::PointerDoubling, "PointerDoubling"},
-                              {Algorithm::AsyncPointerDoubling, "AsyncPointerDoubling"},
-                              {Algorithm::RMAPointerDoubling, "RMAPointerDoubling"},
-                              {Algorithm::SparseRulingSet, "SparseRulingSet"}})
-
 NLOHMANN_JSON_SERIALIZE_ENUM(StatsLevel,
                              {{StatsLevel::invalid, nullptr},
                               {StatsLevel::none, "none"},
@@ -35,6 +27,14 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Config, kagen_option_string, input_processing
 }  // namespace kascade::input
 
 namespace kascade {
+NLOHMANN_JSON_SERIALIZE_ENUM(Algorithm,
+                             {{Algorithm::invalid, nullptr},
+                              {Algorithm::GatherChase, "GatherChase"},
+                              {Algorithm::PointerDoubling, "PointerDoubling"},
+                              {Algorithm::AsyncPointerDoubling, "AsyncPointerDoubling"},
+                              {Algorithm::RMAPointerDoubling, "RMAPointerDoubling"},
+                              {Algorithm::EulerTour, "EulerTour"},
+                              {Algorithm::SparseRulingSet, "SparseRulingSet"}})
 NLOHMANN_JSON_SERIALIZE_ENUM(AggregationLevel,
                              {{AggregationLevel::invalid, nullptr},
                               {AggregationLevel::none, "none"},
@@ -61,6 +61,7 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(SparseRulingSetConfig,
                                    heuristic_factor,
                                    sync,
                                    spawn);
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(EulerTourConfig, algorithm);
 }  // namespace kascade
 
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_ONLY_SERIALIZE(TreeStats, size, max_rank, rank_sum);

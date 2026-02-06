@@ -10,12 +10,6 @@
 #include "./serialization.hpp"  // IWYU pragma: keep
 #include "kascade/configuration.hpp"
 
-auto lexical_cast(const std::string& input, Algorithm& algo) -> bool {
-  nlohmann::json input_json = input;
-  algo = input_json.template get<Algorithm>();
-  return algo != Algorithm::invalid;
-}
-
 auto lexical_cast(const std::string& input, StatsLevel& stats_level) -> bool {
   nlohmann::json input_json = input;
   stats_level = input_json.template get<StatsLevel>();
@@ -23,6 +17,12 @@ auto lexical_cast(const std::string& input, StatsLevel& stats_level) -> bool {
 }
 
 namespace kascade {
+
+auto lexical_cast(const std::string& input, Algorithm& algo) -> bool {
+  nlohmann::json input_json = input;
+  algo = input_json.template get<Algorithm>();
+  return algo != Algorithm::invalid;
+}
 
 auto lexical_cast(const std::string& input, AggregationLevel& aggregation_level) -> bool {
   nlohmann::json input_json = input;
@@ -110,6 +110,8 @@ auto parse_args(std::span<char*> args) -> Config {
       ->group("Sparse Ruling Set");
   app.add_flag("--sparse-ruling-set-spawn", config.sparse_ruling_set.spawn)
       ->group("Sparse Ruling Set");
+
+  app.add_option("--eulertour-algorithm", config.euler_tour.algorithm);
 
   try {
     app.parse(static_cast<int>(args.size()), args.data());

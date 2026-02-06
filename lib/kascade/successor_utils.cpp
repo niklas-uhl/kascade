@@ -4,10 +4,12 @@
 
 #include <absl/container/flat_hash_map.h>
 #include <absl/container/flat_hash_set.h>
+#include <kamping/collectives/allgather.hpp>
 #include <kamping/collectives/allreduce.hpp>
 #include <kamping/collectives/alltoall.hpp>
 #include <kamping/collectives/exscan.hpp>
 #include <kamping/types/unsafe/tuple.hpp>
+#include <kamping/types/unsafe/utility.hpp>
 #include <kamping/utils/flatten.hpp>
 #include <spdlog/spdlog.h>
 
@@ -206,8 +208,8 @@ auto make_graph(std::ranges::forward_range auto&& recv_edges,
 auto reverse_rooted_tree(std::span<idx_t const> succ_array,
                          std::span<rank_t const> dist_to_succ,
                          Distribution const& dist,
-                         kamping::Communicator<> const& comm)
-    -> graph::DistributedCSRGraph {
+                         kamping::Communicator<> const& comm,
+                         bool add_back_edge) -> graph::DistributedCSRGraph {
   namespace kmp = kamping::params;
   struct Edge {
     idx_t src;
@@ -215,6 +217,9 @@ auto reverse_rooted_tree(std::span<idx_t const> succ_array,
     rank_t weight;
   };
   absl::flat_hash_map<int, std::vector<Edge>> send_bufs;
+  if (add_back_edge) {
+    send_bufs[comm.rank_signed()].reserve(succ_array.size());
+  }
   for (idx_t i = 0; i < succ_array.size(); ++i) {
     if (is_root(i, succ_array, dist, comm)) {
       continue;
@@ -222,12 +227,14 @@ auto reverse_rooted_tree(std::span<idx_t const> succ_array,
     auto src = dist.get_global_idx(i, comm.rank());
     auto dst = succ_array[i];
     int target_rank = dist.get_owner_signed(dst);
+    if (add_back_edge) {
+      send_bufs[comm.rank_signed()].emplace_back(src, dst, dist_to_succ[i]);
+    }
     send_bufs[target_rank].emplace_back(dst, src, dist_to_succ[i]);
   }
   auto [send_buf, send_counts, send_displs] = kamping::flatten(send_bufs, comm.size());
   auto recv_edges = comm.alltoallv(kmp::send_buf(send_buf), kmp::send_counts(send_counts),
                                    kmp::send_displs(send_displs));
-
   return make_graph(std::move(recv_edges), dist, comm);
 }
 
@@ -324,4 +331,40 @@ auto reverse_rooted_tree(std::span<const idx_t> succ_array,
   return make_graph(std::move(recv_edges), new_distribution, comm);
 }
 
+auto trace_successor_list(std::span<const idx_t> root_array,
+                          std::span<const rank_t> rank_array,
+                          const kamping::Communicator<>& comm) -> std::string {
+  namespace kmp = kamping::params;
+
+  const auto global_root_array = comm.allgatherv(kmp::send_buf(root_array));
+  const auto global_rank_array = comm.allgatherv(kmp::send_buf(rank_array));
+
+  const auto size = std::size(global_root_array);
+
+  std::vector<bool> is_leaf(static_cast<std::size_t>(size), true);
+  for (idx_t idx = 0; idx < size; ++idx) {
+    const auto parent = global_root_array[static_cast<std::size_t>(idx)];
+    KASSERT(parent < size);
+    is_leaf[static_cast<std::size_t>(parent)] = false;
+  }
+
+  std::ostringstream out;
+  for (idx_t idx = 0; idx < size; ++idx) {
+    if (!is_leaf[static_cast<std::size_t>(idx)]) {
+      continue;
+    }
+    auto cur = idx;
+    for (;;) {
+      out << '(' << cur << ", r: " << global_rank_array[static_cast<std::size_t>(cur)]
+          << ")\n";
+
+      const auto parent = global_root_array[static_cast<std::size_t>(cur)];
+      if (parent == cur) {
+        break;
+      }
+      cur = parent;
+    }
+  }
+  return out.str();
+}
 }  // namespace kascade

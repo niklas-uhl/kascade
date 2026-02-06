@@ -10,17 +10,19 @@
 auto get_algorithm(const Config& config, kamping::Communicator<> const& comm)
     -> std::unique_ptr<AbstractAlgorithm> {
   switch (config.algorithm) {
-    case Algorithm::GatherChase:
+    case kascade::Algorithm::GatherChase:
       return std::make_unique<GatherRank>(comm);
-    case Algorithm::PointerDoubling:
+    case kascade::Algorithm::PointerDoubling:
       return std::make_unique<PointerDoubling>(config.pointer_doubling, comm);
-    case Algorithm::AsyncPointerDoubling:
+    case kascade::Algorithm::AsyncPointerDoubling:
       return std::make_unique<AsyncPointerDoubling>(config.async_pointer_chasing, comm);
-    case Algorithm::RMAPointerDoubling:
+    case kascade::Algorithm::RMAPointerDoubling:
       return std::make_unique<RMAPointerDoubling>(config.rma_pointer_chasing, comm);
-    case Algorithm::SparseRulingSet:
+    case kascade::Algorithm::SparseRulingSet:
       return std::make_unique<SparseRulingSet>(config.sparse_ruling_set, comm);
-    case Algorithm::invalid:
+    case kascade::Algorithm::EulerTour:
+      return std::make_unique<EulerTour>(config, comm);
+    case kascade::Algorithm::invalid:
       throw std::runtime_error("Invalid algorithm selected.");
   }
   std::unreachable();

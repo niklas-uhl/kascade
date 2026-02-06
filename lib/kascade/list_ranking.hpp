@@ -27,6 +27,11 @@ void local_pointer_chasing(std::span<idx_t> succ_array,
                            std::size_t rank,
                            Distribution const& dist);
 
+void euler_tour_rank_on_root(std::span<idx_t> succ_array,
+                             std::span<rank_t> rank_array,
+                             Distribution const& dist,
+                             kamping::Communicator<> const& comm);
+
 /// Initialize root and rank arrays for a distributed successor list.
 /// - Copies each local successor into the corresponding root entry.
 /// - Sets all ranks to 1, then sets ranks of global roots (indices equal to their
