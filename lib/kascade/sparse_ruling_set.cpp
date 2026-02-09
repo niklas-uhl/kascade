@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <functional>
+#include <limits>
 #include <queue>
 #include <random>
 #include <ranges>
@@ -11,12 +12,17 @@
 #include <absl/container/flat_hash_map.h>
 #include <briefkasten/queue_builder.hpp>
 #include <fmt/ranges.h>
+#include <kamping/collectives/allreduce.hpp>
+#include <kamping/collectives/alltoall.hpp>
 #include <kamping/communicator.hpp>
 #include <kamping/data_buffer.hpp>
 #include <kamping/measurements/counter.hpp>
+#include <kamping/measurements/measurement_aggregation_definitions.hpp>
 #include <kamping/measurements/timer.hpp>
+#include <kamping/mpi_ops.hpp>
 #include <kamping/named_parameters.hpp>
 #include <kamping/utils/flatten.hpp>
+#include <kamping/types/tuple.hpp>
 #include <kassert/kassert.hpp>
 #include <spdlog/spdlog.h>
 
@@ -109,6 +115,7 @@ auto handle_messages(auto&& initialize,
     }
   } while (!queue.terminate(on_message));
 }
+
 auto handle_messages(auto&& initialize,
                      auto&& work_on_item,
                      Distribution const& /* dist */,
@@ -144,7 +151,10 @@ auto handle_messages(auto&& initialize,
     kamping::measurements::timer().stop_and_append();
     rounds++;
   }
-  kamping::measurements::counter().add("ruler_chasing_rounds", rounds);
+  kamping::measurements::counter().add(
+      "ruler_chasing_rounds", rounds,
+      {kamping::measurements::GlobalAggregationMode::max,
+       kamping::measurements::GlobalAggregationMode::min});
 }
 }  // namespace
 
@@ -165,8 +175,14 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
       static_cast<std::int64_t>(compute_local_num_rulers(config, dist, comm)) -
       leaf_info.num_local_leaves();
   local_num_rulers = std::max(local_num_rulers, std::int64_t{0});
-  kamping::measurements::counter().add("local_num_ruler", local_num_rulers);
-  kamping::measurements::counter().add("local_num_leaves", static_cast<std::int64_t>(leaf_info.num_local_leaves()));
+  kamping::measurements::counter().add(
+      "local_num_ruler", local_num_rulers,
+      {kamping::measurements::GlobalAggregationMode::max,
+       kamping::measurements::GlobalAggregationMode::min});
+  kamping::measurements::counter().add(
+      "local_num_leaves", static_cast<std::int64_t>(leaf_info.num_local_leaves()),
+      {kamping::measurements::GlobalAggregationMode::max,
+       kamping::measurements::GlobalAggregationMode::min});
   SPDLOG_DEBUG("picking {} rulers", local_num_rulers);
 
   auto rulers =
@@ -199,6 +215,7 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
           RulerMessage{.target_idx = target_idx, .ruler = ruler, .dist_from_ruler = 0});
     }
   };
+  absl::flat_hash_map<idx_t, idx_t> ruler_list_length;
   auto work_on_item = [&](RulerMessage const& msg, auto&& enqueue_locally,
                           auto&& send_to) {
     const auto& [idx, ruler, dist_from_ruler] = msg;
@@ -211,6 +228,7 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
     if (succ == idx) {
       // this is either a root, or a ruler, which points to itself after
       // initialization
+      ruler_list_length[ruler] = dist_from_ruler;
       return;
     }
     auto succ_rank = dist.get_owner_signed(succ);
@@ -310,6 +328,40 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
     succ_array[requester_local] = msg.ruler;
     rank_array[requester_local] += msg.dist;
   }
+  kamping::measurements::timer().stop();
+  kamping::measurements::timer().start("stats");
+  idx_t min_length = std::numeric_limits<idx_t>::max();
+  idx_t max_length = std::numeric_limits<idx_t>::min();
+  idx_t length_sum = 0;
+  std::size_t num_rulers = ruler_list_length.size();
+  for (auto& [_, length] : ruler_list_length) {
+    min_length = std::min(min_length, length);
+    max_length = std::max(max_length, length);
+    length_sum += length;
+  }
+  auto data = std::make_tuple(min_length, max_length, length_sum, num_rulers);
+  auto op = [](auto const& lhs, auto const& rhs) {
+    return std::make_tuple(std::min(std::get<0>(lhs), std::get<0>(rhs)),
+                           std::max(std::get<1>(lhs), std::get<1>(rhs)),
+                           std::plus<>{}(std::get<2>(lhs), std::get<2>(rhs)),
+                           std::plus<>{}(std::get<3>(lhs), std::get<3>(rhs)));
+  };
+  comm.allreduce(kamping::send_buf(data), kamping::op(op, kamping::ops::commutative));
+  kamping::measurements::counter().add(
+      "ruler_list_length_min", std::get<0>(data),
+      {
+          kamping::measurements::GlobalAggregationMode::min,
+      });
+  kamping::measurements::counter().add(
+      "ruler_list_length_max", std::get<1>(data),
+      {
+          kamping::measurements::GlobalAggregationMode::max,
+      });
+  kamping::measurements::counter().add("ruler_list_length_avg",
+      static_cast<double>(std::get<2>(data)) / static_cast<double>(std::get<3>(data)),
+      {
+          kamping::measurements::GlobalAggregationMode::max,
+      });
   kamping::measurements::timer().stop();
 }
 }  // namespace kascade
