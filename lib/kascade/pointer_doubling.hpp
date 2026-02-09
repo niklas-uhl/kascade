@@ -16,7 +16,7 @@ namespace kascade {
 /// roots, > 1 otherwise). Upon completion, contains distance to the root.
 void pointer_doubling(PointerDoublingConfig config,
                       std::span<idx_t> succ_array,
-                      std::span<idx_t> rank_array,
+                      std::span<rank_t> rank_array,
                       Distribution const& dist,
                       kamping::Communicator<> const& comm);
 
@@ -26,7 +26,7 @@ void pointer_doubling(PointerDoublingConfig config,
 /// roots, > 1 otherwise). Upon completion, contains distance to the root.
 void async_pointer_doubling(AsyncPointerChasingConfig const& config,
                             std::span<idx_t> succ_array,
-                            std::span<idx_t> rank_array,
+                            std::span<rank_t> rank_array,
                             Distribution const& dist,
                             kamping::Communicator<> const& comm);
 
@@ -36,7 +36,7 @@ void async_pointer_doubling(AsyncPointerChasingConfig const& config,
 /// roots, > 1 otherwise). Upon completion, contains distance to the root.
 void rma_pointer_doubling(RMAPointerChasingConfig const& config,
                           std::span<idx_t> succ_array,
-                          std::span<idx_t> rank_array,
+                          std::span<rank_t> rank_array,
                           Distribution const& dist,
                           kamping::Communicator<> const& comm);
 

@@ -14,7 +14,7 @@ public:
 
   virtual void ingest(std::span<const kascade::idx_t> succ_array) = 0;
   virtual void run() = 0;
-  virtual auto get_rank_array() -> std::vector<kascade::idx_t> const& = 0;
+  virtual auto get_rank_array() -> std::vector<kascade::rank_t> const& = 0;
   virtual auto get_root_array() -> std::vector<kascade::idx_t> const& = 0;
   virtual ~AbstractAlgorithm() = default;
 };

@@ -19,9 +19,9 @@ auto is_list(std::span<const idx_t> succ_array,
              kamping::Communicator<> const& comm) -> bool;
 
 auto invert_list(std::span<const idx_t> succ_array,
-                 std::span<const idx_t> dist_to_succ,
+                 std::span<const rank_t> dist_to_succ,
                  std::span<idx_t> pred_array,
-                 std::span<idx_t> dist_to_pred,
+                 std::span<rank_t> dist_to_pred,
                  Distribution const& dist,
                  kamping::Communicator<> const& comm) -> void;
 

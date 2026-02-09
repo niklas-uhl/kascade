@@ -23,7 +23,7 @@ namespace kascade {
 namespace {
 
 template <typename MakeRequestsFn, typename SendRequestsFn, typename UpdateFn>
-auto do_doubling_step_skeleton(std::span<kascade::idx_t> rank_array,
+auto do_doubling_step_skeleton(std::span<kascade::rank_t> rank_array,
                                std::span<kascade::idx_t> root_array,
                                std::span<kascade::idx_t> local_request_array,
                                MakeRequestsFn const& make_requests,
@@ -44,12 +44,12 @@ struct Request {
 struct Reply {
   kascade::idx_t write_back_idx;
   kascade::idx_t succ;
-  kascade::idx_t rank;
+  kascade::rank_t rank;
 };
 
 struct update_via_writeback {
   auto operator()(std::ranges::forward_range auto const& recv_replies,
-                  std::span<kascade::idx_t> rank_array,
+                  std::span<kascade::rank_t> rank_array,
                   std::span<kascade::idx_t> root_array,
                   std::span<kascade::idx_t> local_request_array) const -> std::size_t {
     std::size_t unfinished_elems = 0;
@@ -70,11 +70,11 @@ struct update_via_writeback {
 
 struct update_via_lookup {
   auto operator()(std::ranges::forward_range auto const& recv_replies,
-                  std::span<kascade::idx_t> rank_array,
+                  std::span<kascade::rank_t> rank_array,
                   std::span<kascade::idx_t> root_array,
                   std::span<kascade::idx_t> local_request_array) const -> std::size_t {
     // prepare lookup table
-    absl::flat_hash_map<idx_t, std::pair<idx_t, idx_t>> lookup_table;
+    absl::flat_hash_map<idx_t, std::pair<idx_t, rank_t>> lookup_table;
     for (const auto [req_succ, succ, rank] : recv_replies) {
       lookup_table.emplace(req_succ, std::make_pair(succ, rank));
     }
@@ -98,7 +98,8 @@ struct update_via_lookup {
 auto make_requests(std::span<idx_t> root_array, std::span<idx_t> local_request_array) {
   return local_request_array | std::views::transform([=](idx_t local_elem_idx) {
            auto succ = root_array[local_elem_idx];
-           KASSERT(!bits::has_root_flag(succ), "Do not continue on already finised elements.");
+           KASSERT(!bits::has_root_flag(succ),
+                   "Do not continue on already finised elements.");
            return succ;
          });
 }
@@ -107,7 +108,8 @@ auto make_requests_with_writeback(std::span<idx_t> root_array,
                                   std::span<idx_t> local_request_array) {
   return local_request_array | std::views::transform([=](idx_t local_elem_idx) {
            auto succ = root_array[local_elem_idx];
-           KASSERT(!bits::has_root_flag(succ), "Do not continue on already finised elements.");
+           KASSERT(!bits::has_root_flag(succ),
+                   "Do not continue on already finised elements.");
            return Request{.write_back_idx = local_elem_idx, .succ = succ};
          });
 }
@@ -124,7 +126,7 @@ auto make_aggregated_requests(std::span<idx_t> root_array,
   return request_buffer;
 }
 
-auto do_doubling_step_without_aggregation(std::span<kascade::idx_t> rank_array,
+auto do_doubling_step_without_aggregation(std::span<kascade::rank_t> rank_array,
                                           std::span<kascade::idx_t> root_array,
                                           std::span<kascade::idx_t> local_request_array,
                                           kascade::Distribution const& dist,
@@ -152,7 +154,7 @@ auto do_doubling_step_without_aggregation(std::span<kascade::idx_t> rank_array,
 }
 
 auto do_doubling_step_with_remote_aggregation_only(
-    std::span<kascade::idx_t> rank_array,
+    std::span<kascade::rank_t> rank_array,
     std::span<kascade::idx_t> root_array,
     std::span<kascade::idx_t> local_request_array,
     kascade::Distribution const& dist,
@@ -160,7 +162,7 @@ auto do_doubling_step_with_remote_aggregation_only(
   struct Reply {
     kascade::idx_t req_succ;
     kascade::idx_t succ;
-    kascade::idx_t rank;
+    kascade::rank_t rank;
   };
 
   auto make_reply = [&](const idx_t& request) {
@@ -184,7 +186,7 @@ auto do_doubling_step_with_remote_aggregation_only(
 
 auto do_doubling_step_with_local_aggregation(
     bool use_remote_aggregation,
-    std::span<kascade::idx_t> rank_array,
+    std::span<kascade::rank_t> rank_array,
     std::span<kascade::idx_t> root_array,
     std::span<kascade::idx_t> local_request_array,
     kascade::Distribution const& dist,
@@ -193,7 +195,7 @@ auto do_doubling_step_with_local_aggregation(
   struct Reply {
     kascade::idx_t req_succ;
     kascade::idx_t succ;
-    kascade::idx_t rank;
+    kascade::rank_t rank;
   };
   auto make_reply = [&](const idx_t& request) {
     auto local_idx = dist.get_local_idx(request, comm.rank());
@@ -228,7 +230,7 @@ auto do_doubling_step_with_local_aggregation(
 }
 
 auto do_doubling_step(kascade::PointerDoublingConfig const& config,
-                      std::span<kascade::idx_t> rank_array,
+                      std::span<kascade::rank_t> rank_array,
                       std::span<kascade::idx_t> root_array,
                       std::span<kascade::idx_t> local_request_array,
                       kascade::Distribution const& dist,
@@ -283,7 +285,7 @@ auto make_grid_comm(kamping::Communicator<> const& comm, AggregationLevel level)
 }
 
 auto initialize_active_vertices(std::span<idx_t> succ_array,
-                                std::span<idx_t> rank_array,
+                                std::span<rank_t> rank_array,
                                 Distribution const& dist,
                                 auto const& active_local_indices,
                                 kamping::Communicator<> const& comm) {
@@ -306,7 +308,7 @@ auto initialize_active_vertices(std::span<idx_t> succ_array,
 template <typename R>
 void pointer_doubling_generic(PointerDoublingConfig config,
                               std::span<idx_t> succ_array,
-                              std::span<idx_t> rank_array,
+                              std::span<rank_t> rank_array,
                               Distribution const& dist,
                               R const& active_local_indices,
                               kamping::Communicator<> const& comm) {

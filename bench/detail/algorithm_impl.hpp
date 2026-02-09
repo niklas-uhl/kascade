@@ -15,7 +15,7 @@ public:
     rank_array_.resize(succ_array_.size());
     root_array_.resize(succ_array_.size());
   };
-  auto get_rank_array() -> std::vector<kascade::idx_t> const& override {
+  auto get_rank_array() -> std::vector<kascade::rank_t> const& override {
     return rank_array_;
   }
   auto get_root_array() -> std::vector<kascade::idx_t> const& override {
@@ -25,7 +25,7 @@ public:
 protected:
   // NOLINTBEGIN(*-non-private-member-variables-in-classes)
   std::span<const kascade::idx_t> succ_array_;
-  std::vector<kascade::idx_t> rank_array_;
+  std::vector<kascade::rank_t> rank_array_;
   std::vector<kascade::idx_t> root_array_;
   kamping::Communicator<> const* comm_;
   // NOLINTEND(*-non-private-member-variables-in-classes)

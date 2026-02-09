@@ -76,7 +76,7 @@ auto pick_rulers(std::span<const idx_t> succ_array,
 struct RulerMessage {
   idx_t target_idx;
   idx_t ruler;
-  idx_t dist_from_ruler;
+  rank_t dist_from_ruler;
 };
 
 namespace ruler_chasing {
@@ -160,7 +160,7 @@ auto handle_messages(auto&& initialize,
 
 void sparse_ruling_set(SparseRulingSetConfig const& config,
                        std::span<idx_t> succ_array,
-                       std::span<idx_t> rank_array,
+                       std::span<rank_t> rank_array,
                        Distribution const& dist,
                        kamping::Communicator<> const& comm) {
   KASSERT(is_list(succ_array, dist, comm), kascade::assert::with_communication);
@@ -304,7 +304,7 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
   struct ruler_reply {
     idx_t requester;
     idx_t ruler;
-    idx_t dist;
+    rank_t dist;
   };
   absl::flat_hash_map<idx_t, std::vector<ruler_reply>> replies;
   for (auto const& msg : requests_received) {

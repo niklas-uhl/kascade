@@ -21,12 +21,12 @@
 namespace kascade {
 
 void rank(std::span<const idx_t> /*succ_array*/,
-          std::span<idx_t> /*rank_array*/,
           std::span<idx_t> /*root_array*/,
+          std::span<rank_t> /*rank_array*/,
           kamping::Communicator<> const& /*comm*/) {}
 
 void rank_on_root(std::span<idx_t> succ_array,
-                  std::span<idx_t> rank_array,
+                  std::span<rank_t> rank_array,
                   Distribution const& dist,
                   kamping::Communicator<> const& comm) {
   namespace kmp = kamping::params;
@@ -58,7 +58,7 @@ void rank_on_root(std::span<idx_t> succ_array,
 
 auto set_initial_ranking_state(std::span<const idx_t> succ_array,
                                std::span<idx_t> root_array,
-                               std::span<idx_t> rank_array,
+                               std::span<rank_t> rank_array,
                                kamping::Communicator<> const& comm) -> Distribution {
   KASSERT(root_array.size() == succ_array.size());
   KASSERT(rank_array.size() == succ_array.size());

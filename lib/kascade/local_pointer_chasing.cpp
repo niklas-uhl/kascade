@@ -14,7 +14,7 @@ namespace {
 /// While doing that the function also accumulates the rank
 /// values.
 void local_pointer_chasing(std::span<idx_t> succ_array,
-                           std::span<idx_t> rank_array,
+                           std::span<rank_t> rank_array,
                            std::invocable<idx_t> auto& to_local,
                            std::invocable<idx_t> auto& to_global,
                            std::predicate<idx_t> auto& is_local_vertex) {
@@ -58,7 +58,7 @@ void local_pointer_chasing(std::span<idx_t> succ_array,
 }  // namespace
 
 void local_pointer_chasing(std::span<idx_t> succ_array,
-                           std::span<idx_t> rank_array,
+                           std::span<rank_t> rank_array,
                            std::size_t rank,
                            Distribution const& dist) {
   auto is_local = [&](idx_t idx) {
@@ -69,7 +69,7 @@ void local_pointer_chasing(std::span<idx_t> succ_array,
   auto to_local = [&](idx_t idx) { return dist.get_local_idx(idx, rank); };
   local_pointer_chasing(succ_array, rank_array, to_local, to_global, is_local);
 }
-void local_pointer_chasing(std::span<idx_t> succ_array, std::span<idx_t> rank_array) {
+void local_pointer_chasing(std::span<idx_t> succ_array, std::span<rank_t> rank_array) {
   auto is_local = [](idx_t) { return true; };
   auto identity = std::identity{};
   local_pointer_chasing(succ_array, rank_array, identity, identity, is_local);

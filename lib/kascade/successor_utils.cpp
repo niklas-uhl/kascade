@@ -132,16 +132,16 @@ auto roots(std::span<const idx_t> succ_array,
 }
 
 auto invert_list(std::span<const idx_t> succ_array,
-                 std::span<const idx_t> dist_to_succ,
+                 std::span<const rank_t> dist_to_succ,
                  std::span<idx_t> pred_array,
-                 std::span<idx_t> dist_to_pred,
+                 std::span<rank_t> dist_to_pred,
                  Distribution const& dist,
                  kamping::Communicator<> const& comm) -> void {
   KASSERT(is_list(succ_array, dist, comm), kascade::assert::with_communication);
   struct message_type {
     idx_t pred;
     idx_t succ;
-    idx_t dist_pred_succ;
+    rank_t dist_pred_succ;
   };
   absl::flat_hash_map<int, std::vector<message_type>> requests;
   for (auto [global_idx, succ, weight] :

@@ -43,16 +43,6 @@ constexpr kascade::idx_t msb_flag_mask =
   return has_msb_set(value);
 }
 
-[[nodiscard]] constexpr auto set_pe_rank_flag(kascade::idx_t value) noexcept
-    -> kascade::idx_t {
-  return set_msb(value);
-}
-
-[[nodiscard]] constexpr auto clear_pe_rank_flag(kascade::idx_t value) noexcept
-    -> kascade::idx_t {
-  return clear_msb(value);
-}
-
 [[nodiscard]] constexpr auto has_pe_rank_flag(kascade::idx_t value) noexcept -> bool {
   return has_msb_set(value);
 }
@@ -60,7 +50,8 @@ constexpr kascade::idx_t msb_flag_mask =
 struct Msg {
   kascade::idx_t write_back_idx;
   kascade::idx_t succ;
-  kascade::idx_t rank;  // List ranking rank in reply or PE rank in request
+  kascade::rank_t rank;
+  bool is_request;
   friend auto operator<<(std::ostream& out, Msg const& msg) -> std::ostream& {
     return out << "(" << msg.write_back_idx << ", " << msg.succ << ", " << msg.rank
                << ")";
@@ -68,13 +59,8 @@ struct Msg {
 };
 
 struct SendEvent {
-  [[nodiscard]] auto is_sending_request_event() const -> bool {
-    return !has_pe_rank_flag(msg.rank);
-  }
-  [[nodiscard]] auto is_sending_reply_event() const -> bool {
-    return has_pe_rank_flag(msg.rank);
-  }
   Msg msg;
+  bool is_sending_request_event = true;
 };
 
 }  // namespace
@@ -85,7 +71,7 @@ struct fmt::formatter<Msg> : ostream_formatter {};
 namespace kascade {
 void async_pointer_doubling(AsyncPointerChasingConfig const& config,
                             std::span<idx_t> succ_array,
-                            std::span<idx_t> rank_array,
+                            std::span<rank_t> rank_array,
                             Distribution const& dist,
                             kamping::Communicator<> const& comm) {
   auto queue =
@@ -100,8 +86,11 @@ void async_pointer_doubling(AsyncPointerChasingConfig const& config,
       KASSERT(rank_array[i] == 0);
       succ_array[i] = set_root_flag(global_idx);
     } else {
-      event_queue.emplace(
-          SendEvent{.msg = Msg{.write_back_idx = i, .succ = succ_array[i], .rank = 0}});
+      event_queue.emplace(SendEvent{.msg = Msg{.write_back_idx = i,
+                                               .succ = succ_array[i],
+                                               .rank = 0,
+                                               .is_request = true},
+                                    .is_sending_request_event = true});
     }
   }
 
@@ -110,15 +99,15 @@ void async_pointer_doubling(AsyncPointerChasingConfig const& config,
     rank_array[msg.write_back_idx] += msg.rank;
     if (!has_root_flag(msg.succ)) {
       msg.rank = 0;
-      event_queue.emplace(msg);
+      msg.is_request = true;
+      event_queue.emplace(msg, true);
     }
   };
 
   auto on_message = [&](auto env) {
     for (auto msg : env.message) {
-      bool has_recv_request = has_pe_rank_flag(msg.rank);
-      if (has_recv_request) {
-        event_queue.emplace(msg);
+      if (msg.is_request) {
+        event_queue.emplace(msg, false);
       } else {
         // has_recv_reply
         if (config.use_caching) {
@@ -148,13 +137,13 @@ void async_pointer_doubling(AsyncPointerChasingConfig const& config,
     while (!event_queue.empty()) {
       auto event = event_queue.front();
       event_queue.pop();
-      if (event.is_sending_request_event()) {
+      if (event.is_sending_request_event) {
         KASSERT(!has_root_flag(event.msg.succ),
                 "Do not continue on already finished elements.");
-        KASSERT(!has_pe_rank_flag(event.msg.rank), "Set pe rank flag at send time.");
         auto successful_cache_lookup = do_cache_lookup(event.msg);
         if (!successful_cache_lookup) {
-          event.msg.rank = set_pe_rank_flag(comm.rank());
+          event.msg.rank = comm.rank_signed();
+          event.msg.is_request = true;
           int owner = dist.get_owner_signed(event.msg.succ);
           queue.post_message_blocking(event.msg, owner, on_message);
         }
@@ -162,8 +151,9 @@ void async_pointer_doubling(AsyncPointerChasingConfig const& config,
         // is sending reply event
         auto local_idx = dist.get_local_idx(event.msg.succ, comm.rank());
         event.msg.succ = succ_array[local_idx];
-        std::size_t owner = clear_pe_rank_flag(event.msg.rank);
+        std::size_t owner = event.msg.rank;
         event.msg.rank = rank_array[local_idx];
+        event.msg.is_request = false;
         queue.post_message_blocking(event.msg, static_cast<int>(owner), on_message);
       }
       queue.poll_throttled(on_message);

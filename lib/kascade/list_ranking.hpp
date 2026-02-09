@@ -12,18 +12,18 @@
 
 namespace kascade {
 void rank(std::span<const idx_t> succ_array,
-          std::span<idx_t> rank_array,
           std::span<idx_t> root_array,
+          std::span<rank_t> rank_array,
           kamping::Communicator<> const& comm);
 
 void rank_on_root(std::span<idx_t> succ_array,
-                  std::span<idx_t> rank_array,
+                  std::span<rank_t> rank_array,
                   Distribution const& dist,
                   kamping::Communicator<> const& comm);
 
-void local_pointer_chasing(std::span<idx_t> succ_array, std::span<idx_t> rank_array);
+void local_pointer_chasing(std::span<idx_t> succ_array, std::span<rank_t> rank_array);
 void local_pointer_chasing(std::span<idx_t> succ_array,
-                           std::span<idx_t> rank_array,
+                           std::span<rank_t> rank_array,
                            std::size_t rank,
                            Distribution const& dist);
 
@@ -41,7 +41,7 @@ void local_pointer_chasing(std::span<idx_t> succ_array,
 /// @return Distribution object describing the global-to-local index mapping across ranks.
 auto set_initial_ranking_state(std::span<const idx_t> succ_array,
                                std::span<idx_t> root_array,
-                               std::span<idx_t> rank_array,
+                               std::span<rank_t> rank_array,
                                kamping::Communicator<> const& comm) -> Distribution;
 
 }  // namespace kascade

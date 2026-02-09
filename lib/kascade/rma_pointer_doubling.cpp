@@ -18,7 +18,7 @@
 namespace kascade {
 
 struct Entry {
-  idx_t rank;
+  rank_t rank;
   idx_t parent;
 };
 
@@ -32,7 +32,7 @@ static constexpr fenced_t fenced{};
 namespace {
 void rma_pointer_doubling(RMAPointerChasingConfig const& config,
                           std::span<idx_t> succ_array,
-                          std::span<idx_t> rank_array,
+                          std::span<rank_t> rank_array,
                           Distribution const& dist,
                           kamping::Communicator<> const& comm,
                           rma::sync_mode::passive_target_t /* tag */) {
@@ -137,7 +137,7 @@ void rma_pointer_doubling(RMAPointerChasingConfig const& config,
 
 void rma_pointer_doubling(RMAPointerChasingConfig const& /* config */,
                           std::span<idx_t> succ_array,
-                          std::span<idx_t> rank_array,
+                          std::span<rank_t> rank_array,
                           Distribution const& dist,
                           kamping::Communicator<> const& comm,
                           rma::sync_mode::fenced_t /* tag */) {
@@ -227,7 +227,7 @@ void rma_pointer_doubling(RMAPointerChasingConfig const& /* config */,
 
 void rma_pointer_doubling(RMAPointerChasingConfig const& config,
                           std::span<idx_t> succ_array,
-                          std::span<idx_t> rank_array,
+                          std::span<rank_t> rank_array,
                           Distribution const& dist,
                           kamping::Communicator<> const& comm) {
   switch (config.sync_mode) {

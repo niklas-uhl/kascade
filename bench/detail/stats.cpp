@@ -23,7 +23,7 @@ constexpr auto safe_division(T dividend, T divisor) noexcept -> double {
 
 auto compute_per_tree_stats(bool gather_tree_stats,
                             std::span<kascade::idx_t const> root_array,
-                            std::span<kascade::idx_t const> rank_array,
+                            std::span<kascade::rank_t const> rank_array,
                             kascade::Distribution const& dist,
                             kamping::Communicator<> const& comm) -> ExtensiveStats {
   namespace kmp = kamping::params;
@@ -97,8 +97,8 @@ auto compute_per_tree_stats(bool gather_tree_stats,
     stats.nontrivial_avg_size =
         safe_division(stats.nontrivial_size_sum, stats.num_nontrivial_trees);
 
-    stats.nontrivial_avg_rank =
-        safe_division(stats.nontrivial_rank_sum, stats.nontrivial_size_sum);
+    stats.nontrivial_avg_rank = safe_division(
+        stats.nontrivial_rank_sum, static_cast<std::int64_t>(stats.nontrivial_size_sum));
   }
 
   if (gather_tree_stats) {
@@ -110,10 +110,10 @@ auto compute_per_tree_stats(bool gather_tree_stats,
   return stats;
 }
 
-BasicStats compute_basic_stats(std::span<kascade::idx_t const> root_array,
-                               std::span<kascade::idx_t const> rank_array,
-                               kascade::Distribution const& dist,
-                               kamping::Communicator<> const& comm) {
+auto compute_basic_stats(std::span<kascade::idx_t const> root_array,
+                         std::span<kascade::rank_t const> rank_array,
+                         kascade::Distribution const& dist,
+                         kamping::Communicator<> const& comm) -> BasicStats {
   namespace kmp = kamping::params;
 
   BasicStats stats;
@@ -123,10 +123,10 @@ BasicStats compute_basic_stats(std::span<kascade::idx_t const> root_array,
 
   std::size_t const local_max_rank =
       std::ranges::max(rank_array, std::ranges::less{},
-                       [](auto v) { return static_cast<std::size_t>(v); });
+                       [](auto v) { return static_cast<std::int64_t>(v); });
   std::size_t const local_rank_sum = std::ranges::fold_left(
-      rank_array, std::size_t{0},
-      [](std::size_t acc, auto v) { return acc + static_cast<std::size_t>(v); });
+      rank_array, std::int64_t{0},
+      [](std::int64_t acc, auto v) { return acc + static_cast<std::int64_t>(v); });
 
   stats.num_trees =
       comm.reduce_single(kmp::send_buf(local_num_roots), kmp::op(std::plus<>{}))
@@ -148,7 +148,7 @@ BasicStats compute_basic_stats(std::span<kascade::idx_t const> root_array,
 
 auto compute_stats(StatsLevel stats_level,
                    std::span<kascade::idx_t const> root_array,
-                   std::span<kascade::idx_t const> rank_array,
+                   std::span<kascade::rank_t const> rank_array,
                    kamping::Communicator<> const& comm) -> Stats {
   if (stats_level == StatsLevel::none) {
     return Stats{};
