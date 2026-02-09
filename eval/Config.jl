@@ -8,7 +8,8 @@ value_paths = Dict(
     "async_caching" => ["config", "async_pointer_chasing", "use_caching"],
     "pointer_doubling_aggregation_level" => ["config", "pointer_doubling", "aggregation_level"],
     "pointer_doubling_use_local_preprocessing" => ["config", "pointer_doubling", "use_local_preprocessing"],
-    "sparse_ruling_set_sync" => ["config", "sparse_ruling_set", "sync"]
+    "sparse_ruling_set_sync" => ["config", "sparse_ruling_set", "sync"],
+    "sparse_ruling_set_dehne_factor" => ["config", "sparse_ruling_set", "dehne_factor"],
 )
 
 timer_value_paths = Dict(
