@@ -49,5 +49,5 @@ graphs:
 config:
   - algorithm: SparseRulingSet
     sparse-ruling-set-ruler-selection: dehne
-    sparse-ruling-set-dehne-factor: 1.0
+    sparse-ruling-set-dehne-factor: [1.0, 10.0, 100.0]
     sparse-ruling-set-sync: True
