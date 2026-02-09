@@ -33,4 +33,5 @@ private:
   nlohmann::json config_;
   nlohmann::json stats_;
   std::vector<nlohmann::json> times_;
+  std::vector<nlohmann::json> counters_;
 };

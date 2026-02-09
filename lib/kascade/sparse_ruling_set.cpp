@@ -13,6 +13,8 @@
 #include <fmt/ranges.h>
 #include <kamping/communicator.hpp>
 #include <kamping/data_buffer.hpp>
+#include <kamping/measurements/counter.hpp>
+#include <kamping/measurements/timer.hpp>
 #include <kamping/named_parameters.hpp>
 #include <kamping/utils/flatten.hpp>
 #include <kassert/kassert.hpp>
@@ -127,6 +129,7 @@ auto handle_messages(auto&& initialize,
   };
   initialize(enqueue_locally_init);
   namespace kmp = kamping::params;
+  std::int64_t rounds = 0;
   while (!comm.allreduce_single(kmp::send_buf(local_work.empty()),
                                 kmp::op(std::logical_and<>{}))) {
     for (auto const& msg : local_work) {
@@ -134,10 +137,14 @@ auto handle_messages(auto&& initialize,
     }
     auto [send_buf, send_counts, send_displs] = kamping::flatten(messages, comm.size());
     messages.clear();
+    kamping::measurements::timer().start("alltoall");
     comm.alltoallv(kmp::recv_buf<kamping::BufferResizePolicy::resize_to_fit>(local_work),
                    kmp::send_buf(send_buf), kmp::send_counts(send_counts),
                    kmp::send_displs(send_displs));
+    kamping::measurements::timer().stop_and_append();
+    rounds++;
   }
+  kamping::measurements::counter().add("ruler_chasing_rounds", rounds);
 }
 }  // namespace
 
@@ -147,8 +154,11 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
                        Distribution const& dist,
                        kamping::Communicator<> const& comm) {
   KASSERT(is_list(succ_array, dist, comm), kascade::assert::with_communication);
+  kamping::measurements::timer().synchronize_and_start("invert_list");
   invert_list(succ_array, rank_array, succ_array, rank_array, dist, comm);
+  kamping::measurements::timer().stop();
 
+  kamping::measurements::timer().synchronize_and_start("find_rulers");
   LeafInfo leaf_info{succ_array, dist, comm};
 
   std::int64_t local_num_rulers =
@@ -162,10 +172,12 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
         return !is_root(local_idx, succ_array, dist, comm) &&
                !leaf_info.is_leaf(local_idx);
       });
+  kamping::measurements::timer().stop();
 
   //////////////////////
   // Ruler chasing    //
   //////////////////////
+  kamping::measurements::timer().synchronize_and_start("chase_ruler");
 
   // initialization
   for (auto leaf : leaf_info.leaves()) {
@@ -216,14 +228,17 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
   } else {
     handle_messages(init, work_on_item, dist, comm, ruler_chasing::async);
   }
+  kamping::measurements::timer().stop();
 
   // resetting the leafs' msb
   for (auto local_idx : rulers) {
     succ_array[local_idx] = bits::clear_root_flag(succ_array[local_idx]);
   }
 
+  kamping::measurements::timer().synchronize_and_start("base_case");
   PointerDoublingConfig conf;
   pointer_doubling_generic(conf, succ_array, rank_array, dist, rulers, comm);
+  kamping::measurements::timer().stop();
 
   // set msb for all rulers to avoid them requesting their ruler's information in the next
   // step
@@ -234,6 +249,7 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
   ///////////////////////////////////////
   // Request rank and root from rulers //
   ///////////////////////////////////////
+  kamping::measurements::timer().synchronize_and_start("ruler_propagation");
 
   struct ruler_request {
     idx_t requester;
@@ -292,5 +308,6 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
     succ_array[requester_local] = msg.ruler;
     rank_array[requester_local] += msg.dist;
   }
+  kamping::measurements::timer().stop();
 }
 }  // namespace kascade
