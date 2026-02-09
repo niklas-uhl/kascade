@@ -211,7 +211,11 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
              .dist_from_ruler = dist_from_ruler + dist_to_succ},
             succ_rank);
   };
-  handle_messages(init, work_on_item, dist, comm, ruler_chasing::async);
+  if (config.sync) {
+    handle_messages(init, work_on_item, dist, comm, ruler_chasing::sync);
+  } else {
+    handle_messages(init, work_on_item, dist, comm, ruler_chasing::async);
+  }
 
   // resetting the leafs' msb
   for (auto local_idx : rulers) {

@@ -28,5 +28,6 @@ struct SparseRulingSetConfig {
   RulerSelectionStrategy ruler_selection = RulerSelectionStrategy::dehne;
   double dehne_factor = 1.0;
   double heuristic_factor = 0.01;
+  bool sync = false;
 };
 }  // namespace kascade
