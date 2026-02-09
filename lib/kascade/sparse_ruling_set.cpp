@@ -10,6 +10,7 @@
 #include <absl/container/flat_hash_map.h>
 #include <briefkasten/queue_builder.hpp>
 #include <fmt/ranges.h>
+#include <kamping/communicator.hpp>
 #include <kamping/utils/flatten.hpp>
 #include <kassert/kassert.hpp>
 #include <spdlog/spdlog.h>
@@ -60,6 +61,41 @@ auto pick_rulers(std::span<const idx_t> succ_array,
   rulers.erase(it, rulers.end());
   return rulers;
 }
+
+struct RulerMessage {
+  idx_t target_idx;
+  idx_t ruler;
+  idx_t dist_from_ruler;
+};
+
+auto handle_messages(auto&& initialize,
+                     auto&& work_on_item,
+                     Distribution const& dist,
+                     kamping::Communicator<> const& comm) {
+  auto queue =
+      briefkasten::BufferedMessageQueueBuilder<RulerMessage>(comm.mpi_communicator())
+          .build();
+  std::queue<RulerMessage> local_queue;
+  auto on_message = [&](auto env) {
+    for (RulerMessage const& msg : env.message) {
+      KASSERT(dist.get_owner(msg.target_idx) == comm.rank());
+      local_queue.push(msg);
+    }
+  };
+  auto enqueue_locally = [&](RulerMessage const& msg) { local_queue.push(msg); };
+  auto send_to = [&](RulerMessage const& msg, int target) {
+    queue.post_message_blocking(msg, target, on_message);
+  };
+  initialize(enqueue_locally);
+  do {  // NOLINT(*-avoid-do-while)
+    while (!local_queue.empty()) {
+      queue.poll_throttled(on_message);
+      auto msg = local_queue.front();
+      local_queue.pop();
+      work_on_item(msg, enqueue_locally, send_to);
+    }
+  } while (!queue.terminate(on_message));
+}
 }  // namespace
 
 void sparse_ruling_set(SparseRulingSetConfig const& config,
@@ -84,72 +120,56 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
                !leaf_info.is_leaf(local_idx);
       });
 
-  struct RulerMessage {
-    idx_t target_idx;
-    idx_t ruler;
-    idx_t dist_from_ruler;
-  };
-
   //////////////////////
   // Ruler chasing    //
   //////////////////////
-
-  auto queue =
-      briefkasten::BufferedMessageQueueBuilder<RulerMessage>(comm.mpi_communicator())
-          .build();
-  std::queue<RulerMessage> local_queue;
-  // message handler just enqueues ruler messages to local queue
-  auto on_message = [&](auto env) {
-    for (RulerMessage const& msg : env.message) {
-      KASSERT(dist.get_owner(msg.target_idx) == comm.rank());
-      local_queue.push(msg);
-    }
-  };
 
   // initialization
   for (auto leaf : leaf_info.leaves()) {
     rulers.push_back(leaf);
   }
-  for (auto const& ruler_local : rulers) {
-    auto ruler = dist.get_global_idx(ruler_local, comm.rank());
-    auto target_idx = ruler;
-    if (leaf_info.is_leaf(ruler_local)) {
-      // this is a leaf, so set the msb to distinguish it from normal rulers, which will
-      // help to avoid them requesting their ruler's information in the end
-      ruler = bits::set_root_flag(ruler);
-    }
-    local_queue.push(
-        RulerMessage{.target_idx = target_idx, .ruler = ruler, .dist_from_ruler = 0});
-  }
   // chasing loop
-  do {  // NOLINT(*-avoid-do-while)
-    while (!local_queue.empty()) {
-      queue.poll_throttled(on_message);
-      auto [idx, ruler, dist_from_ruler] = local_queue.front();
-      local_queue.pop();
-      KASSERT(dist.get_owner(idx) == comm.rank());
-      auto idx_local = dist.get_local_idx(idx, comm.rank());
-      auto succ = succ_array[idx_local];
-      auto dist_to_succ = rank_array[idx_local];
-      succ_array[idx_local] = ruler;
-      rank_array[idx_local] = dist_from_ruler;
-      if (succ == idx) {
-        // this is either a root, or a ruler, which points to itself after initialization
-        continue;
+  auto init = [&](auto&& enqueue_locally) {
+    for (auto const& ruler_local : rulers) {
+      auto ruler = dist.get_global_idx(ruler_local, comm.rank());
+      auto target_idx = ruler;
+      if (leaf_info.is_leaf(ruler_local)) {
+        // this is a leaf, so set the msb to distinguish it from normal rulers, which
+        // will help to avoid them requesting their ruler's information in the end
+        ruler = bits::set_root_flag(ruler);
       }
-      auto succ_rank = dist.get_owner_signed(succ);
-      if (succ_rank == comm.rank_signed()) {
-        local_queue.push({.target_idx = succ,
-                          .ruler = ruler,
-                          .dist_from_ruler = dist_from_ruler + dist_to_succ});
-        continue;
-      }
-      queue.post_message_blocking({.target_idx = succ,
-                                   .ruler = ruler,
-                                   .dist_from_ruler = dist_from_ruler + dist_to_succ},
-                                  succ_rank, on_message);
+      enqueue_locally(
+          RulerMessage{.target_idx = target_idx, .ruler = ruler, .dist_from_ruler = 0});
     }
-  } while (!queue.terminate(on_message));
+  };
+  auto work_on_item = [&](RulerMessage const& msg, auto&& enqueue_locally,
+                          auto&& send_to) {
+    const auto& [idx, ruler, dist_from_ruler] = msg;
+    KASSERT(dist.get_owner(idx) == comm.rank());
+    auto idx_local = dist.get_local_idx(idx, comm.rank());
+    auto succ = succ_array[idx_local];
+    auto dist_to_succ = rank_array[idx_local];
+    succ_array[idx_local] = ruler;
+    rank_array[idx_local] = dist_from_ruler;
+    if (succ == idx) {
+      // this is either a root, or a ruler, which points to itself after
+      // initialization
+      return;
+    }
+    auto succ_rank = dist.get_owner_signed(succ);
+    if (succ_rank == comm.rank_signed()) {
+      enqueue_locally({.target_idx = succ,
+                       .ruler = ruler,
+                       .dist_from_ruler = dist_from_ruler + dist_to_succ});
+      return;
+    }
+    send_to({.target_idx = succ,
+             .ruler = ruler,
+             .dist_from_ruler = dist_from_ruler + dist_to_succ},
+            succ_rank);
+  };
+  handle_messages(init, work_on_item, dist, comm);
+
   // resetting the leafs' msb
   for (auto local_idx : rulers) {
     succ_array[local_idx] = bits::clear_root_flag(succ_array[local_idx]);
