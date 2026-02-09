@@ -21,8 +21,8 @@
 #include <kamping/measurements/timer.hpp>
 #include <kamping/mpi_ops.hpp>
 #include <kamping/named_parameters.hpp>
-#include <kamping/utils/flatten.hpp>
 #include <kamping/types/tuple.hpp>
+#include <kamping/utils/flatten.hpp>
 #include <kassert/kassert.hpp>
 #include <spdlog/spdlog.h>
 
@@ -105,7 +105,7 @@ auto handle_messages(auto&& initialize,
   auto send_to = [&](RulerMessage const& msg, int target) {
     queue.post_message_blocking(msg, target, on_message);
   };
-  initialize(enqueue_locally);
+  initialize(enqueue_locally, send_to);
   do {  // NOLINT(*-avoid-do-while)
     while (!local_queue.empty()) {
       queue.poll_throttled(on_message);
@@ -127,21 +127,18 @@ auto handle_messages(auto&& initialize,
   std::vector<RulerMessage> local_work;
   absl::flat_hash_map<int, std::vector<RulerMessage>> messages;
 
-  auto enqueue_locally_init = [&](RulerMessage const& msg) { local_work.push_back(msg); };
   auto send_to = [&](RulerMessage const& msg, int target) {
     messages[target].push_back(msg);
   };
   auto enqueue_locally = [&](RulerMessage const& msg) {
     messages[comm.rank_signed()].push_back(msg);
   };
-  initialize(enqueue_locally_init);
-  namespace kmp = kamping::params;
+  initialize(enqueue_locally, send_to);
+
   std::int64_t rounds = 0;
-  while (!comm.allreduce_single(kmp::send_buf(local_work.empty()),
+  namespace kmp = kamping::params;
+  while (!comm.allreduce_single(kmp::send_buf(messages.empty()),
                                 kmp::op(std::logical_and<>{}))) {
-    for (auto const& msg : local_work) {
-      work_on_item(msg, enqueue_locally, send_to);
-    }
     auto [send_buf, send_counts, send_displs] = kamping::flatten(messages, comm.size());
     messages.clear();
     kamping::measurements::timer().start("alltoall");
@@ -149,6 +146,10 @@ auto handle_messages(auto&& initialize,
                    kmp::send_buf(send_buf), kmp::send_counts(send_counts),
                    kmp::send_displs(send_displs));
     kamping::measurements::timer().stop_and_append();
+
+    for (auto const& msg : local_work) {
+      work_on_item(msg, enqueue_locally, send_to);
+    }
     rounds++;
   }
   kamping::measurements::counter().add(
@@ -156,6 +157,8 @@ auto handle_messages(auto&& initialize,
       {kamping::measurements::GlobalAggregationMode::max,
        kamping::measurements::GlobalAggregationMode::min});
 }
+
+enum class NodeType : std::uint8_t { root, leaf, ruler, unreached, reached };
 }  // namespace
 
 void sparse_ruling_set(SparseRulingSetConfig const& config,
@@ -185,11 +188,18 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
        kamping::measurements::GlobalAggregationMode::min});
   SPDLOG_DEBUG("picking {} rulers", local_num_rulers);
 
-  auto rulers =
-      pick_rulers(succ_array, local_num_rulers, 42 + comm.rank(), [&](idx_t local_idx) {
-        return !is_root(local_idx, succ_array, dist, comm) &&
-               !leaf_info.is_leaf(local_idx);
-      });
+  std::vector<NodeType> node_type(succ_array.size(), NodeType::unreached);
+  for (auto local_idx : dist.local_indices(comm.rank())) {
+    if (is_root(local_idx, succ_array, dist, comm)) {
+      node_type[local_idx] = NodeType::root;
+    } else if (leaf_info.is_leaf(local_idx)) {
+      node_type[local_idx] = NodeType::leaf;
+    }
+  }
+
+  auto rulers = pick_rulers(
+      succ_array, local_num_rulers, 42 + comm.rank(),
+      [&](idx_t local_idx) { return node_type[local_idx] == NodeType::unreached; });
   kamping::measurements::timer().stop();
 
   //////////////////////
@@ -202,19 +212,31 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
     rulers.push_back(leaf);
   }
   // chasing loop
-  auto init = [&](auto&& enqueue_locally) {
+  auto init = [&](auto&& enqueue_locally, auto&& send_to) {
     for (auto const& ruler_local : rulers) {
       auto ruler = dist.get_global_idx(ruler_local, comm.rank());
-      auto target_idx = ruler;
-      if (leaf_info.is_leaf(ruler_local)) {
+      auto succ = succ_array[ruler_local];
+      auto dist_to_succ = rank_array[ruler_local];
+      if (node_type[ruler_local] == NodeType::leaf) {
         // this is a leaf, so set the msb to distinguish it from normal rulers, which
         // will help to avoid them requesting their ruler's information in the end
         ruler = bits::set_root_flag(ruler);
+        succ_array[ruler_local] = ruler;
+        rank_array[ruler_local] = 0;
+      } else {
+        node_type[ruler_local] = NodeType::ruler;
       }
-      enqueue_locally(
-          RulerMessage{.target_idx = target_idx, .ruler = ruler, .dist_from_ruler = 0});
+      auto succ_owner = dist.get_owner(succ);
+      if (succ_owner == comm.rank()) {
+        enqueue_locally(
+            {.target_idx = succ, .ruler = ruler, .dist_from_ruler = dist_to_succ});
+        continue;
+      }
+      send_to({.target_idx = succ, .ruler = ruler, .dist_from_ruler = dist_to_succ},
+              succ_owner);
     }
   };
+
   absl::flat_hash_map<idx_t, idx_t> ruler_list_length;
   auto work_on_item = [&](RulerMessage const& msg, auto&& enqueue_locally,
                           auto&& send_to) {
@@ -225,12 +247,14 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
     auto dist_to_succ = rank_array[idx_local];
     succ_array[idx_local] = ruler;
     rank_array[idx_local] = dist_from_ruler;
-    if (succ == idx) {
-      // this is either a root, or a ruler, which points to itself after
-      // initialization
+    if (node_type[idx_local] == NodeType::ruler ||
+        node_type[idx_local] == NodeType::root) {
+      // we stop chasing here
       ruler_list_length[ruler] = dist_from_ruler;
       return;
     }
+    KASSERT(node_type[idx_local] == NodeType::unreached);
+    node_type[idx_local] = NodeType::reached;
     auto succ_rank = dist.get_owner_signed(succ);
     if (succ_rank == comm.rank_signed()) {
       enqueue_locally({.target_idx = succ,
@@ -249,6 +273,14 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
     handle_messages(init, work_on_item, dist, comm, ruler_chasing::async);
   }
   kamping::measurements::timer().stop();
+  KASSERT(std::ranges::all_of(node_type,
+                              [&](NodeType type) {
+                                return type == NodeType::root ||
+                                       type == NodeType::ruler ||
+                                       type == NodeType::leaf ||
+                                       type == NodeType::reached;
+                              }),
+          "Not all nodes were reached during ruler chasing!");
 
   // resetting the leafs' msb
   for (auto local_idx : rulers) {
@@ -259,12 +291,6 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
   PointerDoublingConfig conf;
   pointer_doubling_generic(conf, succ_array, rank_array, dist, rulers, comm);
   kamping::measurements::timer().stop();
-
-  // set msb for all rulers to avoid them requesting their ruler's information in the next
-  // step
-  for (auto local_idx : rulers) {
-    succ_array[local_idx] = bits::set_root_flag(succ_array[local_idx]);
-  }
 
   ///////////////////////////////////////
   // Request rank and root from rulers //
@@ -277,8 +303,9 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
   };
   absl::flat_hash_map<int, std::vector<ruler_request>> requests;
   for (auto local_idx : dist.local_indices(comm.rank())) {
-    if (bits::has_root_flag(succ_array[local_idx])) {
-      // this is a ruler, so skip
+    if (bits::has_root_flag(succ_array[local_idx]) ||
+        node_type[local_idx] == NodeType::ruler) {
+      // this node was reached by a leaf, or is a ruler, so do not request anything
       continue;
     }
     auto ruler = succ_array[local_idx];
@@ -357,7 +384,8 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
       {
           kamping::measurements::GlobalAggregationMode::max,
       });
-  kamping::measurements::counter().add("ruler_list_length_avg",
+  kamping::measurements::counter().add(
+      "ruler_list_length_avg",
       static_cast<double>(std::get<2>(data)) / static_cast<double>(std::get<3>(data)),
       {
           kamping::measurements::GlobalAggregationMode::max,
