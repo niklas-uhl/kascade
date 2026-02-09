@@ -90,6 +90,7 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Config,
                                    async_pointer_chasing,
                                    rma_pointer_chasing,
                                    pointer_doubling,
+                                   sparse_ruling_set,
                                    verify_level,
                                    verify_continue_on_mismatch,
                                    statistics_level)
