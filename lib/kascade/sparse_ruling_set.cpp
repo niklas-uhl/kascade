@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <functional>
 #include <queue>
 #include <random>
 #include <ranges>
@@ -11,6 +12,8 @@
 #include <briefkasten/queue_builder.hpp>
 #include <fmt/ranges.h>
 #include <kamping/communicator.hpp>
+#include <kamping/data_buffer.hpp>
+#include <kamping/named_parameters.hpp>
 #include <kamping/utils/flatten.hpp>
 #include <kassert/kassert.hpp>
 #include <spdlog/spdlog.h>
@@ -68,10 +71,18 @@ struct RulerMessage {
   idx_t dist_from_ruler;
 };
 
+namespace ruler_chasing {
+struct sync_tag {};
+struct async_tag {};
+constexpr sync_tag sync{};
+constexpr async_tag async{};
+}  // namespace ruler_chasing
+
 auto handle_messages(auto&& initialize,
                      auto&& work_on_item,
                      Distribution const& dist,
-                     kamping::Communicator<> const& comm) {
+                     kamping::Communicator<> const& comm,
+                     ruler_chasing::async_tag /* tag */) {
   auto queue =
       briefkasten::BufferedMessageQueueBuilder<RulerMessage>(comm.mpi_communicator())
           .build();
@@ -95,6 +106,38 @@ auto handle_messages(auto&& initialize,
       work_on_item(msg, enqueue_locally, send_to);
     }
   } while (!queue.terminate(on_message));
+}
+auto handle_messages(auto&& initialize,
+                     auto&& work_on_item,
+                     Distribution const& /* dist */,
+                     kamping::Communicator<> const& comm,
+                     ruler_chasing::sync_tag /* tag */) {
+  auto queue =
+      briefkasten::BufferedMessageQueueBuilder<RulerMessage>(comm.mpi_communicator())
+          .build();
+  std::vector<RulerMessage> local_work;
+  absl::flat_hash_map<int, std::vector<RulerMessage>> messages;
+
+  auto enqueue_locally_init = [&](RulerMessage const& msg) { local_work.push_back(msg); };
+  auto send_to = [&](RulerMessage const& msg, int target) {
+    messages[target].push_back(msg);
+  };
+  auto enqueue_locally = [&](RulerMessage const& msg) {
+    messages[comm.rank_signed()].push_back(msg);
+  };
+  initialize(enqueue_locally_init);
+  namespace kmp = kamping::params;
+  while (!comm.allreduce_single(kmp::send_buf(local_work.empty()),
+                                kmp::op(std::logical_and<>{}))) {
+    for (auto const& msg : local_work) {
+      work_on_item(msg, enqueue_locally, send_to);
+    }
+    auto [send_buf, send_counts, send_displs] = kamping::flatten(messages, comm.size());
+    messages.clear();
+    comm.alltoallv(kmp::recv_buf<kamping::BufferResizePolicy::resize_to_fit>(local_work),
+                   kmp::send_buf(send_buf), kmp::send_counts(send_counts),
+                   kmp::send_displs(send_displs));
+  }
 }
 }  // namespace
 
@@ -168,7 +211,7 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
              .dist_from_ruler = dist_from_ruler + dist_to_succ},
             succ_rank);
   };
-  handle_messages(init, work_on_item, dist, comm);
+  handle_messages(init, work_on_item, dist, comm, ruler_chasing::async);
 
   // resetting the leafs' msb
   for (auto local_idx : rulers) {
