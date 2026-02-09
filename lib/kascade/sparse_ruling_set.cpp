@@ -165,6 +165,8 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
       static_cast<std::int64_t>(compute_local_num_rulers(config, dist, comm)) -
       leaf_info.num_local_leaves();
   local_num_rulers = std::max(local_num_rulers, std::int64_t{0});
+  kamping::measurements::counter().add("local_num_ruler", local_num_rulers);
+  kamping::measurements::counter().add("local_num_leaves", static_cast<std::int64_t>(leaf_info.num_local_leaves()));
   SPDLOG_DEBUG("picking {} rulers", local_num_rulers);
 
   auto rulers =
