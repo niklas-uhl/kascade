@@ -64,46 +64,12 @@ auto is_root(std::size_t local_idx,
 LeafInfo::LeafInfo(std::span<const idx_t> succ_array,
                    Distribution const& dist_ref,
                    kamping::Communicator<> const& comm_ref)
-    : has_pred_(succ_array.size(), false),
-      dist_(&dist_ref),
-      comm_(&comm_ref),
-      num_local_leaves_(succ_array.size()) {
-  absl::flat_hash_map<int, std::vector<idx_t>> requests;
-  for (auto [global_idx, succ] :
-       std::views::zip(dist_ref.global_indices(comm_ref.rank()), succ_array)) {
-    if (succ == global_idx) {
-      continue;
-    }
-    auto owner = dist_->get_owner(succ);
-    if (owner == comm_->rank()) {
-      auto succ_local_idx = dist_->get_local_idx(succ, comm_->rank());
-      if (!has_pred_[succ_local_idx]) {
-        num_local_leaves_--;
-      }
-      has_pred_[succ_local_idx] = true;
-      continue;
-    }
-    requests[static_cast<int>(owner)].push_back(succ);
-  }
-  // de-duplicate
-  for (auto& [dst, buf] : requests) {
-    std::ranges::sort(buf);
-    auto result = std::ranges::unique(buf);
-    buf.erase(result.begin(), result.end());
-  }
-  auto preds =
-      kamping::with_flattened(requests, comm_->size()).call([&](auto... flattened) {
-        return comm_->alltoallv(std::move(flattened)...);
-      });
-  for (auto& pred : preds) {
-    KASSERT(dist_->is_local(pred, comm_->rank()));
-    auto local_idx = dist_->get_local_idx(pred, comm_->rank());
-    if (!has_pred_[local_idx]) {
-      num_local_leaves_--;
-    }
-    has_pred_[local_idx] = true;
-  }
-};
+    : LeafInfo(
+          succ_array,
+          dist_ref,
+          std::views::iota(idx_t{0}, static_cast<idx_t>(succ_array.size())),
+          [](idx_t) { return true; },
+          comm_ref) {}
 
 /// a leaf that is also a root is not a leaf
 auto LeafInfo::is_leaf(idx_t local_idx) const -> bool {
