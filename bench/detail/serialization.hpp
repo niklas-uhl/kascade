@@ -59,7 +59,8 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(SparseRulingSetConfig,
                                    ruler_selection,
                                    dehne_factor,
                                    heuristic_factor,
-                                   sync);
+                                   sync,
+                                   spawn);
 }  // namespace kascade
 
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_ONLY_SERIALIZE(TreeStats, size, max_rank, rank_sum);
