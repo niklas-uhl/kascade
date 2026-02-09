@@ -285,7 +285,9 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
       // we stop chasing here
       ruler_list_length[ruler] = dist_from_ruler;
       // select new unreached vertex as ruler
-      spawn_new_ruler(enqueue_locally, send_to);
+      if (config.spawn) {
+        spawn_new_ruler(enqueue_locally, send_to);
+      }
       return;
     }
     KASSERT(node_type[idx_local] == NodeType::unreached);
