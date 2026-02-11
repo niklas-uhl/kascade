@@ -242,6 +242,7 @@ auto reverse_rooted_tree(std::span<const idx_t> succ_array,
                          std::span<const rank_t> dist_to_succ,
                          Distribution const& dist,
                          kamping::Communicator<> const& comm,
+                         bool add_back_edge,
                          resolve_high_degree_tag /* tag */)
     -> graph::DistributedCSRGraph {
   namespace kmp = kamping::params;
@@ -292,6 +293,9 @@ auto reverse_rooted_tree(std::span<const idx_t> succ_array,
 
   // vertex -> {parent or proxy}
   absl::flat_hash_map<int, std::vector<Edge>> send_bufs;
+  if (add_back_edge) {
+    send_bufs[comm.rank_signed()].reserve(succ_array.size() + (2 * num_proxies));
+  }
   for (idx_t i = 0; i < succ_array.size(); ++i) {
     if (is_root(i, succ_array, dist, comm)) {
       continue;
@@ -302,25 +306,38 @@ auto reverse_rooted_tree(std::span<const idx_t> succ_array,
 
     auto it = remote_info.find(parent);
     if (it != remote_info.end() && it->second < 0) {
-      // v -> local proxy
+      // add edge: v -> local proxy
       auto local_proxy_id = static_cast<idx_t>(-(it->second + 1));
       auto proxy_id = proxy_to_global(local_proxy_id);
       send_bufs[comm.rank_signed()].emplace_back(proxy_id, v, weight);
+      if (add_back_edge) {
+        send_bufs[comm.rank_signed()].emplace_back(v, proxy_id, weight);
+      }
     } else {
-      // v -> parent
+      // add edge: v -> parent
       auto parent_owner = dist.get_owner(parent);
-      send_bufs[static_cast<int>(parent_owner)].emplace_back(
-          to_new_global(parent, parent_owner), v, weight);
+      auto new_parent_name = dist.get_owner(parent);
+      send_bufs[static_cast<int>(parent_owner)].emplace_back(new_parent_name, v, weight);
+      if (add_back_edge) {
+        send_bufs[comm.rank_signed()].emplace_back(v, new_parent_name, weight);
+      }
     }
   }
 
-  // proxy -> real parent
+  // add edges: proxy -> real parent
+  // these edges have weight 0, as they connect a newly inserted proxy vertex to the
+  // actual parent vertex
   for (auto const& [parent, proxy_info] : remote_info) {
     if (proxy_info < 0) {
       const auto local_proxy_id = decode_local_proxy_id(proxy_info);
       const auto owner = dist.get_owner(parent);
       send_bufs[static_cast<int>(owner)].emplace_back(to_new_global(parent, owner),
                                                       proxy_to_global(local_proxy_id), 0);
+
+      if (add_back_edge) {
+        send_bufs[comm.rank_signed()].emplace_back(proxy_to_global(local_proxy_id),
+                                                   to_new_global(parent, owner), 0);
+      }
     }
   }
 

@@ -33,7 +33,7 @@ auto reverse_rooted_tree(std::span<const idx_t> succ_array,
                          std::span<const rank_t> dist_to_succ,
                          Distribution const& dist,
                          kamping::Communicator<> const& comm,
-                         bool add_back_edge = false) -> graph::DistributedCSRGraph;
+                         bool add_back_edge) -> graph::DistributedCSRGraph;
 
 struct resolve_high_degree_tag {};
 static constexpr resolve_high_degree_tag resolve_high_degree{};
@@ -42,6 +42,7 @@ auto reverse_rooted_tree(std::span<const idx_t> succ_array,
                          std::span<const rank_t> dist_to_succ,
                          Distribution const& dist,
                          kamping::Communicator<> const& comm,
+                         bool add_back_edge,
                          resolve_high_degree_tag) -> graph::DistributedCSRGraph;
 
 auto is_root(std::size_t local_idx,

@@ -12,14 +12,14 @@ namespace kascade {
 struct EulerTour {
   using Edge = std::pair<idx_t, idx_t>;
   std::vector<idx_t> succ_array;
+  std::vector<rank_t> rank_array;  // distance to root
   std::vector<bool> is_upward_edge;
-  std::vector<std::int64_t> rank_array;  // distance to root
-  absl::flat_hash_map<Edge, idx_t> edge_to_index;
   std::vector<Edge> index_to_edge;
   Distribution distribution;
 };
 
-void rank_via_euler_tour(EulerTourConfig const& config, std::span<idx_t> succ_array,
+void rank_via_euler_tour(EulerTourConfig const& config,
+                         std::span<idx_t> succ_array,
                          std::span<rank_t> rank_array,
                          Distribution const& dist,
                          kamping::Communicator<> const& comm);
