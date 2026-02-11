@@ -158,6 +158,132 @@ auto handle_messages(auto&& initialize,
 }
 
 enum class NodeType : std::uint8_t { root, leaf, ruler, unreached, reached };
+
+struct RulerTrace {
+  absl::flat_hash_map<idx_t, idx_t> ruler_list_length;
+  RulerTrace(const RulerTrace&) = default;
+  RulerTrace(RulerTrace&&) = delete;
+  auto operator=(const RulerTrace&) -> RulerTrace& = default;
+  auto operator=(RulerTrace&&) -> RulerTrace& = delete;
+
+  RulerTrace(std::size_t local_num_rulers, std::size_t local_num_leaves) {
+    kamping::measurements::counter().add(
+        "local_num_ruler", static_cast<std::int64_t>(local_num_rulers),
+        {kamping::measurements::GlobalAggregationMode::max,
+         kamping::measurements::GlobalAggregationMode::min});
+    kamping::measurements::counter().add(
+        "local_num_leaves", static_cast<std::int64_t>(local_num_leaves),
+        {kamping::measurements::GlobalAggregationMode::max,
+         kamping::measurements::GlobalAggregationMode::min});
+  }
+  ~RulerTrace() {
+    kamping::measurements::timer().start("aggregate_ruler_stats");
+    idx_t min_length = std::numeric_limits<idx_t>::max();
+    idx_t max_length = std::numeric_limits<idx_t>::min();
+    idx_t length_sum = 0;
+    std::size_t num_rulers = ruler_list_length.size();
+    for (auto& [_, length] : ruler_list_length) {
+      min_length = std::min(min_length, length);
+      max_length = std::max(max_length, length);
+      length_sum += length;
+    }
+    auto data = std::make_tuple(min_length, max_length, length_sum, num_rulers);
+    auto agg = [](auto const& lhs, auto const& rhs) {
+      return std::make_tuple(std::min(std::get<0>(lhs), std::get<0>(rhs)),
+                             std::max(std::get<1>(lhs), std::get<1>(rhs)),
+                             std::plus<>{}(std::get<2>(lhs), std::get<2>(rhs)),
+                             std::plus<>{}(std::get<3>(lhs), std::get<3>(rhs)));
+    };
+    kamping::comm_world().allreduce(kamping::send_buf(data),
+                                    kamping::op(agg, kamping::ops::commutative));
+    kamping::measurements::counter().add(
+        "ruler_list_length_min", static_cast<std::int64_t>(std::get<0>(data)),
+        {
+            kamping::measurements::GlobalAggregationMode::min,
+        });
+    kamping::measurements::counter().add(
+        "ruler_list_length_max", static_cast<std::int64_t>(std::get<1>(data)),
+        {
+            kamping::measurements::GlobalAggregationMode::max,
+        });
+    kamping::measurements::counter().add(
+        "ruler_list_length_avg",
+        static_cast<std::int64_t>(static_cast<double>(std::get<2>(data)) /
+                                  static_cast<double>(std::get<3>(data))),
+        {
+            kamping::measurements::GlobalAggregationMode::max,
+        });
+    kamping::measurements::timer().stop();
+  }
+  void track_chain_end(idx_t ruler, rank_t dist_from_ruler) {
+    ruler_list_length[ruler] = dist_from_ruler;
+  }
+};
+
+auto ruler_propagation(std::span<idx_t> succ_array,
+                       std::span<rank_t> rank_array,
+                       std::vector<NodeType> const& node_type,
+                       Distribution const& dist,
+                       kamping::Communicator<> const& comm) {
+  struct ruler_request {
+    idx_t requester;
+    idx_t ruler;
+  };
+  absl::flat_hash_map<int, std::vector<ruler_request>> requests;
+  for (auto local_idx : dist.local_indices(comm.rank())) {
+    if (bits::has_root_flag(succ_array[local_idx]) ||
+        node_type[local_idx] == NodeType::ruler) {
+      // this node was reached by a leaf, or is a ruler, so do not request anything
+      continue;
+    }
+    auto ruler = succ_array[local_idx];
+    if (dist.get_owner(ruler) == comm.rank()) {
+      auto ruler_local = dist.get_local_idx(ruler, comm.rank());
+      succ_array[local_idx] = bits::clear_root_flag(succ_array[ruler_local]);
+      rank_array[local_idx] = rank_array[ruler_local] + rank_array[local_idx];
+      continue;
+    }
+    requests[dist.get_owner_signed(ruler)].push_back(ruler_request{
+        .requester = dist.get_global_idx(local_idx, comm.rank()), .ruler = ruler});
+  }
+  for (auto local_idx : dist.local_indices(comm.rank())) {
+    succ_array[local_idx] = bits::clear_root_flag(succ_array[local_idx]);
+  }
+
+  auto requests_received =
+      kamping::with_flattened(requests, comm.size()).call([&](auto... flattened) {
+        requests.clear();
+        return comm.alltoallv(std::move(flattened)...);
+      });
+
+  struct ruler_reply {
+    idx_t requester;
+    idx_t ruler;
+    rank_t dist;
+  };
+  absl::flat_hash_map<idx_t, std::vector<ruler_reply>> replies;
+  for (auto const& msg : requests_received) {
+    KASSERT(dist.get_owner(msg.ruler) == comm.rank());
+    auto ruler_local = dist.get_local_idx(msg.ruler, comm.rank());
+    KASSERT(node_type[ruler_local] != NodeType::leaf);
+    replies[dist.get_owner_signed(msg.requester)].push_back(
+        ruler_reply{.requester = msg.requester,
+                    .ruler = succ_array[ruler_local],
+                    .dist = rank_array[ruler_local]});
+  }
+  requests_received.clear();
+  auto replies_received =
+      kamping::with_flattened(replies, comm.size()).call([&](auto... flattened) {
+        replies.clear();
+        return comm.alltoallv(std::move(flattened)...);
+      });
+  for (auto const& msg : replies_received) {
+    KASSERT(dist.get_owner(msg.requester) == comm.rank());
+    auto requester_local = dist.get_local_idx(msg.requester, comm.rank());
+    succ_array[requester_local] = msg.ruler;
+    rank_array[requester_local] += msg.dist;
+  }
+}
 }  // namespace
 
 void sparse_ruling_set(SparseRulingSetConfig const& config,
@@ -174,17 +300,13 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
   LeafInfo leaf_info{succ_array, dist, comm};
 
   std::int64_t local_num_rulers =
+      // NOLINTNEXTLINE(*-narrowing-conversions)
       static_cast<std::int64_t>(compute_local_num_rulers(config, dist, comm)) -
       leaf_info.num_local_leaves();
   local_num_rulers = std::max(local_num_rulers, std::int64_t{0});
-  kamping::measurements::counter().add(
-      "local_num_ruler", local_num_rulers,
-      {kamping::measurements::GlobalAggregationMode::max,
-       kamping::measurements::GlobalAggregationMode::min});
-  kamping::measurements::counter().add(
-      "local_num_leaves", static_cast<std::int64_t>(leaf_info.num_local_leaves()),
-      {kamping::measurements::GlobalAggregationMode::max,
-       kamping::measurements::GlobalAggregationMode::min});
+
+  RulerTrace trace{static_cast<size_t>(local_num_rulers), leaf_info.num_local_leaves()};
+
   SPDLOG_DEBUG("picking {} rulers", local_num_rulers);
   std::mt19937 rng{static_cast<std::mt19937::result_type>(42 + comm.rank_signed())};
 
@@ -270,7 +392,6 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
         succ_owner);
   };
 
-  absl::flat_hash_map<idx_t, idx_t> ruler_list_length;
   auto work_on_item = [&](RulerMessage const& msg, auto&& enqueue_locally,
                           auto&& send_to) {
     const auto& [idx, ruler, dist_from_ruler] = msg;
@@ -283,7 +404,7 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
     if (node_type[idx_local] == NodeType::ruler ||
         node_type[idx_local] == NodeType::root) {
       // we stop chasing here
-      ruler_list_length[ruler] = dist_from_ruler;
+      trace.track_chain_end(ruler, dist_from_ruler);
       // select new unreached vertex as ruler
       if (config.spawn) {
         spawn_new_ruler(enqueue_locally, send_to);
@@ -334,100 +455,7 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
   // Request rank and root from rulers //
   ///////////////////////////////////////
   kamping::measurements::timer().synchronize_and_start("ruler_propagation");
-
-  struct ruler_request {
-    idx_t requester;
-    idx_t ruler;
-  };
-  absl::flat_hash_map<int, std::vector<ruler_request>> requests;
-  for (auto local_idx : dist.local_indices(comm.rank())) {
-    if (bits::has_root_flag(succ_array[local_idx]) ||
-        node_type[local_idx] == NodeType::ruler) {
-      // this node was reached by a leaf, or is a ruler, so do not request anything
-      continue;
-    }
-    auto ruler = succ_array[local_idx];
-    if (dist.get_owner(ruler) == comm.rank()) {
-      auto ruler_local = dist.get_local_idx(ruler, comm.rank());
-      succ_array[local_idx] = bits::clear_root_flag(succ_array[ruler_local]);
-      rank_array[local_idx] = rank_array[ruler_local] + rank_array[local_idx];
-      continue;
-    }
-    requests[dist.get_owner_signed(ruler)].push_back(ruler_request{
-        .requester = dist.get_global_idx(local_idx, comm.rank()), .ruler = ruler});
-  }
-  for (auto local_idx : dist.local_indices(comm.rank())) {
-    succ_array[local_idx] = bits::clear_root_flag(succ_array[local_idx]);
-  }
-
-  auto requests_received =
-      kamping::with_flattened(requests, comm.size()).call([&](auto... flattened) {
-        requests.clear();
-        return comm.alltoallv(std::move(flattened)...);
-      });
-
-  struct ruler_reply {
-    idx_t requester;
-    idx_t ruler;
-    rank_t dist;
-  };
-  absl::flat_hash_map<idx_t, std::vector<ruler_reply>> replies;
-  for (auto const& msg : requests_received) {
-    KASSERT(dist.get_owner(msg.ruler) == comm.rank());
-    auto ruler_local = dist.get_local_idx(msg.ruler, comm.rank());
-    KASSERT(!leaf_info.is_leaf(ruler_local));
-    replies[dist.get_owner_signed(msg.requester)].push_back(
-        ruler_reply{.requester = msg.requester,
-                    .ruler = succ_array[ruler_local],
-                    .dist = rank_array[ruler_local]});
-  }
-  requests_received.clear();
-  auto replies_received =
-      kamping::with_flattened(replies, comm.size()).call([&](auto... flattened) {
-        replies.clear();
-        return comm.alltoallv(std::move(flattened)...);
-      });
-  for (auto const& msg : replies_received) {
-    KASSERT(dist.get_owner(msg.requester) == comm.rank());
-    auto requester_local = dist.get_local_idx(msg.requester, comm.rank());
-    succ_array[requester_local] = msg.ruler;
-    rank_array[requester_local] += msg.dist;
-  }
-  kamping::measurements::timer().stop();
-  kamping::measurements::timer().start("stats");
-  idx_t min_length = std::numeric_limits<idx_t>::max();
-  idx_t max_length = std::numeric_limits<idx_t>::min();
-  idx_t length_sum = 0;
-  std::size_t num_rulers = ruler_list_length.size();
-  for (auto& [_, length] : ruler_list_length) {
-    min_length = std::min(min_length, length);
-    max_length = std::max(max_length, length);
-    length_sum += length;
-  }
-  auto data = std::make_tuple(min_length, max_length, length_sum, num_rulers);
-  auto op = [](auto const& lhs, auto const& rhs) {
-    return std::make_tuple(std::min(std::get<0>(lhs), std::get<0>(rhs)),
-                           std::max(std::get<1>(lhs), std::get<1>(rhs)),
-                           std::plus<>{}(std::get<2>(lhs), std::get<2>(rhs)),
-                           std::plus<>{}(std::get<3>(lhs), std::get<3>(rhs)));
-  };
-  comm.allreduce(kamping::send_buf(data), kamping::op(op, kamping::ops::commutative));
-  kamping::measurements::counter().add(
-      "ruler_list_length_min", std::get<0>(data),
-      {
-          kamping::measurements::GlobalAggregationMode::min,
-      });
-  kamping::measurements::counter().add(
-      "ruler_list_length_max", std::get<1>(data),
-      {
-          kamping::measurements::GlobalAggregationMode::max,
-      });
-  kamping::measurements::counter().add(
-      "ruler_list_length_avg",
-      static_cast<double>(std::get<2>(data)) / static_cast<double>(std::get<3>(data)),
-      {
-          kamping::measurements::GlobalAggregationMode::max,
-      });
+  ruler_propagation(succ_array, rank_array, node_type, dist, comm);
   kamping::measurements::timer().stop();
 }
 }  // namespace kascade
