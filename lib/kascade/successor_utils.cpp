@@ -13,6 +13,7 @@
 
 #include "kascade/assertion_levels.hpp"
 #include "kascade/distribution.hpp"
+#include "types.hpp"
 
 namespace kascade {
 auto is_list(std::span<const idx_t> succ_array, kamping::Communicator<> const& comm)
@@ -203,7 +204,7 @@ auto make_graph(std::ranges::forward_range auto&& recv_edges,
 
 }  // namespace
 auto invert_list_to_graph(std::span<idx_t const> succ_array,
-                          std::span<idx_t const> dist_to_succ,
+                          std::span<rank_t const> dist_to_succ,
                           Distribution const& dist,
                           kamping::Communicator<> const& comm)
     -> graph::DistributedCSRGraph {
@@ -211,15 +212,11 @@ auto invert_list_to_graph(std::span<idx_t const> succ_array,
   struct Edge {
     idx_t src;
     idx_t dst;
-    idx_t weight;
-  };
-  auto is_root = [&](auto i) {
-    idx_t global_idx = dist.get_global_idx(i, comm.rank());
-    return succ_array[i] == global_idx;
+    rank_t weight;
   };
   absl::flat_hash_map<int, std::vector<Edge>> send_bufs;
   for (idx_t i = 0; i < succ_array.size(); ++i) {
-    if (is_root(i)) {
+    if (is_root(i, succ_array, dist, comm)) {
       continue;
     }
     auto src = dist.get_global_idx(i, comm.rank());
@@ -235,20 +232,15 @@ auto invert_list_to_graph(std::span<idx_t const> succ_array,
 }
 
 auto invert_list_to_graph_with_local_high_degree_handling(
-    std::span<idx_t const> succ_array,
-    std::span<idx_t const> dist_to_succ,
+    std::span<const idx_t> succ_array,
+    std::span<const rank_t> dist_to_succ,
     Distribution const& dist,
     kamping::Communicator<> const& comm) -> graph::DistributedCSRGraph {
   namespace kmp = kamping::params;
   struct Edge {
     idx_t src;
     idx_t dst;
-    idx_t weight;
-  };
-
-  auto is_root = [&](auto i) {
-    idx_t global_idx = dist.get_global_idx(i, comm.rank());
-    return succ_array[i] == global_idx;
+    rank_t weight;
   };
 
   auto encode_local_proxy_id = [](idx_t local_proxy_id) {
@@ -293,12 +285,12 @@ auto invert_list_to_graph_with_local_high_degree_handling(
   // vertex -> {parent or proxy}
   absl::flat_hash_map<int, std::vector<Edge>> send_bufs;
   for (idx_t i = 0; i < succ_array.size(); ++i) {
-    if (is_root(i)) {
+    if (is_root(i, succ_array, dist, comm)) {
       continue;
     }
     const idx_t v = new_distribution.get_global_idx(i, comm.rank());
     const idx_t parent = succ_array[i];
-    const idx_t weight = dist_to_succ[i];
+    const rank_t weight = dist_to_succ[i];
 
     auto it = remote_info.find(parent);
     if (it != remote_info.end() && it->second < 0) {
