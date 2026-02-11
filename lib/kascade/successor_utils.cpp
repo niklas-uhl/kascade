@@ -135,12 +135,12 @@ auto roots(std::span<const idx_t> succ_array,
          std::ranges::to<std::vector>();
 }
 
-auto invert_list(std::span<const idx_t> succ_array,
-                 std::span<const rank_t> dist_to_succ,
-                 std::span<idx_t> pred_array,
-                 std::span<rank_t> dist_to_pred,
-                 Distribution const& dist,
-                 kamping::Communicator<> const& comm) -> void {
+auto reverse_list(std::span<const idx_t> succ_array,
+                  std::span<const rank_t> dist_to_succ,
+                  std::span<idx_t> pred_array,
+                  std::span<rank_t> dist_to_pred,
+                  Distribution const& dist,
+                  kamping::Communicator<> const& comm) -> void {
   KASSERT(is_list(succ_array, dist, comm), kascade::assert::with_communication);
   struct message_type {
     idx_t pred;
@@ -203,10 +203,10 @@ auto make_graph(std::ranges::forward_range auto&& recv_edges,
 }
 
 }  // namespace
-auto invert_list_to_graph(std::span<idx_t const> succ_array,
-                          std::span<rank_t const> dist_to_succ,
-                          Distribution const& dist,
-                          kamping::Communicator<> const& comm)
+auto reverse_rooted_tree(std::span<idx_t const> succ_array,
+                         std::span<rank_t const> dist_to_succ,
+                         Distribution const& dist,
+                         kamping::Communicator<> const& comm)
     -> graph::DistributedCSRGraph {
   namespace kmp = kamping::params;
   struct Edge {
@@ -231,11 +231,12 @@ auto invert_list_to_graph(std::span<idx_t const> succ_array,
   return make_graph(std::move(recv_edges), dist, comm);
 }
 
-auto invert_list_to_graph_with_local_high_degree_handling(
-    std::span<const idx_t> succ_array,
-    std::span<const rank_t> dist_to_succ,
-    Distribution const& dist,
-    kamping::Communicator<> const& comm) -> graph::DistributedCSRGraph {
+auto reverse_rooted_tree(std::span<const idx_t> succ_array,
+                         std::span<const rank_t> dist_to_succ,
+                         Distribution const& dist,
+                         kamping::Communicator<> const& comm,
+                         resolve_high_degree_tag /* tag */)
+    -> graph::DistributedCSRGraph {
   namespace kmp = kamping::params;
   struct Edge {
     idx_t src;

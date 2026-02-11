@@ -293,7 +293,7 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
                        kamping::Communicator<> const& comm) {
   KASSERT(is_list(succ_array, dist, comm), kascade::assert::with_communication);
   kamping::measurements::timer().synchronize_and_start("invert_list");
-  invert_list(succ_array, rank_array, succ_array, rank_array, dist, comm);
+  reverse_list(succ_array, rank_array, succ_array, rank_array, dist, comm);
   kamping::measurements::timer().stop();
 
   kamping::measurements::timer().synchronize_and_start("find_rulers");

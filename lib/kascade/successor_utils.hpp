@@ -19,24 +19,28 @@ auto is_list(std::span<const idx_t> succ_array,
              Distribution const& dist,
              kamping::Communicator<> const& comm) -> bool;
 
-auto invert_list(std::span<const idx_t> succ_array,
-                 std::span<const rank_t> dist_to_succ,
-                 std::span<idx_t> pred_array,
-                 std::span<rank_t> dist_to_pred,
-                 Distribution const& dist,
-                 kamping::Communicator<> const& comm) -> void;
+auto reverse_list(std::span<const idx_t> succ_array,
+                  std::span<const rank_t> dist_to_succ,
+                  std::span<idx_t> pred_array,
+                  std::span<rank_t> dist_to_pred,
+                  Distribution const& dist,
+                  kamping::Communicator<> const& comm) -> void;
 
-auto invert_list_to_graph(std::span<const idx_t> succ_array,
-                          std::span<const rank_t> dist_to_succ,
-                          Distribution const& dist,
-                          kamping::Communicator<> const& comm)
+auto reverse_rooted_tree(std::span<const idx_t> succ_array,
+                         std::span<const rank_t> dist_to_succ,
+                         Distribution const& dist,
+                         kamping::Communicator<> const& comm)
     -> graph::DistributedCSRGraph;
 
-auto invert_list_to_graph_with_local_high_degree_handling(
+struct resolve_high_degree_tag {};
+static constexpr resolve_high_degree_tag resolve_high_degree{};
+
+auto reverse_rooted_tree(
     std::span<const idx_t> succ_array,
     std::span<const rank_t> dist_to_succ,
     Distribution const& dist,
-    kamping::Communicator<> const& comm) -> graph::DistributedCSRGraph;
+    kamping::Communicator<> const& comm,
+    resolve_high_degree_tag) -> graph::DistributedCSRGraph;
 
 auto is_root(std::size_t local_idx,
              std::span<const idx_t> succ_array,
