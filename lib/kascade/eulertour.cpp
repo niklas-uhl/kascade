@@ -52,8 +52,6 @@ auto compute_euler_tour(graph::DistributedCSRGraph const& forest,
     return -1;
   };
 
-  spdlog::get("gather")->info("forest {} parent {}", forest.vertices().size(),
-                              parent_array.size());
   absl::flat_hash_set<idx_t> is_root;
   for (const auto& v : forest.vertices()) {
     KASSERT(forest.to_local(v) < parent_array.size());
@@ -111,8 +109,6 @@ auto compute_euler_tour(graph::DistributedCSRGraph const& forest,
       next_id++;
     }
   }
-  spdlog::get("gather")->info("after edges");
-
   auto [send_buf, send_counts, send_displs] = kamping::flatten(send_bufs, comm.size());
   auto recv_buf = comm.alltoallv(kmp::send_buf(send_buf), kmp::send_counts(send_counts),
                                  kmp::send_displs(send_displs));
