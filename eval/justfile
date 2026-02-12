@@ -3,3 +3,6 @@ fetch-from-horeka:
 
 fetch-from-supermuc:
     rsync -aP supermuc:kascade/experiment_data/ data/supermuc
+
+fetch-from-login:
+    rsync -aP login:kascade/experiment_data/ data/i10
