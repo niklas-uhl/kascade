@@ -108,6 +108,9 @@ auto parse_args(std::span<char*> args) -> Config {
       ->group("Sparse Ruling Set");
   app.add_flag("--sparse-ruling-set-sync", config.sparse_ruling_set.sync)
       ->group("Sparse Ruling Set");
+  app.add_flag("--sparse-ruling-set-sync-locality-aware",
+               config.sparse_ruling_set.sync_locality_aware)
+      ->group("Sparse Ruling Set");
   app.add_flag("--sparse-ruling-set-spawn", config.sparse_ruling_set.spawn)
       ->group("Sparse Ruling Set");
 

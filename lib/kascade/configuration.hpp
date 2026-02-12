@@ -41,6 +41,7 @@ struct SparseRulingSetConfig {
   double dehne_factor = 1.0;
   double heuristic_factor = 0.01;
   bool sync = false;
+  bool sync_locality_aware = false;
   bool spawn = false;
 };
 

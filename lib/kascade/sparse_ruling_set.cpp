@@ -85,7 +85,8 @@ constexpr sync_tag sync{};
 constexpr async_tag async{};
 }  // namespace ruler_chasing
 
-auto handle_messages(auto&& initialize,
+auto handle_messages(SparseRulingSetConfig const& /* config */,
+                     auto&& initialize,
                      auto&& work_on_item,
                      Distribution const& dist,
                      kamping::Communicator<> const& comm,
@@ -115,7 +116,8 @@ auto handle_messages(auto&& initialize,
   } while (!queue.terminate(on_message));
 }
 
-auto handle_messages(auto&& initialize,
+auto handle_messages(SparseRulingSetConfig const& config,
+                     auto&& initialize,
                      auto&& work_on_item,
                      Distribution const& /* dist */,
                      kamping::Communicator<> const& comm,
@@ -129,10 +131,11 @@ auto handle_messages(auto&& initialize,
   auto send_to = [&](RulerMessage const& msg, int target) {
     messages[target].push_back(msg);
   };
-  auto enqueue_locally = [&](RulerMessage const& msg) {
+  auto enqueue_locally_to_message_buffer = [&](RulerMessage const& msg) {
     messages[comm.rank_signed()].push_back(msg);
   };
-  initialize(enqueue_locally, send_to);
+  auto enqueue_locally = [&](RulerMessage const& msg) { local_work.push_back(msg); };
+  initialize(enqueue_locally_to_message_buffer, send_to);
 
   std::int64_t rounds = 0;
   namespace kmp = kamping::params;
@@ -146,8 +149,15 @@ auto handle_messages(auto&& initialize,
                    kmp::send_displs(send_displs));
     kamping::measurements::timer().stop_and_append();
 
-    for (auto const& msg : local_work) {
-      work_on_item(msg, enqueue_locally, send_to);
+    for (std::size_t i = 0; i < local_work.size(); ++i) {
+      // we copy the message here, since enqueue_locally might append new messages to
+      // local_work, which might invalidate references
+      auto const msg = local_work[i];
+      if (config.sync_locality_aware) {
+        work_on_item(msg, enqueue_locally, send_to);
+      } else {
+        work_on_item(msg, enqueue_locally_to_message_buffer, send_to);
+      }
     }
     rounds++;
   }
@@ -427,9 +437,9 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
             succ_rank);
   };
   if (config.sync) {
-    handle_messages(init, work_on_item, dist, comm, ruler_chasing::sync);
+    handle_messages(config, init, work_on_item, dist, comm, ruler_chasing::sync);
   } else {
-    handle_messages(init, work_on_item, dist, comm, ruler_chasing::async);
+    handle_messages(config, init, work_on_item, dist, comm, ruler_chasing::async);
   }
   kamping::measurements::timer().stop();
   KASSERT(std::ranges::all_of(node_type,
