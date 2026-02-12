@@ -205,23 +205,28 @@ auto make_graph(std::ranges::forward_range auto&& recv_edges,
 }
 
 }  // namespace
+
+/// @returns the reversed tree and the original roots of the tree (which are now leaves)
 auto reverse_rooted_tree(std::span<idx_t const> succ_array,
                          std::span<rank_t const> dist_to_succ,
                          Distribution const& dist,
                          kamping::Communicator<> const& comm,
-                         bool add_back_edge) -> graph::DistributedCSRGraph {
+                         bool add_back_edge) 
+    -> std::pair<graph::DistributedCSRGraph, std::vector<idx_t>> {
   namespace kmp = kamping::params;
   struct Edge {
     idx_t src;
     idx_t dst;
     rank_t weight;
   };
+  std::vector<idx_t> roots;
   absl::flat_hash_map<int, std::vector<Edge>> send_bufs;
   if (add_back_edge) {
     send_bufs[comm.rank_signed()].reserve(succ_array.size());
   }
   for (idx_t i = 0; i < succ_array.size(); ++i) {
     if (is_root(i, succ_array, dist, comm)) {
+      roots.push_back(i);
       continue;
     }
     auto src = dist.get_global_idx(i, comm.rank());
@@ -235,7 +240,8 @@ auto reverse_rooted_tree(std::span<idx_t const> succ_array,
   auto [send_buf, send_counts, send_displs] = kamping::flatten(send_bufs, comm.size());
   auto recv_edges = comm.alltoallv(kmp::send_buf(send_buf), kmp::send_counts(send_counts),
                                    kmp::send_displs(send_displs));
-  return make_graph(std::move(recv_edges), dist, comm);
+
+  return {make_graph(std::move(recv_edges), dist, comm), std::move(roots)};
 }
 
 auto reverse_rooted_tree(std::span<const idx_t> succ_array,

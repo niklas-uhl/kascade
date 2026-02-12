@@ -291,16 +291,16 @@ void rank_via_euler_tour(EulerTourConfig const& config,
                          kamping::Communicator<> const& comm) {
   SPDLOG_LOGGER_DEBUG(spdlog::get("gather"), "succ_array {}\nrank_array {}", succ_array,
                       rank_array);
-  auto tree = reverse_rooted_tree(succ_array, rank_array, dist, comm, true);
+  auto [tree, _] = reverse_rooted_tree(succ_array, rank_array, dist, comm, true);
   SPDLOG_LOGGER_DEBUG(spdlog::get("gather"), "tree {}", tree);
   auto euler_tour = compute_euler_tour(tree, succ_array, comm);
   SPDLOG_LOGGER_DEBUG(spdlog::get("gather"), "euler tour {}", std::tie(euler_tour, comm));
   rank_via_euler_tour_select_algorithm(config, euler_tour, comm);
   SPDLOG_LOGGER_DEBUG(spdlog::get("gather"), "succ_array {}\nrank_array {}",
-                     euler_tour.succ_array, euler_tour.rank_array);
+                      euler_tour.succ_array, euler_tour.rank_array);
   map_euler_tour_back(euler_tour, succ_array, rank_array, comm);
   SPDLOG_LOGGER_DEBUG(spdlog::get("gather"), "mapped: \nsucc_array {}\nrank_array {}",
-                     succ_array, rank_array);
+                      succ_array, rank_array);
 }
 
 }  // namespace kascade
