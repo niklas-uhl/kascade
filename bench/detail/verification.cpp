@@ -19,9 +19,8 @@ auto verify(std::span<const kascade::idx_t> /* succ */,
   auto const& root = algorithm.get_root_array();
 
   if (root.size() != ref_root.size()) {
-    SPDLOG_LOGGER_ERROR(spdlog::get("root"),
-                        "Root array size does not match reference: {} != {}", root.size(),
-                        ref_root.size());
+    SPDLOG_ERROR("Root array size does not match reference: {} != {}", root.size(),
+                 ref_root.size());
     if (!continue_on_mismatch) {
       std::exit(1);
     }
@@ -31,9 +30,8 @@ auto verify(std::span<const kascade::idx_t> /* succ */,
     auto& [r, r_ref] = roots;
     if (r != r_ref) {
       mismatch_found = true;
-      SPDLOG_LOGGER_ERROR(spdlog::get("root"),
-                          "Root array does not match reference: {} != {} at index {}", r,
-                          r_ref, idx);
+      SPDLOG_ERROR("Root array does not match reference: {} != {} at index {}", r, r_ref,
+                   idx);
       if (!continue_on_mismatch) {
         std::exit(1);
       }
