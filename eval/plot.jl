@@ -20,10 +20,19 @@ algo_params = [
     :async_caching,
     :pointer_doubling_aggregation_level,
     :pointer_doubling_use_local_preprocessing,
+    :sparse_ruling_set_sync,
+    :sparse_ruling_set_spawn,
+    :sparse_ruling_set_dehne_factor,
+    :eulertour_algorithm,
+    :commit
 ]
 function to_config_name(;kwargs...)
     algorithm = kwargs[:algorithm]
     name = "$(algorithm)"
+    if algorithm == "EulerTour"
+        name *=  "-$(kwargs[:eulertour_algorithm])"
+        algorithm = kwargs[:eulertour_algorithm] # fallback to the actual algorithm for further naming
+    end
     if algorithm == "AsyncPointerDoubling" && kwargs[:async_caching]
         name *= "+cache"
     end
@@ -32,6 +41,17 @@ function to_config_name(;kwargs...)
             name *= "+preprocessing"
         end
         name *= " agg=$(kwargs[:pointer_doubling_aggregation_level])"
+    end
+    if algorithm == "SparseRulingSet"
+        if kwargs[:sparse_ruling_set_sync] == true
+            name *= "-sync"
+        else
+            name *= "-async"
+        end
+        if kwargs[:sparse_ruling_set_spawn] == true
+            name *= "-spawn"
+        end
+        name *= " (ruler_factor=$(kwargs[:sparse_ruling_set_dehne_factor]))"
     end
     return name
 end
