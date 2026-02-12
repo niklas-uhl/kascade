@@ -479,14 +479,15 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
 
   kamping::measurements::timer().synchronize_and_start("base_case");
   PointerDoublingConfig conf;
-  pointer_doubling_generic(conf, succ_array, rank_array, dist, rulers, comm);
+  Distribution succ_graph_dist(succ_graph.vertex_distribution(), comm);
+  pointer_doubling_generic(conf, succ_array, rank_array, succ_graph_dist, rulers, comm);
   kamping::measurements::timer().stop();
 
   ///////////////////////////////////////
   // Request rank and root from rulers //
   ///////////////////////////////////////
   kamping::measurements::timer().synchronize_and_start("ruler_propagation");
-  ruler_propagation(succ_array, rank_array, node_type, dist, comm);
+  ruler_propagation(succ_array, rank_array, node_type, succ_graph_dist, comm);
   kamping::measurements::timer().stop();
 }
 }  // namespace kascade
