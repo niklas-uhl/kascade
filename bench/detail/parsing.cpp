@@ -112,6 +112,8 @@ auto parse_args(std::span<char*> args) -> Config {
       ->group("Sparse Ruling Set");
 
   app.add_option("--eulertour-algorithm", config.euler_tour.algorithm);
+  app.add_flag("--eulertour-use-high-degree-handling",
+               config.euler_tour.use_high_degree_handling);
 
   try {
     app.parse(static_cast<int>(args.size()), args.data());

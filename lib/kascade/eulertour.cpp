@@ -343,8 +343,6 @@ void rank_via_euler_tour(EulerTourConfig const& config,
                          kamping::Communicator<> const& comm) {
   SPDLOG_LOGGER_DEBUG(spdlog::get("gather"), "size {}\nsucc_array {}\nrank_array {}",
                       succ_array.size(), succ_array, rank_array);
-  comm.barrier();
-
   auto [num_proxy_vertices, parent_array, tree] = select_tree_construction(
       config.use_high_degree_handling, succ_array, rank_array, dist, comm);
   KASSERT(config.use_high_degree_handling || (num_proxy_vertices == 0),
@@ -362,7 +360,6 @@ void rank_via_euler_tour(EulerTourConfig const& config,
   SPDLOG_LOGGER_DEBUG(
       spdlog::get("root"), "traced {}",
       trace_successor_list(euler_tour.succ_array, euler_tour.rank_array, comm));
-  comm.barrier();
   rank_via_euler_tour_select_algorithm(config, euler_tour, comm);
   SPDLOG_LOGGER_DEBUG(
       spdlog::get("gather"), "ranked size {}  succ_array {}\nrank_array {}",
@@ -377,7 +374,7 @@ void rank_via_euler_tour(EulerTourConfig const& config,
         [](auto const&) { return false; }, comm);
   }
   SPDLOG_LOGGER_DEBUG(spdlog::get("gather"), "mapped: \nsucc_array {}\nrank_array {}",
-                     succ_array, rank_array);
+                      succ_array, rank_array);
 }
 
 }  // namespace kascade

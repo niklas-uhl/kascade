@@ -61,7 +61,7 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(SparseRulingSetConfig,
                                    heuristic_factor,
                                    sync,
                                    spawn);
-NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(EulerTourConfig, algorithm);
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(EulerTourConfig, algorithm, use_high_degree_handling);
 }  // namespace kascade
 
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_ONLY_SERIALIZE(TreeStats, size, max_rank, rank_sum);

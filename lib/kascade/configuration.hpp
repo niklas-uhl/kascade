@@ -46,7 +46,7 @@ struct SparseRulingSetConfig {
 
 struct EulerTourConfig {
   Algorithm algorithm;
-  bool use_high_degree_handling = true;
+  bool use_high_degree_handling = false;
   std::any algo_config;
 };
 }  // namespace kascade
