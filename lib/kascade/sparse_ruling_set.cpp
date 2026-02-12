@@ -37,20 +37,20 @@
 namespace kascade {
 namespace {
 auto compute_local_num_rulers(SparseRulingSetConfig const& config,
-                              Distribution const& dist,
+                              std::size_t num_local_elements,
+                              std::size_t num_global_elements,
                               kamping::Communicator<> const& comm) -> std::size_t {
   switch (config.ruler_selection) {
     case RulerSelectionStrategy::dehne:
       // pick O(n/p) rulers in total
       return static_cast<std::size_t>(config.dehne_factor *
-                                      (static_cast<double>(dist.get_global_size()) /
+                                      (static_cast<double>(num_global_elements) /
                                        static_cast<double>(comm.size()))) /
              comm.size();
     case RulerSelectionStrategy::heuristic:
       // pick heuristic_factor * local_num_leaves per PE
-      return static_cast<std::size_t>(
-          config.heuristic_factor *
-          static_cast<double>(dist.get_local_size(comm.rank())));
+      return static_cast<std::size_t>(config.heuristic_factor *
+                                      static_cast<double>(num_local_elements));
     case RulerSelectionStrategy::invalid:
       throw std::runtime_error("Invalid ruler selection strategy");
       break;
@@ -87,7 +87,6 @@ constexpr async_tag async{};
 
 auto handle_messages(auto&& initialize,
                      auto&& work_on_item,
-                     Distribution const& dist,
                      kamping::Communicator<> const& comm,
                      ruler_chasing::async_tag /* tag */) {
   auto queue =
@@ -96,7 +95,6 @@ auto handle_messages(auto&& initialize,
   std::queue<RulerMessage> local_queue;
   auto on_message = [&](auto env) {
     for (RulerMessage const& msg : env.message) {
-      KASSERT(dist.get_owner(msg.target_idx) == comm.rank());
       local_queue.push(msg);
     }
   };
@@ -117,7 +115,6 @@ auto handle_messages(auto&& initialize,
 
 auto handle_messages(auto&& initialize,
                      auto&& work_on_item,
-                     Distribution const& /* dist */,
                      kamping::Communicator<> const& comm,
                      ruler_chasing::sync_tag /* tag */) {
   auto queue =
@@ -313,8 +310,9 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
       reverse_rooted_tree(succ_array, rank_array, dist, comm, /* add_back_edge= */ false);
 
   // remove leaves that are also roots
-  auto removed = std::ranges::remove_if(leaves, [&](auto local_idx) {
-    return succ_graph.degree(dist.get_global_idx(local_idx, comm.rank())) == 0;
+  auto removed = std::ranges::remove_if(leaves, [&](auto leaf_local) {
+    auto leaf = succ_graph.to_global(leaf_local);
+    return succ_graph.degree(leaf) == 0;
   });
   leaves.erase(removed.begin(), removed.end());
 
@@ -324,7 +322,9 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
 
   std::int64_t local_num_rulers =
       // NOLINTNEXTLINE(*-narrowing-conversions)
-      static_cast<std::int64_t>(compute_local_num_rulers(config, dist, comm)) -
+      static_cast<std::int64_t>(
+          compute_local_num_rulers(config, succ_graph.num_local_vertices(),
+                                   succ_graph.num_global_vertices(), comm)) -
       leaves.size();
   local_num_rulers = std::max(local_num_rulers, std::int64_t{0});
 
@@ -368,7 +368,7 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
   // chasing loop
   auto init = [&](auto&& enqueue_locally, auto&& send_to) {
     for (auto const& ruler_local : rulers) {
-      auto ruler = dist.get_global_idx(ruler_local, comm.rank());
+      auto ruler = succ_graph.to_global(ruler_local);
       for (auto [succ, dist_to_succ] :
            succ_graph.neighbors(ruler, graph::DistributedCSRGraph::with_weights{})) {
         if (node_type[ruler_local] == NodeType::leaf) {
@@ -380,14 +380,13 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
         } else {
           node_type[ruler_local] = NodeType::ruler;
         }
-        auto succ_owner = dist.get_owner(succ);
-        if (succ_owner == comm.rank()) {
+        if (succ_graph.is_local(succ)) {
           enqueue_locally(
               {.target_idx = succ, .ruler = ruler, .dist_from_ruler = dist_to_succ});
           continue;
         }
         send_to({.target_idx = succ, .ruler = ruler, .dist_from_ruler = dist_to_succ},
-                succ_owner);
+                succ_graph.get_rank(succ));
       }
     }
   };
@@ -405,27 +404,26 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
       }
     } while (true);
     rulers.push_back(ruler_local);
-    auto ruler = dist.get_global_idx(ruler_local, comm.rank());
+    auto ruler = succ_graph.to_global(ruler_local);
     node_type[ruler_local] = NodeType::ruler;
     num_unreached--;
     for (auto [succ, dist_to_succ] :
          succ_graph.neighbors(ruler, graph::DistributedCSRGraph::with_weights{})) {
-      auto succ_owner = dist.get_owner(succ);
-      if (succ_owner == comm.rank()) {
+      if (succ_graph.is_local(succ)) {
         enqueue_locally(
             {.target_idx = succ, .ruler = ruler, .dist_from_ruler = dist_to_succ});
         continue;
       }
       send_to({.target_idx = succ, .ruler = ruler, .dist_from_ruler = dist_to_succ},
-              succ_owner);
+              succ_graph.get_rank(succ));
     }
   };
 
   auto work_on_item = [&](RulerMessage const& msg, auto&& enqueue_locally,
                           auto&& send_to) {
     const auto& [idx, ruler, dist_from_ruler] = msg;
-    KASSERT(dist.get_owner(idx) == comm.rank());
-    auto idx_local = dist.get_local_idx(idx, comm.rank());
+    KASSERT(succ_graph.is_local(idx));
+    auto idx_local = succ_graph.to_local(idx);
     succ_array[idx_local] = ruler;
     rank_array[idx_local] = dist_from_ruler;
     if (node_type[idx_local] == NodeType::ruler ||
@@ -446,8 +444,7 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
     num_unreached--;
     for (auto [succ, dist_to_succ] :
          succ_graph.neighbors(idx, graph::DistributedCSRGraph::with_weights{})) {
-      auto succ_rank = dist.get_owner_signed(succ);
-      if (succ_rank == comm.rank_signed()) {
+      if (succ_graph.is_local(succ)) {
         enqueue_locally({.target_idx = succ,
                          .ruler = ruler,
                          .dist_from_ruler = dist_from_ruler + dist_to_succ});
@@ -457,13 +454,13 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
       send_to({.target_idx = succ,
                .ruler = ruler,
                .dist_from_ruler = dist_from_ruler + dist_to_succ},
-              succ_rank);
+              succ_graph.get_rank(succ));
     }
   };
   if (config.sync) {
-    handle_messages(init, work_on_item, dist, comm, ruler_chasing::sync);
+    handle_messages(init, work_on_item, comm, ruler_chasing::sync);
   } else {
-    handle_messages(init, work_on_item, dist, comm, ruler_chasing::async);
+    handle_messages(init, work_on_item, comm, ruler_chasing::async);
   }
   kamping::measurements::timer().stop();
   KASSERT(std::ranges::all_of(node_type,
