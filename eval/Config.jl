@@ -11,6 +11,8 @@ value_paths = Dict(
     "sparse_ruling_set_sync" => ["config", "sparse_ruling_set", "sync"],
     "sparse_ruling_set_spawn" => ["config", "sparse_ruling_set", "spawn"],
     "sparse_ruling_set_dehne_factor" => ["config", "sparse_ruling_set", "dehne_factor"],
+    "eulertour_algorithm" => ["config", "euler_tour", "algorithm"],
+    "eulertour_use_high_degree_handling" => ["config", "euler_tour", "use_high_degree_handling"],
 )
 
 timer_value_paths = Dict(
