@@ -55,7 +55,8 @@ public:
   [[nodiscard]] auto degree(VId const& v) const -> std::size_t;
 
   [[nodiscard]] auto neighbors(VId const& v) const -> std::span<const VId>;
-  [[nodiscard]] auto neighbors(VId const& v, with_weights /*tag*/) const;
+  [[nodiscard]] auto neighbors(VId const& v, with_weights /*tag*/) const
+      -> std::ranges::zip_view<std::span<const VId>, std::span<const Weight>>;
 
   template <class VertexToData, class MetaData = std::invoke_result_t<VertexToData, VId>>
   [[nodiscard]] auto exchange_ghost_metadata(VertexToData vertex_to_data) const

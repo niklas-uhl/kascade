@@ -68,7 +68,8 @@ auto DistributedCSRGraph::neighbors(VId const& v) const -> std::span<const VId> 
   return neighborhood_span(v);
 }
 
-auto DistributedCSRGraph::neighbors(VId const& v, with_weights /*tag*/) const {
+auto DistributedCSRGraph::neighbors(VId const& v, with_weights /*tag*/) const
+    -> std::ranges::zip_view<std::span<const VId>, std::span<const Weight>> {
   return std::views::zip(neighbors(v), neighborhood_weights_span(v));
 }
 
