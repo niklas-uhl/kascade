@@ -210,8 +210,7 @@ auto reverse_rooted_tree(std::span<idx_t const> succ_array,
                          std::span<rank_t const> dist_to_succ,
                          Distribution const& dist,
                          kamping::Communicator<> const& comm,
-                         bool add_back_edge)
-    -> std::pair<graph::DistributedCSRGraph, std::vector<idx_t>> {
+                         bool add_back_edge) -> ReversedTree {
   namespace kmp = kamping::params;
   struct Edge {
     idx_t src;
@@ -239,8 +238,9 @@ auto reverse_rooted_tree(std::span<idx_t const> succ_array,
   auto [send_buf, send_counts, send_displs] = kamping::flatten(send_bufs, comm.size());
   auto recv_edges = comm.alltoallv(kmp::send_buf(send_buf), kmp::send_counts(send_counts),
                                    kmp::send_displs(send_displs));
-
-  return {make_graph(std::move(recv_edges), dist, comm), std::move(roots)};
+  return ReversedTree{.num_proxy_vertices = 0,
+                      .parent_array = succ_array,
+                      .tree = make_graph(std::move(recv_edges), dist, comm)};
 }
 
 auto reverse_rooted_tree(std::span<const idx_t> succ_array,
@@ -248,8 +248,7 @@ auto reverse_rooted_tree(std::span<const idx_t> succ_array,
                          Distribution const& dist,
                          kamping::Communicator<> const& comm,
                          bool add_back_edge,
-                         resolve_high_degree_tag /* tag */)
-    -> graph::DistributedCSRGraph {
+                         resolve_high_degree_tag /* tag */) -> ReversedTree {
   namespace kmp = kamping::params;
   struct Edge {
     idx_t src;
@@ -283,6 +282,7 @@ auto reverse_rooted_tree(std::span<const idx_t> succ_array,
     }
   }
   std::size_t num_proxies = next_proxy_id;
+  std::vector<idx_t> parent_array(succ_array.size() + num_proxies);
 
   Distribution new_distribution(succ_array.size() + num_proxies, comm);
 
@@ -304,6 +304,7 @@ auto reverse_rooted_tree(std::span<const idx_t> succ_array,
   }
   for (idx_t i = 0; i < succ_array.size(); ++i) {
     if (is_root(i, succ_array, dist, comm)) {
+      parent_array[i] = to_new_global(succ_array[i], comm.rank());
       continue;
     }
     const idx_t v = new_distribution.get_global_idx(i, comm.rank());
@@ -316,13 +317,15 @@ auto reverse_rooted_tree(std::span<const idx_t> succ_array,
       auto local_proxy_id = static_cast<idx_t>(-(it->second + 1));
       auto proxy_id = proxy_to_global(local_proxy_id);
       send_bufs[comm.rank_signed()].emplace_back(proxy_id, v, weight);
+      parent_array[i] = proxy_id;
       if (add_back_edge) {
         send_bufs[comm.rank_signed()].emplace_back(v, proxy_id, weight);
       }
     } else {
       // add edge: v -> parent
       auto parent_owner = dist.get_owner(parent);
-      auto new_parent_name = dist.get_owner(parent);
+      auto new_parent_name = to_new_global(parent, parent_owner);
+      parent_array[i] = new_parent_name;
       send_bufs[static_cast<int>(parent_owner)].emplace_back(new_parent_name, v, weight);
       if (add_back_edge) {
         send_bufs[comm.rank_signed()].emplace_back(v, new_parent_name, weight);
@@ -337,7 +340,9 @@ auto reverse_rooted_tree(std::span<const idx_t> succ_array,
     if (proxy_info < 0) {
       const auto local_proxy_id = decode_local_proxy_id(proxy_info);
       const auto owner = dist.get_owner(parent);
-      send_bufs[static_cast<int>(owner)].emplace_back(to_new_global(parent, owner),
+      auto new_parent_name = to_new_global(parent, owner);
+      parent_array[succ_array.size() + local_proxy_id] = new_parent_name;
+      send_bufs[static_cast<int>(owner)].emplace_back(new_parent_name,
                                                       proxy_to_global(local_proxy_id), 0);
 
       if (add_back_edge) {
@@ -351,7 +356,9 @@ auto reverse_rooted_tree(std::span<const idx_t> succ_array,
   auto recv_edges = comm.alltoallv(kmp::send_buf(send_buf), kmp::send_counts(send_counts),
                                    kmp::send_displs(send_displs));
 
-  return make_graph(std::move(recv_edges), new_distribution, comm);
+  return ReversedTree{.num_proxy_vertices = num_proxies,
+                      .parent_array = std::move(parent_array),
+                      .tree = make_graph(std::move(recv_edges), new_distribution, comm)};
 }
 
 auto trace_successor_list(std::span<const idx_t> root_array,

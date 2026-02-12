@@ -24,22 +24,6 @@ void rank_via_euler_tour(EulerTourConfig const& config,
                          Distribution const& dist,
                          kamping::Communicator<> const& comm);
 
-/// for each edge in this (undirected tree), we use the following successor function
-///
-/// succ[u_i, v] = (v, u_{next}}) where u_{next} = u_{i + 1 % degree(v)}
-///
-/// the edge (v,u) is stored on owner(v) as a global id
-/// we set dist_to_root(v, u) = 1 if u is parent of v and -1 otherwise
-/// If v is a root, we determine exactly one edge (u, v), which has itself as successor.
-auto compute_euler_tour(graph::DistributedCSRGraph const& forest,
-                        std::span<idx_t> parent_array,
-                        kamping::Communicator<> const& comm) -> EulerTour;
-
 auto format_as(std::pair<EulerTour const&, kamping::Communicator<> const&> obj)
     -> std::string;
-
-void map_euler_tour_back(EulerTour const& euler_tour,
-                         std::span<idx_t> root_array,
-                         std::span<rank_t> rank_array,
-                         kamping::Communicator<> const& comm);
 }  // namespace kascade

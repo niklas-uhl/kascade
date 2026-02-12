@@ -29,22 +29,43 @@ auto reverse_list(std::span<const idx_t> succ_array,
                   Distribution const& dist,
                   kamping::Communicator<> const& comm) -> void;
 
+template <typename T>
+class maybe_owning_contiguous_range {
+public:
+  maybe_owning_contiguous_range(std::span<T const> span) noexcept : span_(span) {}
+  maybe_owning_contiguous_range(std::vector<T> v) noexcept
+      : storage_(std::move(v)), span_(*storage_) {}
+
+  [[nodiscard]] auto span() const noexcept -> std::span<const T> { return span_; }
+  [[nodiscard]] auto owns_memory() const noexcept -> bool { return storage_.has_value(); }
+
+private:
+  std::optional<std::vector<T>> storage_;
+  std::span<T const> span_;
+};
+
+struct ReversedTree {
+  std::size_t num_proxy_vertices{};
+  maybe_owning_contiguous_range<idx_t> parent_array;
+  graph::DistributedCSRGraph tree;
+};
 auto reverse_rooted_tree(std::span<const idx_t> succ_array,
                          std::span<const rank_t> dist_to_succ,
                          Distribution const& dist,
                          kamping::Communicator<> const& comm,
-                         bool add_back_edge)
-    -> std::pair<graph::DistributedCSRGraph, std::vector<idx_t>>;
+                         bool add_back_edge) -> ReversedTree;
 
 struct resolve_high_degree_tag {};
 static constexpr resolve_high_degree_tag resolve_high_degree{};
+
+
 
 auto reverse_rooted_tree(std::span<const idx_t> succ_array,
                          std::span<const rank_t> dist_to_succ,
                          Distribution const& dist,
                          kamping::Communicator<> const& comm,
                          bool add_back_edge,
-                         resolve_high_degree_tag) -> graph::DistributedCSRGraph;
+                         resolve_high_degree_tag) -> ReversedTree;
 
 auto is_root(std::size_t local_idx,
              std::span<const idx_t> succ_array,

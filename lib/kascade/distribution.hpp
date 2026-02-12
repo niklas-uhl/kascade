@@ -91,4 +91,25 @@ private:
   std::vector<std::size_t> offset_;
 };
 
+class PartitionedDistribution {
+public:
+  PartitionedDistribution(std::size_t local_size_a,
+                          std::size_t local_size_b,
+                          kamping::Communicator<> const& comm)
+      : dist_(local_size_a + local_size_b, comm) {
+    namespace kmp = kamping::params;
+    counts_first_partition_ = comm.allgather(kmp::send_buf(local_size_a));
+  }
+  auto get_distribution() const -> auto const& { return dist_; }
+  [[nodiscard]] auto is_in_first_partition(idx_t idx) const -> bool {
+    auto owner = dist_.get_owner(idx);
+    auto local_idx = dist_.get_local_idx(idx, owner);
+    return local_idx < counts_first_partition_[owner];
+  }
+
+private:
+  Distribution dist_;
+  std::vector<std::size_t> counts_first_partition_;
+};
+
 }  // namespace kascade

@@ -8,6 +8,7 @@
 
 #include "distribution.hpp"
 #include "kascade/graph/graph.hpp"
+#include "kascade/successor_utils.hpp"
 #include "kascade/types.hpp"
 #include "list_ranking.hpp"
 #include "pointer_doubling.hpp"
@@ -15,21 +16,47 @@
 #include "successor_utils.hpp"
 
 namespace kascade {
+
+namespace {
+
+auto is_proxy(idx_t v, PartitionedDistribution const& part_dist) {
+  return !part_dist.is_in_first_partition(v);
+}
+
+/// for each edge in this (undirected tree), we use the following successor function
+///
+/// succ[u_i, v] = (v, u_{next}}) where u_{next} = u_{i + 1 % degree(v)}
+///
+/// the edge (v,u) is stored on owner(v) as a global id
+/// we set dist_to_root(v, u) = 1 if u is parent of v and -1 otherwise
+/// If v is a root, we determine exactly one edge (u, v), which has itself as successor.
 auto compute_euler_tour(graph::DistributedCSRGraph const& forest,
-                        std::span<idx_t> parent_array,
+                        PartitionedDistribution const& part_dist,
+                        std::span<idx_t const> parent_array,
                         kamping::Communicator<> const& comm) -> EulerTour {
   using Edge = EulerTour::Edge;
   namespace kmp = kamping::params;
 
+  auto is_upward = [&](idx_t v, idx_t u) {
+    KASSERT(forest.get_rank(v) == part_dist.get_distribution().get_owner(v));
+    KASSERT(forest.get_rank(u) == part_dist.get_distribution().get_owner(u));
+    return parent_array[forest.to_local(v)] == u;
+  };
   auto assign_weight = [&](idx_t v, idx_t u) {
-    if (parent_array[forest.to_local(v)] == u) {
-      return 1;
+    if (is_upward(v, u)) {
+      return static_cast<int>(!is_proxy(v, part_dist));
+    }
+    if (!is_upward(v, u) && is_proxy(u, part_dist)) {
+      return 0;
     }
     return -1;
   };
 
+  spdlog::get("gather")->info("forest {} parent {}", forest.vertices().size(),
+                              parent_array.size());
   absl::flat_hash_set<idx_t> is_root;
   for (const auto& v : forest.vertices()) {
+    KASSERT(forest.to_local(v) < parent_array.size());
     if (parent_array[forest.to_local(v)] == v) {
       is_root.emplace(v);
     }
@@ -62,7 +89,7 @@ auto compute_euler_tour(graph::DistributedCSRGraph const& forest,
       edge_to_index[std::make_pair(v, u)] = next_id;
       index_to_edge[next_id] = std::make_pair(v, u);
       dist_to_root[next_id] = assign_weight(v, u);
-      is_upward_edge[next_id] = (dist_to_root[next_id] > 0);
+      is_upward_edge[next_id] = is_upward(v, u);
       int owner_u_prev = forest.get_rank(u_prev);
       if (is_v_root && i == 0) {
         // break up list for each tree, and define succ_array[u_prev, v] =
@@ -84,6 +111,7 @@ auto compute_euler_tour(graph::DistributedCSRGraph const& forest,
       next_id++;
     }
   }
+  spdlog::get("gather")->info("after edges");
 
   auto [send_buf, send_counts, send_displs] = kamping::flatten(send_bufs, comm.size());
   auto recv_buf = comm.alltoallv(kmp::send_buf(send_buf), kmp::send_counts(send_counts),
@@ -101,6 +129,8 @@ auto compute_euler_tour(graph::DistributedCSRGraph const& forest,
                    .index_to_edge = std::move(index_to_edge),
                    .distribution = std::move(euler_tour_dist)};
 }
+
+}  // namespace
 
 auto format_as(std::pair<EulerTour const&, kamping::Communicator<> const&> obj)
     -> std::string {
@@ -206,11 +236,12 @@ auto request_original_succesors(const EulerTour& euler_tour,
   }
   return reply_map;
 }
-
-}  // namespace
 void map_euler_tour_back(EulerTour const& euler_tour,
+                         graph::DistributedCSRGraph const& tree,
                          std::span<idx_t> root_array,
                          std::span<rank_t> rank_array,
+                         PartitionedDistribution const& part_dist,
+                         std::predicate<idx_t> auto const& is_proxy,
                          kamping::Communicator<> const& comm) {
   namespace kmp = kamping::params;
   KASSERT(root_array.size() == rank_array.size());
@@ -218,15 +249,22 @@ void map_euler_tour_back(EulerTour const& euler_tour,
   Distribution org_distribution(root_array.size(), comm);
   auto org_successors = request_original_succesors(euler_tour, comm);
   absl::flat_hash_map<int, std::vector<std::tuple<idx_t, idx_t, rank_t>>> send_bufs;
+
   for (std::size_t i = 0; i < euler_tour.succ_array.size(); ++i) {
     if (euler_tour.is_upward_edge[i]) {
       auto succ = euler_tour.succ_array[i];
       auto it = org_successors.find(succ);
       KASSERT(it != org_successors.end());
       auto root = it->second;
+      auto root_owner = part_dist.get_distribution().get_owner(root);
+      root = org_distribution.get_global_idx(
+          part_dist.get_distribution().get_local_idx(root, root_owner), root_owner);
       auto rank = euler_tour.rank_array[i];
       auto v = euler_tour.index_to_edge[i].first;
-      int owner = org_distribution.get_owner_signed(v);
+      if (is_proxy(v)) {
+        continue;
+      }
+      int owner = tree.get_rank(v);
       send_bufs[owner].emplace_back(v, root, rank);
     }
   }
@@ -236,12 +274,13 @@ void map_euler_tour_back(EulerTour const& euler_tour,
                                  kmp::send_displs(send_displs));
 
   for (auto [v, root, rank] : recv_buf) {
-    auto local_v = org_distribution.get_local_idx(v, comm.rank());
+    auto local_v = tree.to_local(v);
     KASSERT(local_v < org_distribution.get_local_size(comm.rank()));
     root_array[local_v] = root;
     rank_array[local_v] = rank;
   }
 }
+}  // namespace
 
 namespace {
 void rank_via_euler_tour_select_algorithm(EulerTourConfig const& config,
@@ -282,6 +321,19 @@ void rank_via_euler_tour_select_algorithm(EulerTourConfig const& config,
     }
   }
 }
+
+auto select_tree_construction(bool use_high_degree_handling,
+                              std::span<idx_t> succ_array,
+                              std::span<rank_t> rank_array,
+                              Distribution const& dist,
+                              kamping::Communicator<> const& comm) -> ReversedTree {
+  if (use_high_degree_handling) {
+    return reverse_rooted_tree(succ_array, rank_array, dist, comm, true,
+                               resolve_high_degree);
+  }
+  return reverse_rooted_tree(succ_array, rank_array, dist, comm, true);
+}
+
 }  // namespace
 
 void rank_via_euler_tour(EulerTourConfig const& config,
@@ -289,18 +341,43 @@ void rank_via_euler_tour(EulerTourConfig const& config,
                          std::span<rank_t> rank_array,
                          Distribution const& dist,
                          kamping::Communicator<> const& comm) {
-  SPDLOG_LOGGER_DEBUG(spdlog::get("gather"), "succ_array {}\nrank_array {}", succ_array,
-                      rank_array);
-  auto [tree, _] = reverse_rooted_tree(succ_array, rank_array, dist, comm, true);
-  SPDLOG_LOGGER_DEBUG(spdlog::get("gather"), "tree {}", tree);
-  auto euler_tour = compute_euler_tour(tree, succ_array, comm);
+  SPDLOG_LOGGER_DEBUG(spdlog::get("gather"), "size {}\nsucc_array {}\nrank_array {}",
+                      succ_array.size(), succ_array, rank_array);
+  comm.barrier();
+
+  auto [num_proxy_vertices, parent_array, tree] = select_tree_construction(
+      config.use_high_degree_handling, succ_array, rank_array, dist, comm);
+  KASSERT(config.use_high_degree_handling || (num_proxy_vertices == 0),
+          "Without high degree handling, no proxy vertices");
+  SPDLOG_LOGGER_DEBUG(
+      spdlog::get("gather"), "num proxies {}, tree {}\nparent size {} parent array {}",
+      num_proxy_vertices, tree, parent_array.span().size(), parent_array.span());
+  PartitionedDistribution part_dist(succ_array.size(), num_proxy_vertices, comm);
+
+  auto euler_tour = compute_euler_tour(tree, part_dist, parent_array.span(), comm);
   SPDLOG_LOGGER_DEBUG(spdlog::get("gather"), "euler tour {}", std::tie(euler_tour, comm));
-  rank_via_euler_tour_select_algorithm(config, euler_tour, comm);
-  SPDLOG_LOGGER_DEBUG(spdlog::get("gather"), "succ_array {}\nrank_array {}",
+  SPDLOG_LOGGER_DEBUG(spdlog::get("gather"),
+                      "before ranking succ_array {}\nrank_array {}",
                       euler_tour.succ_array, euler_tour.rank_array);
-  map_euler_tour_back(euler_tour, succ_array, rank_array, comm);
+  SPDLOG_LOGGER_DEBUG(
+      spdlog::get("root"), "traced {}",
+      trace_successor_list(euler_tour.succ_array, euler_tour.rank_array, comm));
+  comm.barrier();
+  rank_via_euler_tour_select_algorithm(config, euler_tour, comm);
+  SPDLOG_LOGGER_DEBUG(
+      spdlog::get("gather"), "ranked size {}  succ_array {}\nrank_array {}",
+      euler_tour.succ_array.size(), euler_tour.succ_array, euler_tour.rank_array);
+  if (config.use_high_degree_handling) {
+    map_euler_tour_back(
+        euler_tour, tree, succ_array, rank_array, part_dist,
+        [&](idx_t v) { return is_proxy(v, part_dist); }, comm);
+  } else {
+    map_euler_tour_back(
+        euler_tour, tree, succ_array, rank_array, part_dist,
+        [](auto const&) { return false; }, comm);
+  }
   SPDLOG_LOGGER_DEBUG(spdlog::get("gather"), "mapped: \nsucc_array {}\nrank_array {}",
-                      succ_array, rank_array);
+                     succ_array, rank_array);
 }
 
 }  // namespace kascade
