@@ -181,14 +181,13 @@ auto make_graph(std::ranges::forward_range auto&& recv_edges,
                 Distribution const& dist,
                 kamping::Communicator<> const& comm) -> graph::DistributedCSRGraph {
   kagen::Graph kagen_graph;
-  kagen_graph.vertex_range.first = dist.get_exclusive_prefix(comm.rank());
-  kagen_graph.vertex_range.second =
-      kagen_graph.vertex_range.first + dist.get_count(comm.rank());
+  kagen_graph.vertex_range.first = dist.index_range_begin(comm.rank());
+  kagen_graph.vertex_range.second = dist.index_range_end(comm.rank());
   kagen_graph.xadj.clear();
-  kagen_graph.xadj.resize(dist.get_count(comm.rank()) + 1, 0);  // edge offsets
-  kagen_graph.adjncy.clear();                                   // edges
-  kagen_graph.adjncy.resize(recv_edges.size());                 // edges
-  kagen_graph.edge_weights.resize(recv_edges.size());           // edges
+  kagen_graph.xadj.resize(dist.get_local_size(comm.rank()) + 1, 0);  // edge offsets
+  kagen_graph.adjncy.clear();                                        // edges
+  kagen_graph.adjncy.resize(recv_edges.size());                      // edges
+  kagen_graph.edge_weights.resize(recv_edges.size());                // edges
 
   for (const auto& [src, dst, w] : recv_edges) {
     ++kagen_graph.xadj[dist.get_local_idx(src, comm.rank())];
@@ -211,7 +210,7 @@ auto reverse_rooted_tree(std::span<idx_t const> succ_array,
                          std::span<rank_t const> dist_to_succ,
                          Distribution const& dist,
                          kamping::Communicator<> const& comm,
-                         bool add_back_edge) 
+                         bool add_back_edge)
     -> std::pair<graph::DistributedCSRGraph, std::vector<idx_t>> {
   namespace kmp = kamping::params;
   struct Edge {
@@ -294,7 +293,8 @@ auto reverse_rooted_tree(std::span<const idx_t> succ_array,
 
   auto proxy_to_global = [&](std::size_t local_proxy_id) {
     return new_distribution.get_global_idx(
-        dist.get_count(comm.rank()) + static_cast<idx_t>(local_proxy_id), comm.rank());
+        dist.get_local_size(comm.rank()) + static_cast<idx_t>(local_proxy_id),
+        comm.rank());
   };
 
   // vertex -> {parent or proxy}

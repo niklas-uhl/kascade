@@ -25,7 +25,7 @@ void local_pointer_chasing(std::span<idx_t> succ_array,
   for (idx_t idx{0}; idx < succ_array.size(); idx++) {
     auto const succ = succ_array[idx];
     if (succ == to_global(idx)) {
-       KASSERT(rank_array[idx] == 0);
+      KASSERT(rank_array[idx] == 0);
     }
     if (is_local_vertex(succ)) {
       has_pred[to_local(succ)] = true;
@@ -63,10 +63,7 @@ void local_pointer_chasing(std::span<idx_t> succ_array,
                            std::span<rank_t> rank_array,
                            std::size_t rank,
                            Distribution const& dist) {
-  auto is_local = [&](idx_t idx) {
-    auto begin = dist.get_exclusive_prefix(rank);
-    return begin <= idx && idx < begin + dist.get_count(rank);
-  };
+  auto is_local = [&](idx_t idx) { return dist.is_local(idx, rank); };
   auto to_global = [&](idx_t idx) { return dist.get_global_idx(idx, rank); };
   auto to_local = [&](idx_t idx) { return dist.get_local_idx(idx, rank); };
   local_pointer_chasing(succ_array, rank_array, to_local, to_global, is_local);

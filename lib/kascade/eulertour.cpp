@@ -89,7 +89,7 @@ auto compute_euler_tour(graph::DistributedCSRGraph const& forest,
   auto recv_buf = comm.alltoallv(kmp::send_buf(send_buf), kmp::send_counts(send_counts),
                                  kmp::send_displs(send_displs));
   std::vector<idx_t> succ_array(forest.num_local_edges() + is_root.size());
-  std::ranges::iota(succ_array, euler_tour_dist.get_exclusive_prefix(comm.rank()));
+  std::ranges::iota(succ_array, euler_tour_dist.index_range_begin(comm.rank()));
   for (const auto& [u, v, succ] : recv_buf) {
     auto it = edge_to_index.find(std::make_pair(u, v));
     KASSERT(it != edge_to_index.end());
