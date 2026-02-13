@@ -55,11 +55,12 @@ template <EnvelopedMsg M>
 using MsgTypeOf = std::remove_cvref_t<decltype(std::get<1>(std::declval<M>()))>;
 
 template <EnvelopedMsgRange R>
-auto prepare_send_buf(R const& messages,
-                      std::vector<MsgTypeOf<std::ranges::range_value_t<R>>> send_buf,
-                      std::vector<int> send_counts,
-                      std::vector<int> send_displs,
-                      std::size_t comm_size) {
+void prepare_send_buf_inplace(
+    R const& messages,
+    std::vector<MsgTypeOf<std::ranges::range_value_t<R>>>& send_buf,
+    std::vector<int>& send_counts,
+    std::vector<int>& send_displs,
+    std::size_t comm_size) {
   send_counts.clear();
   send_displs.clear();
   send_counts.resize(comm_size, 0);
@@ -77,8 +78,6 @@ auto prepare_send_buf(R const& messages,
     send_buf[static_cast<std::size_t>(pos)] = get_message(msg);
   }
   std::exclusive_scan(send_counts.begin(), send_counts.end(), send_displs.begin(), 0);
-  return std::make_tuple(std::move(send_buf), std::move(send_counts),
-                         std::move(send_displs));
 }
 
 template <EnvelopedMsgRange R>
@@ -89,7 +88,9 @@ auto prepare_send_buf(R const& messages, std::size_t comm_size) {
   std::vector<int> send_displs;
   send_displs.reserve(comm_size);
   std::vector<Msg> send_buf;
-  return prepare_send_buf(messages, std::move(send_buf), std::move(send_counts),
-                          std::move(send_displs), comm_size);
+  prepare_send_buf_inplace(messages, send_buf, send_counts, send_displs,
+                                  comm_size);
+  return std::make_tuple(std::move(send_buf), std::move(send_counts),
+                         std::move(send_displs));
 }
 }  // namespace kascade

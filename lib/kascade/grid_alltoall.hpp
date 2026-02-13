@@ -24,8 +24,9 @@ template <typename Msg>
 auto get_message(Envelope<Msg>& envelope) -> auto& {
   return envelope.msg;
 }
+
 template <EnvelopedMsgRange R>
-auto alltoallv(R const& messages, TopologyAwareGridCommunicator const& grid_comm) {
+auto grid_alltoallv(R const& messages, TopologyAwareGridCommunicator const& grid_comm) {
   namespace kmp = kamping::params;
   using msg_t = MsgTypeOf<std::ranges::range_value_t<R>>;
 
@@ -78,5 +79,50 @@ auto alltoallv(R const& messages, TopologyAwareGridCommunicator const& grid_comm
                                                kmp::send_counts(send_counts_intra),
                                                kmp::send_displs(send_displs_intra));
 }
+
+template <typename T>
+class AlltoallDispatcher {
+public:
+  AlltoallDispatcher(bool use_grid_alltoall, kamping::Communicator<> const& comm)
+      : use_grid_alltoall_{use_grid_alltoall}, comm_{&comm} {
+    if (use_grid_alltoall) {
+      grid_comm_ = TopologyAwareGridCommunicator(comm);
+    }
+  }
+
+  // TODO make recv_buf a general range if necessary
+  template <EnvelopedMsgRange R>
+    requires std::is_same_v<MsgTypeOf<std::ranges::range_value_t<R>>, T>
+  auto alltoallv(R const& messages, std::vector<T>& recv_buf) {
+    namespace kmp = kamping::params;
+    if (use_grid_alltoall_) {
+      KASSERT(grid_comm_.has_value());
+      recv_buf = kascade::grid_alltoallv(messages, grid_comm_.value());
+    } else {
+      prepare_send_buf_inplace(messages, send_buf, send_counts, send_displs,
+                               comm_->size());
+      comm_->alltoallv(
+          kmp::send_buf(send_buf), kmp::send_counts(send_counts),
+          kmp::send_displs(send_displs),
+          kmp::recv_buf<kamping::BufferResizePolicy::resize_to_fit>(recv_buf));
+    }
+  }
+
+  template <EnvelopedMsgRange R>
+    requires std::is_same_v<MsgTypeOf<std::ranges::range_value_t<R>>, T>
+  auto alltoallv(R const& messages) {
+    std::vector<T> recv_buf;
+    alltoallv(messages, recv_buf);
+    return recv_buf;
+  }
+
+private:
+  bool use_grid_alltoall_;
+  kamping::Communicator<> const* comm_;
+  std::optional<TopologyAwareGridCommunicator> grid_comm_;
+  std::vector<T> send_buf;
+  std::vector<int> send_counts;
+  std::vector<int> send_displs;
+};
 
 }  // namespace kascade

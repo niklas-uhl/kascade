@@ -43,6 +43,7 @@ struct SparseRulingSetConfig {
   bool sync = false;
   bool sync_locality_aware = false;
   bool spawn = false;
+  bool use_grid_communication = false;
 };
 
 struct EulerTourConfig {

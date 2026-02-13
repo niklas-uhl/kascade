@@ -26,6 +26,7 @@
 #include <kassert/kassert.hpp>
 #include <spdlog/spdlog.h>
 
+#include "grid_alltoall.hpp"
 #include "kascade/assertion_levels.hpp"
 #include "kascade/bits.hpp"
 #include "kascade/configuration.hpp"
@@ -126,16 +127,21 @@ auto handle_messages(SparseRulingSetConfig const& config,
       briefkasten::BufferedMessageQueueBuilder<RulerMessage>(comm.mpi_communicator())
           .build();
   std::vector<RulerMessage> local_work;
+  std::vector<std::pair<int, RulerMessage>> messages2;
   absl::flat_hash_map<int, std::vector<RulerMessage>> messages;
 
   auto send_to = [&](RulerMessage const& msg, int target) {
+    messages2.emplace_back(target, msg);
     messages[target].push_back(msg);
   };
   auto enqueue_locally_to_message_buffer = [&](RulerMessage const& msg) {
+    messages2.emplace_back(comm.rank_signed(), msg);
     messages[comm.rank_signed()].push_back(msg);
   };
   auto enqueue_locally = [&](RulerMessage const& msg) { local_work.push_back(msg); };
   initialize(enqueue_locally_to_message_buffer, send_to);
+
+  AlltoallDispatcher<RulerMessage> dispatcher(config.use_grid_communication, comm);
 
   std::int64_t rounds = 0;
   namespace kmp = kamping::params;
@@ -144,9 +150,11 @@ auto handle_messages(SparseRulingSetConfig const& config,
     auto [send_buf, send_counts, send_displs] = kamping::flatten(messages, comm.size());
     messages.clear();
     kamping::measurements::timer().start("alltoall");
-    comm.alltoallv(kmp::recv_buf<kamping::BufferResizePolicy::resize_to_fit>(local_work),
-                   kmp::send_buf(send_buf), kmp::send_counts(send_counts),
-                   kmp::send_displs(send_displs));
+    dispatcher.alltoallv(messages2, local_work);
+    messages2.clear();
+    // comm.alltoallv(kmp::recv_buf<kamping::BufferResizePolicy::resize_to_fit>(local_work),
+    //                kmp::send_buf(send_buf), kmp::send_counts(send_counts),
+    //                kmp::send_displs(send_displs));
     kamping::measurements::timer().stop_and_append();
 
     for (std::size_t i = 0; i < local_work.size(); ++i) {

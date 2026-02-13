@@ -61,7 +61,8 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(SparseRulingSetConfig,
                                    heuristic_factor,
                                    sync,
                                    sync_locality_aware,
-                                   spawn);
+                                   spawn,
+                                   use_grid_communication);
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(EulerTourConfig, algorithm, use_high_degree_handling);
 }  // namespace kascade
 
