@@ -68,7 +68,8 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(SparseRulingSetConfig,
                                    sync,
                                    sync_locality_aware,
                                    spawn,
-                                   briefkasten);
+                                   briefkasten,
+                                   use_grid_communication);
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(EulerTourConfig, algorithm, use_high_degree_handling);
 }  // namespace kascade
 

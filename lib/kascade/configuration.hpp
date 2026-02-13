@@ -51,6 +51,7 @@ struct SparseRulingSetConfig {
   bool sync_locality_aware = false;
   bool spawn = false;
   BriefkastenConfig briefkasten {};
+  bool use_grid_communication = false;
 };
 
 struct EulerTourConfig {
