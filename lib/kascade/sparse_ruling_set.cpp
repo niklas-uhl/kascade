@@ -185,6 +185,7 @@ enum class NodeType : std::uint8_t { root, leaf, ruler, unreached, reached };
 
 struct RulerTrace {
   absl::flat_hash_map<idx_t, idx_t> ruler_list_length;
+  std::size_t local_subproblem_size_{};
   RulerTrace(const RulerTrace&) = default;
   RulerTrace(RulerTrace&&) = delete;
   auto operator=(const RulerTrace&) -> RulerTrace& = default;
@@ -237,10 +238,27 @@ struct RulerTrace {
         {
             kamping::measurements::GlobalAggregationMode::max,
         });
+    kamping::measurements::counter().add(
+        "local_subproblem_size", static_cast<std::int64_t>(local_subproblem_size_),
+        {kamping::measurements::GlobalAggregationMode::sum,
+         kamping::measurements::GlobalAggregationMode::max,
+         kamping::measurements::GlobalAggregationMode::min});
+    kamping::measurements::counter().add(
+        "num_spawned_rulers", static_cast<std::int64_t>(num_spawned_rulers_),
+        {kamping::measurements::GlobalAggregationMode::sum,
+         kamping::measurements::GlobalAggregationMode::max,
+         kamping::measurements::GlobalAggregationMode::min});
     kamping::measurements::timer().stop();
   }
   void track_chain_end(idx_t ruler, rank_t dist_from_ruler) {
     ruler_list_length[ruler] = dist_from_ruler;
+  }
+  std::size_t num_spawned_rulers_ = 0;
+  void track_spawn()  {
+    num_spawned_rulers_++;
+  }
+  void track_base_case(std::size_t local_subproblem_size) {
+    local_subproblem_size_ = local_subproblem_size;
   }
 };
 
@@ -420,6 +438,7 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
       }
     } while (true);
     rulers.push_back(ruler_local);
+    trace.track_spawn();
     auto ruler = dist.get_global_idx(ruler_local, comm.rank());
     SPDLOG_TRACE("spawning new ruler {}", ruler);
     node_type[ruler_local] = NodeType::ruler;
@@ -492,6 +511,7 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
   }
 
   kamping::measurements::timer().synchronize_and_start("base_case");
+  trace.track_base_case(rulers.size());
   PointerDoublingConfig conf;
   pointer_doubling_generic(conf, succ_array, rank_array, dist, rulers, comm);
   kamping::measurements::timer().stop();
