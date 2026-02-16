@@ -26,6 +26,7 @@ namespace {
 template <typename MakeRequestsFn, typename SendRequestsFn, typename UpdateFn>
 auto do_doubling_step_skeleton(std::span<kascade::rank_t> rank_array,
                                std::span<kascade::idx_t> root_array,
+                               std::span<std::size_t> succ_owner,
                                std::span<kascade::idx_t> local_request_array,
                                MakeRequestsFn const& make_requests,
                                SendRequestsFn const& send_requests,
@@ -33,7 +34,7 @@ auto do_doubling_step_skeleton(std::span<kascade::rank_t> rank_array,
   auto request_view = make_requests(root_array, local_request_array);
   auto recv_replies = send_requests(request_view);
   std::size_t const num_remaining_elems =
-      update(recv_replies, rank_array, root_array, local_request_array);
+      update(recv_replies, rank_array, succ_owner, root_array, local_request_array);
   return local_request_array.first(num_remaining_elems);
 }
 
@@ -45,12 +46,14 @@ struct Request {
 struct Reply {
   kascade::idx_t write_back_idx;
   kascade::idx_t succ;
+  kascade::idx_t succ_owner;
   kascade::rank_t rank;
 };
 
 struct update_via_writeback {
   auto operator()(std::ranges::forward_range auto const& recv_replies,
                   std::span<kascade::rank_t> rank_array,
+                  std::span<std::size_t> succ_owner,
                   std::span<kascade::idx_t> root_array,
                   std::span<kascade::idx_t> local_request_array) const -> std::size_t {
     std::size_t unfinished_elems = 0;
@@ -61,6 +64,7 @@ struct update_via_writeback {
       // local index
       root_array[write_back_idx] = succ;
       rank_array[write_back_idx] += rank;
+      succ_owner[write_back_idx] = reply.succ_owner;
       if (!bits::has_root_flag(succ)) {
         local_request_array[unfinished_elems++] = write_back_idx;
       }
@@ -72,6 +76,7 @@ struct update_via_writeback {
 struct update_via_lookup {
   auto operator()(std::ranges::forward_range auto const& recv_replies,
                   std::span<kascade::rank_t> rank_array,
+                  std::span<std::size_t> /* succ_owner */,
                   std::span<kascade::idx_t> root_array,
                   std::span<kascade::idx_t> local_request_array) const -> std::size_t {
     // prepare lookup table
@@ -129,6 +134,7 @@ auto make_aggregated_requests(std::span<idx_t> root_array,
 
 auto do_doubling_step_without_aggregation(std::span<kascade::rank_t> rank_array,
                                           std::span<kascade::idx_t> root_array,
+                                          std::span<std::size_t> succ_owner,
                                           std::span<kascade::idx_t> local_request_array,
                                           kascade::Distribution const& dist,
                                           kamping::Communicator<> const& comm)
@@ -137,10 +143,12 @@ auto do_doubling_step_without_aggregation(std::span<kascade::rank_t> rank_array,
     auto local_idx = dist.get_local_idx(request.succ, comm.rank());
     return Reply{.write_back_idx = request.write_back_idx,
                  .succ = root_array[local_idx],
+                 .succ_owner = succ_owner[local_idx],
                  .rank = rank_array[local_idx]};
   };
   auto get_target_rank = [&](Request const& request) {
-    return dist.get_owner(request.succ);
+    return succ_owner[request.write_back_idx];
+    // return dist.get_owner(request.succ);
   };
   auto noop = []() {};
 
@@ -149,14 +157,15 @@ auto do_doubling_step_without_aggregation(std::span<kascade::rank_t> rank_array,
                                                             noop, noop, make_reply, comm);
   };
 
-  return do_doubling_step_skeleton(rank_array, root_array, local_request_array,
-                                   make_requests_with_writeback, send_requests,
-                                   update_via_writeback{});
+  return do_doubling_step_skeleton(rank_array, root_array, succ_owner,
+                                   local_request_array, make_requests_with_writeback,
+                                   send_requests, update_via_writeback{});
 }
 
 auto do_doubling_step_with_remote_aggregation_only(
     std::span<kascade::rank_t> rank_array,
     std::span<kascade::idx_t> root_array,
+    std::span<std::size_t> succ_owner,
     std::span<kascade::idx_t> local_request_array,
     kascade::Distribution const& dist,
     TopologyAwareGridCommunicator const& grid_comm) -> std::span<kascade::idx_t> {
@@ -181,14 +190,16 @@ auto do_doubling_step_with_remote_aggregation_only(
         requests, get_target_rank, get_request_key, get_reply_key, make_reply, grid_comm);
   };
 
-  return do_doubling_step_skeleton(rank_array, root_array, local_request_array,
-                                   make_requests, send_requests, update_via_lookup{});
+  return do_doubling_step_skeleton(rank_array, root_array, succ_owner,
+                                   local_request_array, make_requests, send_requests,
+                                   update_via_lookup{});
 }
 
 auto do_doubling_step_with_local_aggregation(
     bool use_remote_aggregation,
     std::span<kascade::rank_t> rank_array,
     std::span<kascade::idx_t> root_array,
+    std::span<idx_t> succ_owner,
     std::span<kascade::idx_t> local_request_array,
     kascade::Distribution const& dist,
     kamping::Communicator<> const& comm,
@@ -216,8 +227,8 @@ auto do_doubling_step_with_local_aggregation(
                                                           get_request_key, get_reply_key,
                                                           make_reply, *grid_comm);
     };
-    return do_doubling_step_skeleton(rank_array, root_array, local_request_array,
-                                     make_aggregated_requests,
+    return do_doubling_step_skeleton(rank_array, root_array, succ_owner,
+                                     local_request_array, make_aggregated_requests,
                                      send_requests_with_aggreation, update_via_lookup{});
   }
 
@@ -226,13 +237,15 @@ auto do_doubling_step_with_local_aggregation(
     return request_without_remote_aggregation<idx_t, Reply>(requests, get_target_rank,
                                                             noop, noop, make_reply, comm);
   };
-  return do_doubling_step_skeleton(rank_array, root_array, local_request_array,
-                                   make_requests, send_requests, update_via_lookup{});
+  return do_doubling_step_skeleton(rank_array, root_array, succ_owner,
+                                   local_request_array, make_requests, send_requests,
+                                   update_via_lookup{});
 }
 
 auto do_doubling_step(kascade::PointerDoublingConfig const& config,
                       std::span<kascade::rank_t> rank_array,
                       std::span<kascade::idx_t> root_array,
+                      std::span<std::size_t> succ_owner,
                       std::span<kascade::idx_t> local_request_array,
                       kascade::Distribution const& dist,
                       kamping::Communicator<> const& comm,
@@ -240,27 +253,31 @@ auto do_doubling_step(kascade::PointerDoublingConfig const& config,
     -> std::span<kascade::idx_t> {
   switch (config.aggregation_level) {
     case kascade::AggregationLevel::none:
-      return do_doubling_step_without_aggregation(rank_array, root_array,
+      return do_doubling_step_without_aggregation(rank_array, root_array, succ_owner,
                                                   local_request_array, dist, comm);
     case kascade::AggregationLevel::local:
-      return do_doubling_step_with_local_aggregation(
-          false, rank_array, root_array, local_request_array, dist, comm, grid_comm);
+      return do_doubling_step_with_local_aggregation(false, rank_array, root_array,
+                                                     local_request_array, succ_owner,
+                                                     dist, comm, grid_comm);
     case kascade::AggregationLevel::remote: {
       KASSERT(grid_comm != nullptr);
       auto res = do_doubling_step_with_remote_aggregation_only(
-          rank_array, root_array, local_request_array, dist, *grid_comm);
+          rank_array, root_array, succ_owner, local_request_array, dist, *grid_comm);
       return res;
     }
     case kascade::AggregationLevel::all:
       KASSERT(grid_comm != nullptr);
-      return do_doubling_step_with_local_aggregation(
-          true, rank_array, root_array, local_request_array, dist, comm, grid_comm);
+      return do_doubling_step_with_local_aggregation(true, rank_array, root_array,
+                                                     succ_owner, local_request_array,
+                                                     dist, comm, grid_comm);
     default: {
       throw std::runtime_error("not supported");
     }
   }
-  return do_doubling_step_without_aggregation(rank_array, root_array, local_request_array,
-                                              dist, comm);
+  std::unreachable();
+  // return do_doubling_step_without_aggregation(rank_array, root_array,
+  // local_request_array,
+  //                                             dist, comm);
 }
 
 auto is_finished(std::size_t unfinished_elems, kamping::Communicator<> const& comm)
@@ -330,10 +347,19 @@ void pointer_doubling_generic(PointerDoublingConfig config,
                                                             active_local_indices, comm);
   std::span<idx_t> active_vertices = active_vertices_storage;
 
+  kamping::measurements::timer().synchronize_and_start("cache_owners");
+  kamping::measurements::timer().synchronize_and_start("allocate_cache");
+  std::vector<std::size_t> succ_owner(succ_array.size());
+  kamping::measurements::timer().stop_and_append();
+  for (auto const& i : active_local_indices) {
+    succ_owner[i] = dist.get_owner(bits::clear_root_flag(succ_array[i]));
+  }
+  kamping::measurements::timer().stop_and_append();
+
   while (!is_finished(active_vertices.size(), comm)) {
     kamping::measurements::timer().synchronize_and_start("pointer_doubling_step");
-    active_vertices = do_doubling_step(config, rank_array, succ_array, active_vertices,
-                                       dist, comm, grid_comm_ptr.get());
+    active_vertices = do_doubling_step(config, rank_array, succ_array, succ_owner,
+                                       active_vertices, dist, comm, grid_comm_ptr.get());
     kamping::measurements::timer().stop_and_append();
   }
 
