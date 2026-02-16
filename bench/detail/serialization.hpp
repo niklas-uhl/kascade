@@ -56,6 +56,9 @@ NLOHMANN_JSON_SERIALIZE_ENUM(RulerSelectionStrategy,
                               {RulerSelectionStrategy::dehne, "dehne"},
                               {RulerSelectionStrategy::heuristic, "heuristic"},
                               {RulerSelectionStrategy::sanders, "sanders"}});
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(BriefkastenConfig,
+                                   local_threshold,
+                                   poll_skip_threshold);
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(SparseRulingSetConfig,
                                    ruler_selection,
                                    dehne_factor,
@@ -63,7 +66,8 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(SparseRulingSetConfig,
                                    sanders_factor,
                                    sync,
                                    sync_locality_aware,
-                                   spawn);
+                                   spawn,
+                                   briefkasten);
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(EulerTourConfig, algorithm, use_high_degree_handling);
 }  // namespace kascade
 

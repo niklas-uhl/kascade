@@ -116,6 +116,12 @@ auto parse_args(std::span<char*> args) -> Config {
       ->group("Sparse Ruling Set");
   app.add_flag("--sparse-ruling-set-spawn", config.sparse_ruling_set.spawn)
       ->group("Sparse Ruling Set");
+  app.add_option("--sparse-ruling-set-briefkasten-local-threshold",
+                 config.sparse_ruling_set.briefkasten.local_threshold)
+      ->group("Sparse Ruling Set");
+  app.add_option("--sparse-ruling-set-briefkasten-poll-skip-threshold",
+                 config.sparse_ruling_set.briefkasten.poll_skip_threshold)
+      ->group("Sparse Ruling Set");
 
   app.add_option("--eulertour-algorithm", config.euler_tour.algorithm);
   app.add_flag("--eulertour-use-high-degree-handling",

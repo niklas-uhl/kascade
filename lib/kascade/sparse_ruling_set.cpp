@@ -11,6 +11,7 @@
 #include <utility>
 
 #include <absl/container/flat_hash_map.h>
+#include <briefkasten/buffered_queue.hpp>
 #include <briefkasten/queue_builder.hpp>
 #include <fmt/ranges.h>
 #include <kamping/collectives/allreduce.hpp>
@@ -96,15 +97,17 @@ constexpr sync_tag sync{};
 constexpr async_tag async{};
 }  // namespace ruler_chasing
 
-auto handle_messages(SparseRulingSetConfig const& /* config */,
+auto handle_messages(SparseRulingSetConfig const& config,
                      auto&& initialize,
                      auto&& work_on_item,
                      Distribution const& dist,
                      kamping::Communicator<> const& comm,
                      ruler_chasing::async_tag /* tag */) {
-  auto queue =
-      briefkasten::BufferedMessageQueueBuilder<RulerMessage>(comm.mpi_communicator())
-          .build();
+  briefkasten::Config briefkasten_config;
+  briefkasten_config.local_threshold_bytes = config.briefkasten.local_threshold;
+  auto queue = briefkasten::BufferedMessageQueueBuilder<RulerMessage>(
+                   briefkasten_config, comm.mpi_communicator())
+                   .build();
   std::queue<RulerMessage> local_queue;
   auto on_message = [&](auto env) {
     for (RulerMessage const& msg : env.message) {
@@ -119,7 +122,7 @@ auto handle_messages(SparseRulingSetConfig const& /* config */,
   initialize(enqueue_locally, send_to);
   do {  // NOLINT(*-avoid-do-while)
     while (!local_queue.empty()) {
-      queue.poll_throttled(on_message);
+      queue.poll_throttled(on_message, config.briefkasten.poll_skip_threshold);
       auto msg = local_queue.front();
       local_queue.pop();
       work_on_item(msg, enqueue_locally, send_to);

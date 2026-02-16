@@ -36,6 +36,11 @@ struct PointerDoublingConfig {
 
 enum class RulerSelectionStrategy : std::uint8_t { dehne, heuristic, sanders, invalid };
 
+struct BriefkastenConfig {
+  std::size_t local_threshold = 32ULL * 1024;
+  std::size_t poll_skip_threshold = 100;
+};
+
 struct SparseRulingSetConfig {
   RulerSelectionStrategy ruler_selection = RulerSelectionStrategy::dehne;
   double dehne_factor = 1.0;
@@ -44,6 +49,7 @@ struct SparseRulingSetConfig {
   bool sync = false;
   bool sync_locality_aware = false;
   bool spawn = false;
+  BriefkastenConfig briefkasten {};
 };
 
 struct EulerTourConfig {
