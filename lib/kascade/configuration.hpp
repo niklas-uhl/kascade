@@ -34,12 +34,13 @@ struct PointerDoublingConfig {
   AggregationLevel aggregation_level = AggregationLevel::none;
 };
 
-enum class RulerSelectionStrategy : std::uint8_t { dehne, heuristic, invalid };
+enum class RulerSelectionStrategy : std::uint8_t { dehne, heuristic, sanders, invalid };
 
 struct SparseRulingSetConfig {
   RulerSelectionStrategy ruler_selection = RulerSelectionStrategy::dehne;
   double dehne_factor = 1.0;
   double heuristic_factor = 0.01;
+  double sanders_factor = 1.0;
   bool sync = false;
   bool sync_locality_aware = false;
   bool spawn = false;

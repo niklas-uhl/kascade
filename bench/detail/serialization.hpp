@@ -54,11 +54,13 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(PointerDoublingConfig,
 NLOHMANN_JSON_SERIALIZE_ENUM(RulerSelectionStrategy,
                              {{RulerSelectionStrategy::invalid, nullptr},
                               {RulerSelectionStrategy::dehne, "dehne"},
-                              {RulerSelectionStrategy::heuristic, "heuristic"}});
+                              {RulerSelectionStrategy::heuristic, "heuristic"},
+                              {RulerSelectionStrategy::sanders, "sanders"}});
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(SparseRulingSetConfig,
                                    ruler_selection,
                                    dehne_factor,
                                    heuristic_factor,
+                                   sanders_factor,
                                    sync,
                                    sync_locality_aware,
                                    spawn);

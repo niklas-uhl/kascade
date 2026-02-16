@@ -1,6 +1,7 @@
 #include "kascade/sparse_ruling_set.hpp"
 
 #include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <functional>
 #include <limits>
@@ -39,18 +40,28 @@ namespace {
 auto compute_local_num_rulers(SparseRulingSetConfig const& config,
                               Distribution const& dist,
                               kamping::Communicator<> const& comm) -> std::size_t {
+  // NOLINTBEGIN(readability-identifier-length)
+  auto n = dist.get_global_size();
+  auto p = comm.size();
+  auto rel_local_size =
+      static_cast<double>(dist.get_local_size(comm.rank())) / static_cast<double>(n);
+  // NOLINTEND(readability-identifier-length)
+
   switch (config.ruler_selection) {
     case RulerSelectionStrategy::dehne:
       // pick O(n/p) rulers in total
       return static_cast<std::size_t>(config.dehne_factor *
-                                      (static_cast<double>(dist.get_global_size()) /
-                                       static_cast<double>(comm.size()))) /
-             comm.size();
+                                      (static_cast<double>(n) / static_cast<double>(p))) /
+             p;
     case RulerSelectionStrategy::heuristic:
       // pick heuristic_factor * local_num_leaves per PE
       return static_cast<std::size_t>(
           config.heuristic_factor *
           static_cast<double>(dist.get_local_size(comm.rank())));
+    case kascade::RulerSelectionStrategy::sanders:
+      return static_cast<std::size_t>(config.sanders_factor * std::sqrt(n) *
+                                      static_cast<double>(p) / std::log(n) *
+                                      rel_local_size);
     case RulerSelectionStrategy::invalid:
       throw std::runtime_error("Invalid ruler selection strategy");
       break;

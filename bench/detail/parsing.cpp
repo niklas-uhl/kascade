@@ -106,6 +106,9 @@ auto parse_args(std::span<char*> args) -> Config {
   app.add_option("--sparse-ruling-set-heuristic-factor",
                  config.sparse_ruling_set.heuristic_factor)
       ->group("Sparse Ruling Set");
+  app.add_option("--sparse-ruling-set-sanders-factor",
+                 config.sparse_ruling_set.sanders_factor)
+      ->group("Sparse Ruling Set");
   app.add_flag("--sparse-ruling-set-sync", config.sparse_ruling_set.sync)
       ->group("Sparse Ruling Set");
   app.add_flag("--sparse-ruling-set-sync-locality-aware",
