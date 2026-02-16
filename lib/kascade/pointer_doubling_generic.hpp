@@ -1,4 +1,5 @@
 #pragma once
+#include <cstdint>
 #include <ranges>
 
 #include <absl/container/flat_hash_map.h>
@@ -44,9 +45,9 @@ struct Request {
 };
 
 struct Reply {
-  kascade::idx_t write_back_idx;
   kascade::idx_t succ;
-  kascade::idx_t succ_owner;
+  std::uint32_t succ_owner;
+  std::uint32_t write_back_idx;
   kascade::rank_t rank;
 };
 
@@ -141,9 +142,9 @@ auto do_doubling_step_without_aggregation(std::span<kascade::rank_t> rank_array,
     -> std::span<kascade::idx_t> {
   auto make_reply = [&](const Request& request) {
     auto local_idx = dist.get_local_idx(request.succ, comm.rank());
-    return Reply{.write_back_idx = request.write_back_idx,
-                 .succ = root_array[local_idx],
-                 .succ_owner = succ_owner[local_idx],
+    return Reply{.succ = root_array[local_idx],
+                 .succ_owner = static_cast<std::uint32_t>(succ_owner[local_idx]),
+                 .write_back_idx = static_cast<std::uint32_t>(request.write_back_idx),
                  .rank = rank_array[local_idx]};
   };
   auto get_target_rank = [&](Request const& request) {
