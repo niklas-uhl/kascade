@@ -371,8 +371,26 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
   kamping::measurements::timer().synchronize_and_start("invert_list");
   auto leaves = reverse_list(succ_array, rank_array, succ_array, rank_array, dist, comm);
   kamping::measurements::timer().stop();
+  
+  kamping::measurements::timer().synchronize_and_start("cache_owners");
+  std::vector<std::size_t> succ_owner(succ_array.size());
+  for (std::size_t i = 0; i < succ_owner.size(); i++) {
+    auto succ = succ_array[i];
+    if (dist.is_local(succ, comm.rank())) {
+      succ_owner[i] = comm.rank();
+    } else {
+      succ_owner[i] = dist.get_owner(succ);
+    }
+  }
+  kamping::measurements::timer().stop();
+  auto get_succ_owner = [&](idx_t local_idx, idx_t succ_global) {
+    if (!config.cache_owners) {
+      return dist.get_owner(succ_global);
+    }
+    return succ_owner[local_idx];
+  };
+  
   kamping::measurements::timer().synchronize_and_start("init_node_type");
-
   std::vector<NodeType> node_type(succ_array.size(), NodeType::unreached);
   std::size_t num_unreached = 0;
   for (auto local_idx : dist.local_indices(comm.rank())) {
@@ -438,14 +456,14 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
       } else {
         node_type[ruler_local] = NodeType::ruler;
       }
-      auto succ_owner = dist.get_owner(succ);
-      if (succ_owner == comm.rank()) {
+      if (dist.is_local(succ, comm.rank())) {
         enqueue_locally(
             {.target_idx = succ, .ruler = ruler, .dist_from_ruler = dist_to_succ});
         continue;
       }
       send_to({.target_idx = succ, .ruler = ruler, .dist_from_ruler = dist_to_succ},
-              succ_owner);
+              get_succ_owner(ruler_local, succ));
+      // dist.get_owner(succ));
     }
   };
 
@@ -468,15 +486,15 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
     num_unreached--;
     auto succ = succ_array[ruler_local];
     auto dist_to_succ = rank_array[ruler_local];
-    auto succ_owner = dist.get_owner(succ);
-    if (succ_owner == comm.rank()) {
+    if (dist.is_local(succ, comm.rank())) {
       enqueue_locally(RulerMessage{
           .target_idx = succ, .ruler = ruler, .dist_from_ruler = dist_to_succ});
       return;
     }
     send_to(
         RulerMessage{.target_idx = succ, .ruler = ruler, .dist_from_ruler = dist_to_succ},
-        succ_owner);
+        get_succ_owner(ruler_local, succ));
+    // dist.get_owner(succ));
   };
 
   auto work_on_item = [&](RulerMessage const& msg, auto&& enqueue_locally,
@@ -501,8 +519,7 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
     KASSERT(node_type[idx_local] == NodeType::unreached);
     node_type[idx_local] = NodeType::reached;
     num_unreached--;
-    auto succ_rank = dist.get_owner_signed(succ);
-    if (succ_rank == comm.rank_signed()) {
+    if (dist.is_local(succ, comm.rank())) {
       enqueue_locally({.target_idx = succ,
                        .ruler = ruler,
                        .dist_from_ruler = dist_from_ruler + dist_to_succ});
@@ -511,7 +528,8 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
     send_to({.target_idx = succ,
              .ruler = ruler,
              .dist_from_ruler = dist_from_ruler + dist_to_succ},
-            succ_rank);
+            get_succ_owner(idx_local, succ));
+    // succ_rank);
   };
   if (config.sync) {
     handle_messages(config, init, work_on_item, dist, comm, ruler_chasing::sync);
