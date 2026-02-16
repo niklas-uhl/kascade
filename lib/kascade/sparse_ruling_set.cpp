@@ -320,13 +320,17 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
   reverse_list(succ_array, rank_array, succ_array, rank_array, dist, comm);
   kamping::measurements::timer().stop();
   kamping::measurements::timer().synchronize_and_start("cache_owners");
-  std::vector<std::size_t> succ_owner(succ_array.size());
-  for (std::size_t i = 0; i < succ_owner.size(); i++) {
-    auto succ = succ_array[i];
-    if (dist.is_local(succ, comm.rank())) {
-      succ_owner[i] = comm.rank();
-    } else {
-      succ_owner[i] = dist.get_owner(succ);
+  std::vector<std::size_t> succ_owner;
+  if (config.cache_owners) {
+    succ_owner.resize(succ_array.size());
+
+    for (std::size_t i = 0; i < succ_owner.size(); i++) {
+      auto succ = succ_array[i];
+      if (dist.is_local(succ, comm.rank())) {
+        succ_owner[i] = comm.rank();
+      } else {
+        succ_owner[i] = dist.get_owner(succ);
+      }
     }
   }
   kamping::measurements::timer().stop();
