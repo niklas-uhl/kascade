@@ -1,0 +1,55 @@
+name: rma-pointer-doubling
+executable: bench/kascade
+output_path_option_name: "output-file"
+ncores: [64, 128, 256, 512, 1024, 2048]
+time_limit: 3
+threads_per_rank: [1]
+# tasks_per_node: 64
+graphs:
+  - generator: kagen
+    type: path
+    N: 20
+    extra_args:
+      statistics-level: extensive-reduced-output
+      input-processing: none
+      verify-level: 0
+      iterations: 5
+    scale_weak: True
+  - generator: kagen
+    type: path
+    N: 20
+    permute: True
+    extra_args:
+      statistics-level: extensive-reduced-output
+      input-processing: none
+      verify-level: 0
+      iterations: 5
+    scale_weak: True
+  - generator: kagen
+    type: path
+    N: 20
+    p: 0.99
+    extra_args:
+      statistics-level: extensive-reduced-output
+      input-processing: none
+      verify-level: 0
+      iterations: 5
+    scale_weak: True
+  - generator: kagen
+    type: path
+    N: 20
+    p: 0.99
+    permute: True
+    extra_args:
+      statistics-level: extensive-reduced-output
+      input-processing: none
+      verify-level: 0
+      iterations: 5
+    scale_weak: True
+config:
+  - algorithm: RMAPointerDoubling
+    rma-pointer-chasing-sync-mode: [fenced]
+  - algorithm: RMAPointerDoubling
+    rma-pointer-chasing-sync-mode: [passive_target]
+    rma-pointer-chasing-batch-size: [100, 1000, inf]
+    
