@@ -135,10 +135,12 @@ auto request_without_remote_aggregation(Requests const& requests,
       comm.alltoallv(kmp::send_buf(send_buf), kmp::send_counts(send_counts),
                      kmp::send_displs(send_displs), kmp::recv_counts_out());
   kamping::measurements::timer().stop_and_append();
+  kamping::measurements::timer().synchronize_and_start("pack_replies");
   auto replies =
       recv_requests |
       std::views::transform([&](auto const& request) { return make_reply(request); }) |
       std::ranges::to<std::vector>();
+  kamping::measurements::timer().stop_and_append();
   kamping::measurements::timer().synchronize_and_start("send_replies");
   auto result = comm.alltoallv(kmp::send_buf(replies), kmp::send_counts(recv_counts));
   kamping::measurements::timer().stop_and_append();
