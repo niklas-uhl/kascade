@@ -34,6 +34,7 @@ NLOHMANN_JSON_SERIALIZE_ENUM(Algorithm,
                               {Algorithm::AsyncPointerDoubling, "AsyncPointerDoubling"},
                               {Algorithm::RMAPointerDoubling, "RMAPointerDoubling"},
                               {Algorithm::EulerTour, "EulerTour"},
+                              {Algorithm::MPLR, "MPLR"},
                               {Algorithm::SparseRulingSet, "SparseRulingSet"}})
 NLOHMANN_JSON_SERIALIZE_ENUM(AggregationLevel,
                              {{AggregationLevel::invalid, nullptr},
@@ -71,6 +72,10 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(SparseRulingSetConfig,
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(EulerTourConfig, algorithm, use_high_degree_handling);
 }  // namespace kascade
 
+namespace mplr {
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Configuration, comm_rounds, recursion_levels, use_grid, use_aggregation);
+}
+
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_ONLY_SERIALIZE(TreeStats, size, max_rank, rank_sum);
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_ONLY_SERIALIZE(BasicStats,
                                                   num_trees,
@@ -101,6 +106,7 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Config,
                                    pointer_doubling,
                                    sparse_ruling_set,
                                    euler_tour,
+                                   mplr,
                                    verify_level,
                                    verify_continue_on_mismatch,
                                    statistics_level)

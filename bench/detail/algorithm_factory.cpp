@@ -22,6 +22,8 @@ auto get_algorithm(const Config& config, kamping::Communicator<> const& comm)
       return std::make_unique<SparseRulingSet>(config.sparse_ruling_set, comm);
     case kascade::Algorithm::EulerTour:
       return std::make_unique<EulerTour>(config, comm);
+    case kascade::Algorithm::MPLR:
+      return std::make_unique<MPLR>(config.mplr, comm);
     case kascade::Algorithm::invalid:
       throw std::runtime_error("Invalid algorithm selected.");
   }

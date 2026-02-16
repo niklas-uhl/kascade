@@ -6,6 +6,7 @@
 
 #include <kamping/communicator.hpp>
 
+#include "detail/mplr/mplr.hpp"
 #include "detail/stats.hpp"
 #include "git.h"
 #include "input/generation.hpp"
@@ -27,6 +28,7 @@ struct Config {
   kascade::PointerDoublingConfig pointer_doubling;
   kascade::SparseRulingSetConfig sparse_ruling_set;
   kascade::EulerTourConfig euler_tour;
+  mplr::Configuration mplr;
   std::size_t verify_level = 1;
   bool verify_continue_on_mismatch = false;
   StatsLevel statistics_level = StatsLevel::none;

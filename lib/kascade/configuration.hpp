@@ -13,6 +13,7 @@ enum class Algorithm : std::uint8_t {
   RMAPointerDoubling,
   SparseRulingSet,
   EulerTour,
+  MPLR,
   invalid,
 };
 

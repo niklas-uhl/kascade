@@ -46,14 +46,24 @@ add_executable(kascade)
 
 target_sources(
   kascade
-  PRIVATE runner.cpp detail/parsing.cpp detail/algorithm_factory.cpp
-          detail/reporting.cpp detail/verification.cpp detail/stats.cpp
+  PRIVATE runner.cpp
+          detail/parsing.cpp
+          detail/algorithm_factory.cpp
+          detail/reporting.cpp
+          detail/verification.cpp
+          detail/stats.cpp
+          detail/mplr/mplr.cpp
   PRIVATE FILE_SET
           HEADERS
           BASE_DIRS
           ${CMAKE_CURRENT_SOURCE_DIR}
           ${CMAKE_CURRENT_BINARY_DIR}
           FILES
+          detail/mplr/mplr.hpp
+          detail/mplr/communicator.hpp
+          detail/mplr/forest_irregular_pointer_doubling.hpp
+          detail/mplr/forest_regular_ruling_set2.hpp
+          detail/mplr/helper_functions.hpp
           detail/benchmark_config.hpp
           detail/verification.hpp
           detail/parsing.hpp

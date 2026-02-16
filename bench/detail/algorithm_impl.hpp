@@ -5,6 +5,9 @@
 
 #include "./algorithm.hpp"
 #include "detail/benchmark_config.hpp"
+#include "detail/mplr/forest_regular_optimized_ruling_set.hpp"
+#include "detail/mplr/forest_regular_ruling_set2.hpp"
+#include "detail/mplr/mplr.hpp"
 #include "eulertour.hpp"
 #include "kascade/configuration.hpp"
 #include "kascade/list_ranking.hpp"
@@ -141,4 +144,20 @@ public:
 
 private:
   Config config_;
+};
+
+class MPLR : public AlgorithmBase {
+public:
+  explicit MPLR(mplr::Configuration config, kamping::Communicator<> const& comm)
+      : AlgorithmBase(comm), config_(config) {}
+  void run() override {
+    std::ranges::copy(succ_array_, root_array_.begin());
+    kamping::Communicator<> comm(MPI_COMM_WORLD);
+    auto [root_array, rank_array] = mplr::forest_ruling_set(config_, root_array_, comm);
+    root_array_ = std::move(root_array);
+    rank_array_ = std::move(rank_array);
+  }
+
+private:
+  mplr::Configuration config_;
 };
