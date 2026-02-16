@@ -3,6 +3,7 @@
 #include <span>
 
 #include <absl/container/flat_hash_map.h>
+#include <kamping/measurements/timer.hpp>
 #include <kamping/utils/flatten.hpp>
 
 #include "kascade/grid_communicator.hpp"
@@ -120,21 +121,28 @@ auto request_without_remote_aggregation(Requests const& requests,
   namespace kmp = kamping::params;
   using Request = std::ranges::range_value_t<Requests>;
   absl::flat_hash_map<int, std::vector<Request>> send_bufs;
-
+  kamping::measurements::timer().synchronize_and_start("route_requests");
   for (auto const& req : requests) {
     int owner = get_target_rank(req);
     send_bufs[owner].emplace_back(req);
   }
+  kamping::measurements::timer().stop_and_append();
+  kamping::measurements::timer().synchronize_and_start("pack_requests");
   auto [send_buf, send_counts, send_displs] = kamping::flatten(send_bufs, comm.size());
+  kamping::measurements::timer().stop_and_append();
+  kamping::measurements::timer().synchronize_and_start("send_requests");
   auto [recv_requests, recv_counts] =
       comm.alltoallv(kmp::send_buf(send_buf), kmp::send_counts(send_counts),
                      kmp::send_displs(send_displs), kmp::recv_counts_out());
-
+  kamping::measurements::timer().stop_and_append();
   auto replies =
       recv_requests |
       std::views::transform([&](auto const& request) { return make_reply(request); }) |
       std::ranges::to<std::vector>();
-  return comm.alltoallv(kmp::send_buf(replies), kmp::send_counts(recv_counts));
+  kamping::measurements::timer().synchronize_and_start("send_replies");
+  auto result = comm.alltoallv(kmp::send_buf(replies), kmp::send_counts(recv_counts));
+  kamping::measurements::timer().stop_and_append();
+  return result;
 }
 
 }  // namespace kascade
