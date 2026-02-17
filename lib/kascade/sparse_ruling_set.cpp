@@ -33,7 +33,8 @@
 #include "kascade/bits.hpp"
 #include "kascade/configuration.hpp"
 #include "kascade/distribution.hpp"
-#include "kascade/pointer_doubling_generic.hpp"
+#include "kascade/pack.hpp"
+#include "kascade/pointer_doubling.hpp"
 #include "kascade/successor_utils.hpp"
 #include "kascade/types.hpp"
 
@@ -478,10 +479,24 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
     succ_array[local_idx] = bits::clear_root_flag(succ_array[local_idx]);
   }
 
-  kamping::measurements::timer().synchronize_and_start("base_case");
-  PointerDoublingConfig conf;
-  pointer_doubling_generic(conf, succ_array, rank_array, dist, rulers, comm);
-  kamping::measurements::timer().stop();
+  {
+    kamping::measurements::timer().synchronize_and_start("pack_base_case");
+    std::vector<idx_t> succ_array_base(rulers.size());
+    std::vector<rank_t> rank_array_base(rulers.size());
+    auto [dist_base, unpack] = pack(succ_array, rank_array, dist, rulers, succ_array_base,
+                                    rank_array_base, comm);
+    kamping::measurements::timer().stop();
+
+    kamping::measurements::timer().synchronize_and_start("base_case");
+    PointerDoublingConfig conf;
+    pointer_doubling(conf, succ_array_base, rank_array_base, dist_base, comm);
+    kamping::measurements::timer().stop();
+
+    kamping::measurements::timer().synchronize_and_start("unpack_base_case");
+    unpack(succ_array_base, rank_array_base, dist_base, succ_array, rank_array, dist,
+           rulers, comm);
+    kamping::measurements::timer().stop();
+  }
 
   ///////////////////////////////////////
   // Request rank and root from rulers //
