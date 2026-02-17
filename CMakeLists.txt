@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.25)
 project(kascade LANGUAGES CXX)
 option(KASCADE_BUILD_BENCHMARKS "Build benchmarks" ${PROJECT_IS_TOP_LEVEL})
+option(KASCADE_BUILD_TESTS "Build tests" OFF)
 
 find_package(MPI REQUIRED)
 
@@ -63,6 +64,11 @@ add_subdirectory(lib)
 
 if(KASCADE_BUILD_BENCHMARKS)
   add_subdirectory(bench)
+endif()
+
+if(KASCADE_BUILD_TESTS)
+  enable_testing()
+  add_subdirectory(tests)
 endif()
 
 FetchContent_Declare(

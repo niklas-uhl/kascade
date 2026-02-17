@@ -35,5 +35,14 @@
       "name": "dev-macos",
       "configurePreset": "dev-macos"
     }
+  ],
+  "testPresets": [
+    {
+      "name": "dev-macos",
+      "configurePreset": "dev-macos",
+      "output": {
+	"outputOnFailure": true
+      }
+    }
   ]
 }
