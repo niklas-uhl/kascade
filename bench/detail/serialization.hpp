@@ -73,8 +73,17 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(EulerTourConfig, algorithm, use_high_degree_h
 }  // namespace kascade
 
 namespace mplr {
-NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Configuration, comm_rounds, recursion_levels, use_grid, use_aggregation);
-}
+NLOHMANN_JSON_SERIALIZE_ENUM(Algorithm,
+                             {{Algorithm::invalid, nullptr},
+                              {Algorithm::PointerDoubling, "PointerDoubling"},
+                              {Algorithm::ForestRulingSet, "ForestRulingSet"}})
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Configuration,
+                                   algorithm,
+                                   comm_rounds,
+                                   recursion_levels,
+                                   use_grid,
+                                   use_aggregation);
+}  // namespace mplr
 
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_ONLY_SERIALIZE(TreeStats, size, max_rank, rank_sum);
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_ONLY_SERIALIZE(BasicStats,

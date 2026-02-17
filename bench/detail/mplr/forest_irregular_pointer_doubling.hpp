@@ -5,10 +5,12 @@
 #include <ostream>
 #include <vector>
 
+#include "timer.hpp"
 #include "detail/mplr/communicator.hpp"
 #include "detail/mplr/karam/mpi/indirect_all_to_all/grid_communication_helpers.hpp"
-#include "timer.hpp"
 
+#include <spdlog/spdlog.h>
+#include <fmt/ranges.h>
 
 class forest_irregular_pointer_doubling
 {
@@ -98,7 +100,6 @@ class forest_irregular_pointer_doubling
 		{
 			
 			
-
 			std::fill(num_packets_per_PE.begin(), num_packets_per_PE.end(), 0);
 			for (std::int32_t local_index = 0; local_index < num_local_vertices;local_index++)
 			{

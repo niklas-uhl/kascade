@@ -5,8 +5,6 @@
 
 #include "./algorithm.hpp"
 #include "detail/benchmark_config.hpp"
-#include "detail/mplr/forest_regular_optimized_ruling_set.hpp"
-#include "detail/mplr/forest_regular_ruling_set2.hpp"
 #include "detail/mplr/mplr.hpp"
 #include "eulertour.hpp"
 #include "kascade/configuration.hpp"
@@ -134,6 +132,9 @@ public:
       case kascade::Algorithm::EulerTour:
         throw std::runtime_error("Cannot apply Euler Tour recursively.");
         break;
+      case kascade::Algorithm::MPLR:
+        throw std::runtime_error("Invalid algorithm selected.");
+        break;
       case kascade::Algorithm::invalid:
         throw std::runtime_error("Invalid algorithm selected.");
         break;
@@ -151,11 +152,21 @@ public:
   explicit MPLR(mplr::Configuration config, kamping::Communicator<> const& comm)
       : AlgorithmBase(comm), config_(config) {}
   void run() override {
+    root_array_.resize(succ_array_.size());
     std::ranges::copy(succ_array_, root_array_.begin());
     kamping::Communicator<> comm(MPI_COMM_WORLD);
-    auto [root_array, rank_array] = mplr::forest_ruling_set(config_, root_array_, comm);
-    root_array_ = std::move(root_array);
-    rank_array_ = std::move(rank_array);
+    switch (config_.algorithm) {
+      case mplr::Algorithm::ForestRulingSet:
+        std::tie(root_array_, rank_array_) =
+            mplr::forest_ruling_set(config_, root_array_, comm);
+        break;
+      case mplr::Algorithm::PointerDoubling:
+        std::tie(root_array_, rank_array_) =
+            mplr::forest_pointer_doubling(config_, root_array_, comm);
+        break;
+      case mplr::Algorithm::invalid:
+        throw std::runtime_error("invalid algorithm selection");
+    }
   }
 
 private:
