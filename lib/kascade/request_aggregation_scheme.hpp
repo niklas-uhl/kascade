@@ -1,9 +1,8 @@
 #pragma once
 
-#include <span>
-
 #include <absl/container/flat_hash_map.h>
 #include <kamping/utils/flatten.hpp>
+#include <kamping/collectives/alltoall.hpp>
 
 #include "kascade/grid_communicator.hpp"
 
@@ -110,7 +109,7 @@ template <typename RequestKey,
           typename MakeReplyFn,
           typename GetRequestKeyFn,
           typename GetReplyKeyFn>
-auto request_without_remote_aggregation(Requests const& requests,
+auto request_without_remote_aggregation(Requests&& requests,
                                  GetTargetRankFn const& get_target_rank,
                                  GetRequestKeyFn const& /*get_request_key*/,
                                  GetReplyKeyFn const& /*get_reply_key*/,
