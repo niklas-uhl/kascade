@@ -40,7 +40,6 @@ NLOHMANN_JSON_SERIALIZE_ENUM(AggregationLevel,
                              {{AggregationLevel::invalid, nullptr},
                               {AggregationLevel::none, "none"},
                               {AggregationLevel::local, "local"},
-                              {AggregationLevel::remote, "remote"},
                               {AggregationLevel::all, "all"}})
 
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(AsyncPointerChasingConfig, use_caching);

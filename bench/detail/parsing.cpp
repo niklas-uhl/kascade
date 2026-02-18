@@ -101,9 +101,14 @@ auto parse_args(std::span<char*> args) -> Config {
         config.rma_pointer_chasing.batch_size = parsed;
       });
   app.add_flag("--pointer-doubling-use-local-preprocessing",
-               config.pointer_doubling.use_local_preprocessing);
+               config.pointer_doubling.use_local_preprocessing)
+      ->group("Pointer Doubling");
   app.add_option("--pointer-doubling-aggregation-level",
-                 config.pointer_doubling.aggregation_level);
+                 config.pointer_doubling.aggregation_level)
+      ->group("Pointer Doubling");
+  app.add_flag("--pointer-doubling-use-grid-communication",
+               config.pointer_doubling.use_grid_communication)
+      ->group("Pointer Doubling");
 
   app.add_option("--sparse-ruling-set-ruler-selection",
                  config.sparse_ruling_set.ruler_selection)
@@ -130,7 +135,8 @@ auto parse_args(std::span<char*> args) -> Config {
   app.add_option("--sparse-ruling-set-briefkasten-poll-skip-threshold",
                  config.sparse_ruling_set.briefkasten.poll_skip_threshold)
       ->group("Sparse Ruling Set");
-  app.add_flag("--sparse-ruling-set-use-grid-communication", config.sparse_ruling_set.use_grid_communication)
+  app.add_flag("--sparse-ruling-set-use-grid-communication",
+               config.sparse_ruling_set.use_grid_communication)
       ->group("Sparse Ruling Set");
   app.add_option("--mplr-algorithm", config.mplr.algorithm)->group("MPLR");
   app.add_option("--mplr-rounds", config.mplr.comm_rounds)->group("MPLR");

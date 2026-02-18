@@ -54,6 +54,13 @@ concept EnvelopedMsgRange =
 template <EnvelopedMsg M>
 using MsgTypeOf = std::remove_cvref_t<decltype(std::get<1>(std::declval<M>()))>;
 
+template <typename T>
+struct MPIBuffer {
+  std::vector<T> data;
+  std::vector<int> counts;
+  std::vector<int> displs;
+};
+
 template <EnvelopedMsgRange R>
 void prepare_send_buf_inplace(
     R const& messages,
@@ -81,6 +88,14 @@ void prepare_send_buf_inplace(
 }
 
 template <EnvelopedMsgRange R>
+void prepare_send_buf_inplace(R const& messages,
+                              MPIBuffer<MsgTypeOf<std::ranges::range_value_t<R>>>& buffer,
+                              std::size_t comm_size) {
+  prepare_send_buf_inplace(messages, buffer.data, buffer.counts, buffer.displs,
+                           comm_size);
+}
+
+template <EnvelopedMsgRange R>
 auto prepare_send_buf(R const& messages, std::size_t comm_size) {
   using Msg = MsgTypeOf<std::ranges::range_value_t<R>>;
   std::vector<int> send_counts;
@@ -88,8 +103,7 @@ auto prepare_send_buf(R const& messages, std::size_t comm_size) {
   std::vector<int> send_displs;
   send_displs.reserve(comm_size);
   std::vector<Msg> send_buf;
-  prepare_send_buf_inplace(messages, send_buf, send_counts, send_displs,
-                                  comm_size);
+  prepare_send_buf_inplace(messages, send_buf, send_counts, send_displs, comm_size);
   return std::make_tuple(std::move(send_buf), std::move(send_counts),
                          std::move(send_displs));
 }

@@ -1,9 +1,11 @@
 #pragma once
 
 #include <absl/container/flat_hash_map.h>
-#include <kamping/utils/flatten.hpp>
 #include <kamping/collectives/alltoall.hpp>
+#include <kamping/utils/flatten.hpp>
 
+#include "alltoall_utils.hpp"
+#include "grid_alltoall.hpp"
 #include "kascade/grid_communicator.hpp"
 
 namespace kascade {
@@ -110,11 +112,11 @@ template <typename RequestKey,
           typename GetRequestKeyFn,
           typename GetReplyKeyFn>
 auto request_without_remote_aggregation(Requests&& requests,
-                                 GetTargetRankFn const& get_target_rank,
-                                 GetRequestKeyFn const& /*get_request_key*/,
-                                 GetReplyKeyFn const& /*get_reply_key*/,
-                                 MakeReplyFn const& make_reply,
-                                 kamping::Communicator<> const& comm)
+                                        GetTargetRankFn const& get_target_rank,
+                                        GetRequestKeyFn const& /*get_request_key*/,
+                                        GetReplyKeyFn const& /*get_reply_key*/,
+                                        MakeReplyFn const& make_reply,
+                                        kamping::Communicator<> const& comm)
     -> std::vector<Reply> {
   namespace kmp = kamping::params;
   using Request = std::ranges::range_value_t<Requests>;
@@ -134,6 +136,122 @@ auto request_without_remote_aggregation(Requests&& requests,
       std::views::transform([&](auto const& request) { return make_reply(request); }) |
       std::ranges::to<std::vector>();
   return comm.alltoallv(kmp::send_buf(replies), kmp::send_counts(recv_counts));
+}
+
+template <EnvelopedMsgRange Requests,
+          typename Request,
+          typename Reply,
+          typename MakeReplyFn>
+auto request_reply_without_remote_aggregation(Requests const& requests,
+                                              MakeReplyFn const& make_reply,
+                                              MPIBuffer<Request>& req_sbuffer,
+                                              MPIBuffer<Request>& req_rbuffer,
+                                              std::vector<Reply>& reply_sbuffer,
+                                              std::vector<Reply>& reply_rbuffer,
+                                              kamping::Communicator<> const& comm) {
+  namespace kmp = kamping::params;
+  prepare_send_buf_inplace(requests, req_sbuffer, comm.size());
+
+  comm.alltoallv(kmp::send_buf(req_sbuffer.data), kmp::send_counts(req_sbuffer.counts),
+                 kmp::send_displs(req_sbuffer.displs),
+                 kmp::recv_buf_out<kamping::resize_to_fit>(req_rbuffer.data),
+                 kmp::recv_counts_out<kamping::resize_to_fit>(req_rbuffer.counts),
+                 kmp::recv_displs_out<kamping::resize_to_fit>(req_rbuffer.displs));
+
+  reply_sbuffer.clear();
+  reply_sbuffer.resize(req_rbuffer.data.size());
+  std::ranges::transform(req_rbuffer.data, reply_sbuffer.begin(),
+                         [&](auto const& request) { return make_reply(request); });
+  comm.alltoallv(kmp::send_buf(reply_sbuffer), kmp::send_counts(req_rbuffer.counts),
+                 kmp::send_displs(req_rbuffer.displs),
+                 kmp::recv_buf_out<kamping::resize_to_fit>(reply_rbuffer));
+}
+
+template <EnvelopedMsgRange Requests, typename MakeReplyFn>
+auto request_reply_without_remote_aggregation(
+    Requests const& requests,
+    MakeReplyFn const& make_reply,
+    TopologyAwareGridCommunicator const& grid_comm) {
+  namespace kmp = kamping::params;
+  using msg_t = MsgTypeOf<std::ranges::range_value_t<Requests>>;
+
+  auto recv_buf_inter = [&]() {
+    //*************************
+    // inter-node-comm exchange
+    //*************************
+    auto packed_env =
+        requests | std::views::transform([&grid_comm](auto const& envelope) {
+          return SourcedEnvelope<msg_t>{
+              .source_rank = grid_comm.global_comm().rank_signed(),
+              .target_rank = get_target_rank(envelope),
+              .msg = get_message(envelope)};
+        });
+    auto inter_node_comm_targets =
+        requests | std::views::transform([&grid_comm](auto const& envelope) {
+          return static_cast<int>(grid_comm.inter_node_rank(get_target_rank(envelope)));
+        });
+
+    auto [send_buf_inter, send_counts_inter, send_displs_inter] =
+        prepare_send_buf(std::views::zip(inter_node_comm_targets, packed_env),
+                         grid_comm.inter_node_comm().size());
+
+    return grid_comm.inter_node_comm().alltoallv(kmp::send_buf(send_buf_inter),
+                                                 kmp::send_counts(send_counts_inter),
+                                                 kmp::send_displs(send_displs_inter));
+  }();
+
+  auto [recv_buf_intra, recv_counts_intra] = [&]() {
+    //*************************
+    // intra-node-comm exchange
+    //*************************
+    auto intra_node_comm_targets =
+        recv_buf_inter | std::views::transform([&grid_comm](auto const& envelope) {
+          return static_cast<int>(grid_comm.intra_node_rank(get_target_rank(envelope)));
+        });
+
+    auto [send_buf_intra, send_counts_intra, send_displs_intra] =
+        prepare_send_buf(std::views::zip(intra_node_comm_targets, recv_buf_inter),
+                         grid_comm.intra_node_comm().size());
+    recv_buf_inter.clear();
+    recv_buf_inter.shrink_to_fit();
+
+    return grid_comm.intra_node_comm().alltoallv(
+        kmp::send_buf(send_buf_intra), kmp::send_counts(send_counts_intra),
+        kmp::send_displs(send_displs_intra), kmp::recv_counts_out());
+  }();
+
+  auto replies_intra = recv_buf_intra | std::views::transform([&](auto const& request) {
+                         return Envelope{.target_rank = get_source_rank(request),
+                                         .msg = make_reply(get_message(request))};
+                       }) |
+                       std::ranges::to<std::vector>();
+
+  //*************************
+  // Communicate Replies back to origin
+  //*************************
+
+  auto recv_replies_intra = grid_comm.intra_node_comm().alltoallv(
+      kmp::send_buf(replies_intra), kmp::send_counts(recv_counts_intra));
+
+  auto unpacked_replies_intra =
+      recv_replies_intra |
+      std::views::transform([](auto const& envelope) { return get_message(envelope); });
+
+  auto reply_targets_inter =
+      recv_replies_intra | std::views::transform([&](auto const& envelope) {
+        return static_cast<int>(grid_comm.inter_node_rank(get_target_rank(envelope)));
+      });
+
+  auto [send_buf_replies_inter, send_counts_replies_inter, send_displs_replies_inter] =
+      prepare_send_buf(std::views::zip(reply_targets_inter, unpacked_replies_intra),
+                       grid_comm.inter_node_comm().size());
+  recv_replies_intra.clear();
+  recv_replies_intra.shrink_to_fit();
+
+  auto recv_replies_inter = grid_comm.inter_node_comm().alltoallv(
+      kmp::send_buf(send_buf_replies_inter), kmp::send_counts(send_counts_replies_inter));
+
+  return recv_replies_inter;
 }
 
 }  // namespace kascade

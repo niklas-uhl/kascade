@@ -17,7 +17,7 @@ enum class Algorithm : std::uint8_t {
   invalid,
 };
 
-enum class AggregationLevel : std::uint8_t { none, local, remote, all, invalid };
+enum class AggregationLevel : std::uint8_t { none, local, all, invalid };
 
 struct AsyncPointerChasingConfig {
   bool use_caching = false;
@@ -32,6 +32,7 @@ struct RMAPointerChasingConfig {
 
 struct PointerDoublingConfig {
   bool use_local_preprocessing = false;
+  bool use_grid_communication = false;
   AggregationLevel aggregation_level = AggregationLevel::none;
 };
 

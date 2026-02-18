@@ -25,6 +25,32 @@ auto get_message(Envelope<Msg>& envelope) -> auto& {
   return envelope.msg;
 }
 
+template <typename Msg>
+struct SourcedEnvelope {
+  int source_rank;
+  int target_rank;
+  Msg msg;
+};
+template <typename Msg>
+auto get_target_rank(SourcedEnvelope<Msg> const& envelope) -> int {
+  return envelope.target_rank;
+}
+
+template <typename Msg>
+auto get_source_rank(SourcedEnvelope<Msg> const& envelope) -> int {
+  return envelope.source_rank;
+}
+
+template <typename Msg>
+auto get_message(SourcedEnvelope<Msg> const& envelope) -> auto const& {
+  return envelope.msg;
+}
+
+template <typename Msg>
+auto get_message(SourcedEnvelope<Msg>& envelope) -> auto& {
+  return envelope.msg;
+}
+
 template <EnvelopedMsgRange R>
 auto grid_alltoallv(R const& messages, TopologyAwareGridCommunicator const& grid_comm) {
   namespace kmp = kamping::params;
