@@ -19,7 +19,7 @@ auto get_algorithm(const Config& config, kamping::Communicator<> const& comm)
     case kascade::Algorithm::RMAPointerDoubling:
       return std::make_unique<RMAPointerDoubling>(config.rma_pointer_chasing, comm);
     case kascade::Algorithm::SparseRulingSet:
-      return std::make_unique<SparseRulingSet>(config.sparse_ruling_set, comm);
+      return std::make_unique<SparseRulingSet>(config, comm);
     case kascade::Algorithm::EulerTour:
       return std::make_unique<EulerTour>(config, comm);
     case kascade::Algorithm::MPLR:

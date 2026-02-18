@@ -35,6 +35,7 @@
 #include "kascade/bits.hpp"
 #include "kascade/configuration.hpp"
 #include "kascade/distribution.hpp"
+#include "kascade/list_ranking.hpp"
 #include "kascade/pack.hpp"
 #include "kascade/pointer_doubling.hpp"
 #include "kascade/successor_utils.hpp"
@@ -346,10 +347,17 @@ auto ruler_propagation(SparseRulingSetConfig const& /* config */,
 }
 }  // namespace
 
+using BaseAlgorithm = std::function<void(std::span<idx_t>,
+                                         std::span<rank_t>,
+                                         Distribution const&,
+                                         kamping::Communicator<> const&)>;
+namespace {
+
 void sparse_ruling_set(SparseRulingSetConfig const& config,
                        std::span<idx_t> succ_array,
                        std::span<rank_t> rank_array,
                        Distribution const& dist,
+                       BaseAlgorithm const& base_algorithm,
                        kamping::Communicator<> const& comm) {
   KASSERT(is_list(succ_array, dist, comm), kascade::assert::with_communication);
   kamping::measurements::timer().synchronize_and_start("invert_list");
@@ -515,8 +523,7 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
     kamping::measurements::timer().stop();
 
     kamping::measurements::timer().synchronize_and_start("base_case");
-    PointerDoublingConfig conf;
-    pointer_doubling(conf, succ_array_base, rank_array_base, dist_base, comm);
+    base_algorithm(succ_array_base, rank_array_base, dist_base, comm);
     kamping::measurements::timer().stop();
 
     kamping::measurements::timer().synchronize_and_start("unpack_base_case");
@@ -531,5 +538,53 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
   kamping::measurements::timer().synchronize_and_start("ruler_propagation");
   ruler_propagation(config, succ_array, rank_array, node_type, dist, comm);
   kamping::measurements::timer().stop();
+}
+}  // namespace
+
+void sparse_ruling_set(SparseRulingSetConfig const& config,
+                       std::span<idx_t> succ_array,
+                       std::span<rank_t> rank_array,
+                       Distribution const& dist,
+                       kamping::Communicator<> const& comm) {
+  BaseAlgorithm base_algorithm;
+  switch (config.base_algorithm) {
+    case kascade::Algorithm::PointerDoubling:
+      base_algorithm = [&](auto&&... args) {
+        kascade::pointer_doubling(
+            std::any_cast<PointerDoublingConfig>(config.base_algorithm_config), args...);
+      };
+      break;
+    case Algorithm::GatherChase:
+      base_algorithm = [&](auto&&... args) { kascade::rank_on_root(args...); };
+      break;
+    case Algorithm::AsyncPointerDoubling:
+      base_algorithm = [&](auto&&... args) {
+        kascade::async_pointer_doubling(
+            std::any_cast<AsyncPointerChasingConfig>(config.base_algorithm_config),
+            args...);
+      };
+      break;
+    case Algorithm::RMAPointerDoubling:
+      base_algorithm = [&](auto&&... args) {
+        kascade::rma_pointer_doubling(
+            std::any_cast<RMAPointerChasingConfig>(config.base_algorithm_config),
+            args...);
+      };
+      break;
+    case Algorithm::SparseRulingSet:
+      base_algorithm = [&](auto&&... args) {
+        auto nested_config =
+            std::any_cast<SparseRulingSetConfig>(config.base_algorithm_config);
+        // avoid infinite recursion by setting the base algorithm of the nested config to
+        // a non-recursive one
+        nested_config.base_algorithm = kascade::Algorithm::PointerDoubling;
+        nested_config.base_algorithm_config = PointerDoublingConfig{};
+        sparse_ruling_set(nested_config, args...);
+      };
+      break;
+    default:
+      throw std::runtime_error("Invalid base algorithm selected for sparse ruling set");
+  }
+  sparse_ruling_set(config, succ_array, rank_array, dist, base_algorithm, comm);
 }
 }  // namespace kascade

@@ -110,6 +110,9 @@ auto parse_args(std::span<char*> args) -> Config {
                config.pointer_doubling.use_grid_communication)
       ->group("Pointer Doubling");
 
+  app.add_option("--sparse-ruling-set-base-algorithm",
+                 config.sparse_ruling_set.base_algorithm)
+      ->group("Sparse Ruling Set");
   app.add_option("--sparse-ruling-set-ruler-selection",
                  config.sparse_ruling_set.ruler_selection)
       ->group("Sparse Ruling Set");

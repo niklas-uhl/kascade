@@ -6,8 +6,8 @@
 #include "./algorithm.hpp"
 #include "detail/benchmark_config.hpp"
 #include "detail/mplr/mplr.hpp"
-#include "kascade/eulertour.hpp"
 #include "kascade/configuration.hpp"
+#include "kascade/eulertour.hpp"
 #include "kascade/list_ranking.hpp"
 #include "kascade/pointer_doubling.hpp"
 #include "kascade/sparse_ruling_set.hpp"
@@ -94,17 +94,36 @@ private:
 
 class SparseRulingSet : public AlgorithmBase {
 public:
-  explicit SparseRulingSet(kascade::SparseRulingSetConfig const& config,
-                           kamping::Communicator<> const& comm)
-      : AlgorithmBase(comm), config_(config) {}
+  explicit SparseRulingSet(Config config, kamping::Communicator<> const& comm)
+      : AlgorithmBase(comm), config_(std::move(config)) {}
   void run() override {
     auto dist =
         kascade::set_initial_ranking_state(succ_array_, root_array_, rank_array_, *comm_);
-    kascade::sparse_ruling_set(config_, root_array_, rank_array_, dist, *comm_);
+    switch (config_.sparse_ruling_set.base_algorithm) {
+      case kascade::Algorithm::GatherChase:
+        config_.sparse_ruling_set.base_algorithm_config = nullptr;
+        break;
+      case kascade::Algorithm::PointerDoubling:
+        config_.sparse_ruling_set.base_algorithm_config = config_.pointer_doubling;
+        break;
+      case kascade::Algorithm::AsyncPointerDoubling:
+        config_.sparse_ruling_set.base_algorithm_config = config_.async_pointer_chasing;
+        break;
+      case kascade::Algorithm::RMAPointerDoubling:
+        config_.sparse_ruling_set.base_algorithm_config = config_.rma_pointer_chasing;
+        break;
+      case kascade::Algorithm::SparseRulingSet:
+        config_.sparse_ruling_set.base_algorithm_config = config_.sparse_ruling_set;
+        break;
+      default:
+        throw std::runtime_error("Invalid base algorithm selected for sparse ruling set");
+    }
+    kascade::sparse_ruling_set(config_.sparse_ruling_set, root_array_, rank_array_, dist,
+                               *comm_);
   }
 
 private:
-  kascade::SparseRulingSetConfig config_;
+  Config config_;
 };
 
 class EulerTour : public AlgorithmBase {
@@ -151,7 +170,7 @@ private:
 class MPLR : public AbstractAlgorithm {
 public:
   explicit MPLR(mplr::Configuration config, kamping::Communicator<> const& comm)
-  : config_(config), comm_(comm.mpi_communicator()) {}
+      : config_(config), comm_(comm.mpi_communicator()) {}
   void ingest(std::span<const kascade::idx_t> succ_array) override {
     succ_array_.resize(succ_array.size());
     std::ranges::copy(succ_array, succ_array_.begin());
@@ -175,7 +194,7 @@ public:
   auto get_rank_array() -> std::vector<kascade::rank_t> const& override {
     return rank_array_;
   }
-  
+
   auto get_root_array() -> std::vector<kascade::idx_t> const& override {
     if (!converted_root_array_) {
       converted_root_array_.emplace();

@@ -45,6 +45,8 @@ struct BriefkastenConfig {
 
 struct SparseRulingSetConfig {
   RulerSelectionStrategy ruler_selection = RulerSelectionStrategy::dehne;
+  Algorithm base_algorithm = Algorithm::PointerDoubling;
+  std::any base_algorithm_config;
   double dehne_factor = 1.0;
   double heuristic_factor = 0.01;
   double sanders_factor = 1.0;

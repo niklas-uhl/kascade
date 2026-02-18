@@ -60,6 +60,7 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(BriefkastenConfig,
                                    local_threshold,
                                    poll_skip_threshold);
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(SparseRulingSetConfig,
+                                   base_algorithm,
                                    ruler_selection,
                                    dehne_factor,
                                    heuristic_factor,
