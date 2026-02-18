@@ -343,7 +343,7 @@ public:
     std::uint64_t num_global_vertices_rec =
         node_offset_rec + local_rulers.size();  // das hier stimmt nur für rank = size -1
     comm.bcast_single(kamping::send_recv_buf(num_global_vertices_rec),
-                      kamping::root(size - 1));
+                      kamping::root(static_cast<int>(size) - 1));
 
     timer.add_info("reduction_factor",
                    std::to_string(num_local_vertices * size / num_global_vertices_rec));

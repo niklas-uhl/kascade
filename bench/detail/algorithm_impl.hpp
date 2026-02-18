@@ -6,11 +6,12 @@
 #include "./algorithm.hpp"
 #include "detail/benchmark_config.hpp"
 #include "detail/mplr/mplr.hpp"
-#include "eulertour.hpp"
+#include "kascade/eulertour.hpp"
 #include "kascade/configuration.hpp"
 #include "kascade/list_ranking.hpp"
 #include "kascade/pointer_doubling.hpp"
 #include "kascade/sparse_ruling_set.hpp"
+#include "kascade/types.hpp"
 
 class AlgorithmBase : public AbstractAlgorithm {
 public:
@@ -147,28 +148,48 @@ private:
   Config config_;
 };
 
-class MPLR : public AlgorithmBase {
+class MPLR : public AbstractAlgorithm {
 public:
   explicit MPLR(mplr::Configuration config, kamping::Communicator<> const& comm)
-      : AlgorithmBase(comm), config_(config) {}
+  : config_(config), comm_(comm.mpi_communicator()) {}
+  void ingest(std::span<const kascade::idx_t> succ_array) override {
+    succ_array_.resize(succ_array.size());
+    std::ranges::copy(succ_array, succ_array_.begin());
+  }
   void run() override {
     root_array_.resize(succ_array_.size());
     std::ranges::copy(succ_array_, root_array_.begin());
-    kamping::Communicator<> comm(MPI_COMM_WORLD);
     switch (config_.algorithm) {
       case mplr::Algorithm::ForestRulingSet:
         std::tie(root_array_, rank_array_) =
-            mplr::forest_ruling_set(config_, root_array_, comm);
+            mplr::forest_ruling_set(config_, root_array_, comm_);
         break;
       case mplr::Algorithm::PointerDoubling:
         std::tie(root_array_, rank_array_) =
-            mplr::forest_pointer_doubling(config_, root_array_, comm);
+            mplr::forest_pointer_doubling(config_, root_array_, comm_);
         break;
       case mplr::Algorithm::invalid:
         throw std::runtime_error("invalid algorithm selection");
     }
   }
+  auto get_rank_array() -> std::vector<kascade::rank_t> const& override {
+    return rank_array_;
+  }
+  
+  auto get_root_array() -> std::vector<kascade::idx_t> const& override {
+    if (!converted_root_array_) {
+      converted_root_array_.emplace();
+      converted_root_array_->resize(root_array_.size());
+      std::ranges::copy(root_array_, converted_root_array_->begin());
+    }
+    return *converted_root_array_;
+  }
 
 private:
   mplr::Configuration config_;
+  kamping::Communicator<> comm_;
+  std::vector<std::int64_t> succ_array_;
+  std::vector<std::int64_t> rank_array_;
+  std::vector<std::uint64_t> root_array_;
+  std::optional<std::vector<kascade::idx_t>> converted_root_array_;
 };

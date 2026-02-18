@@ -368,7 +368,7 @@ class forest_irregular_optimized_ruling_set //this is for trees
 		
 		std::uint64_t node_offset_rec = comm.exscan(kamping::send_buf((std::uint64_t)local_rulers.size()), kamping::op(kamping::ops::plus<>()))[0];
 		std::uint64_t num_global_vertices_rec = node_offset_rec + local_rulers.size(); //das hier stimmt nur für rank = size -1
-		comm.bcast_single(kamping::send_recv_buf(num_global_vertices_rec), kamping::root(size-1));
+		comm.bcast_single(kamping::send_recv_buf(num_global_vertices_rec), kamping::root(static_cast<int>(size)-1));
 				
 		
 		
