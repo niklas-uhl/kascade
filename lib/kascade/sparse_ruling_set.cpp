@@ -404,7 +404,8 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
                        kamping::Communicator<> const& comm) {
   KASSERT(is_list(succ_array, dist, comm), kascade::assert::with_communication);
   kamping::measurements::timer().synchronize_and_start("invert_list");
-  auto leaves = reverse_list(succ_array, rank_array, succ_array, rank_array, dist, comm);
+  auto leaves = reverse_list(succ_array, rank_array, succ_array, rank_array, dist, comm,
+                             config.use_grid_communication);
   kamping::measurements::timer().stop();
 
   kamping::measurements::timer().synchronize_and_start("cache_owners");
