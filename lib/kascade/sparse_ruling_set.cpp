@@ -25,7 +25,6 @@
 #include <kamping/measurements/timer.hpp>
 #include <kamping/mpi_ops.hpp>
 #include <kamping/named_parameters.hpp>
-#include <kamping/types/tuple.hpp>
 #include <kamping/utils/flatten.hpp>
 #include <kassert/kassert.hpp>
 #include <spdlog/spdlog.h>
@@ -215,29 +214,38 @@ struct RulerTrace {
       max_length = std::max(max_length, length);
       length_sum += length;
     }
-    auto data = std::make_tuple(min_length, max_length, length_sum, num_rulers);
-    auto agg = [](auto const& lhs, auto const& rhs) {
-      return std::make_tuple(std::min(std::get<0>(lhs), std::get<0>(rhs)),
-                             std::max(std::get<1>(lhs), std::get<1>(rhs)),
-                             std::plus<>{}(std::get<2>(lhs), std::get<2>(rhs)),
-                             std::plus<>{}(std::get<3>(lhs), std::get<3>(rhs)));
+    struct ruler_stats {
+      idx_t min_length;
+      idx_t max_length;
+      idx_t length_sum;
+      std::size_t num_rulers;
     };
-    kamping::comm_world().allreduce(kamping::send_buf(data),
+    ruler_stats stats{.min_length = min_length,
+                      .max_length = max_length,
+                      .length_sum = length_sum,
+                      .num_rulers = num_rulers};
+    auto agg = [](auto const& lhs, auto const& rhs) {
+      return ruler_stats{.min_length = std::min(lhs.min_length, rhs.min_length),
+                         .max_length = std::max(lhs.max_length, rhs.max_length),
+                         .length_sum = std::plus<>{}(lhs.length_sum, rhs.length_sum),
+                         .num_rulers = std::plus<>{}(lhs.num_rulers, rhs.num_rulers)};
+    };
+    kamping::comm_world().allreduce(kamping::send_recv_buf(stats),
                                     kamping::op(agg, kamping::ops::commutative));
     kamping::measurements::counter().add(
-        "ruler_list_length_min", static_cast<std::int64_t>(std::get<0>(data)),
+        "ruler_list_length_min", static_cast<std::int64_t>(stats.min_length),
         {
             kamping::measurements::GlobalAggregationMode::min,
         });
     kamping::measurements::counter().add(
-        "ruler_list_length_max", static_cast<std::int64_t>(std::get<1>(data)),
+        "ruler_list_length_max", static_cast<std::int64_t>(stats.max_length),
         {
             kamping::measurements::GlobalAggregationMode::max,
         });
     kamping::measurements::counter().add(
         "ruler_list_length_avg",
-        static_cast<std::int64_t>(static_cast<double>(std::get<2>(data)) /
-                                  static_cast<double>(std::get<3>(data))),
+        static_cast<std::int64_t>(static_cast<double>(stats.length_sum) /
+                                  static_cast<double>(stats.num_rulers)),
         {
             kamping::measurements::GlobalAggregationMode::max,
         });
