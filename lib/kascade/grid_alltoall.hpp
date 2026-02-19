@@ -52,7 +52,7 @@ auto get_message(SourcedEnvelope<Msg>& envelope) -> auto& {
 }
 
 template <EnvelopedMsgRange R>
-auto grid_alltoallv(R const& messages, TopologyAwareGridCommunicator const& grid_comm) {
+auto grid_alltoallv(R&& messages, TopologyAwareGridCommunicator const& grid_comm) {
   namespace kmp = kamping::params;
   using msg_t = MsgTypeOf<std::ranges::range_value_t<R>>;
 
@@ -74,7 +74,7 @@ auto grid_alltoallv(R const& messages, TopologyAwareGridCommunicator const& grid
       prepare_send_buf(std::views::zip(inter_node_comm_targets, packed_env),
                        grid_comm.inter_node_comm().size());
 
-  SPDLOG_LOGGER_DEBUG(spdlog::get("gather"), "counts {}, displs {}, size {}",
+  SPDLOG_LOGGER_TRACE(spdlog::get("gather"), "counts {}, displs {}, size {}",
                       send_counts_inter, send_displs_inter,
                       grid_comm.inter_node_comm().size());
 
@@ -98,7 +98,7 @@ auto grid_alltoallv(R const& messages, TopologyAwareGridCommunicator const& grid
       prepare_send_buf(std::views::zip(intra_node_comm_targets, unpacked_messages),
                        grid_comm.intra_node_comm().size());
 
-  SPDLOG_LOGGER_DEBUG(spdlog::get("gather"), "counts {}, displs {}, size {}",
+  SPDLOG_LOGGER_TRACE(spdlog::get("gather"), "counts {}, displs {}, size {}",
                       send_counts_intra, send_displs_intra,
                       grid_comm.intra_node_comm().size());
   return grid_comm.intra_node_comm().alltoallv(kmp::send_buf(send_buf_intra),
@@ -119,14 +119,14 @@ public:
   // TODO make recv_buf a general range if necessary
   template <EnvelopedMsgRange R>
     requires std::is_same_v<MsgTypeOf<std::ranges::range_value_t<R>>, T>
-  auto alltoallv(R const& messages, std::vector<T>& recv_buf) {
+  auto alltoallv(R&& messages, std::vector<T>& recv_buf) {
     namespace kmp = kamping::params;
     if (use_grid_alltoall_) {
       KASSERT(grid_comm_.has_value());
-      recv_buf = kascade::grid_alltoallv(messages, grid_comm_.value());
+      recv_buf = kascade::grid_alltoallv(std::forward<R>(messages), grid_comm_.value());
     } else {
-      prepare_send_buf_inplace(messages, send_buf, send_counts, send_displs,
-                               comm_->size());
+      prepare_send_buf_inplace(std::forward<R>(messages), send_buf, send_counts,
+                               send_displs, comm_->size());
       comm_->alltoallv(
           kmp::send_buf(send_buf), kmp::send_counts(send_counts),
           kmp::send_displs(send_displs),
@@ -136,9 +136,9 @@ public:
 
   template <EnvelopedMsgRange R>
     requires std::is_same_v<MsgTypeOf<std::ranges::range_value_t<R>>, T>
-  auto alltoallv(R const& messages) {
+  auto alltoallv(R&& messages) {
     std::vector<T> recv_buf;
-    alltoallv(messages, recv_buf);
+    alltoallv(std::forward<R>(messages), recv_buf);
     return recv_buf;
   }
 

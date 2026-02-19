@@ -63,7 +63,7 @@ struct MPIBuffer {
 
 template <EnvelopedMsgRange R>
 void prepare_send_buf_inplace(
-    R const& messages,
+    R&& messages,
     std::vector<MsgTypeOf<std::ranges::range_value_t<R>>>& send_buf,
     std::vector<int>& send_counts,
     std::vector<int>& send_displs,
@@ -96,14 +96,14 @@ void prepare_send_buf_inplace(R const& messages,
 }
 
 template <EnvelopedMsgRange R>
-auto prepare_send_buf(R const& messages, std::size_t comm_size) {
+auto prepare_send_buf(R&& messages, std::size_t comm_size) {
   using Msg = MsgTypeOf<std::ranges::range_value_t<R>>;
   std::vector<int> send_counts;
   send_counts.reserve(comm_size);
   std::vector<int> send_displs;
   send_displs.reserve(comm_size);
   std::vector<Msg> send_buf;
-  prepare_send_buf_inplace(messages, send_buf, send_counts, send_displs, comm_size);
+  prepare_send_buf_inplace(std::forward<R>(messages), send_buf, send_counts, send_displs, comm_size);
   return std::make_tuple(std::move(send_buf), std::move(send_counts),
                          std::move(send_displs));
 }
