@@ -144,16 +144,13 @@ auto handle_messages(SparseRulingSetConfig const& config,
       briefkasten::BufferedMessageQueueBuilder<RulerMessage>(comm.mpi_communicator())
           .build();
   std::vector<RulerMessage> local_work;
-  std::vector<std::pair<int, RulerMessage>> messages2;
-  absl::flat_hash_map<int, std::vector<RulerMessage>> messages;
+  std::vector<std::pair<int, RulerMessage>> messages;
 
   auto send_to = [&](RulerMessage const& msg, int target) {
-    messages2.emplace_back(target, msg);
-    messages[target].push_back(msg);
+    messages.emplace_back(target, msg);
   };
   auto enqueue_locally_to_message_buffer = [&](RulerMessage const& msg) {
-    messages2.emplace_back(comm.rank_signed(), msg);
-    messages[comm.rank_signed()].push_back(msg);
+    messages.emplace_back(comm.rank_signed(), msg);
   };
   auto enqueue_locally = [&](RulerMessage const& msg) { local_work.push_back(msg); };
   initialize(enqueue_locally_to_message_buffer, send_to);
@@ -164,14 +161,9 @@ auto handle_messages(SparseRulingSetConfig const& config,
   namespace kmp = kamping::params;
   while (!comm.allreduce_single(kmp::send_buf(messages.empty()),
                                 kmp::op(std::logical_and<>{}))) {
-    auto [send_buf, send_counts, send_displs] = kamping::flatten(messages, comm.size());
-    messages.clear();
     kamping::measurements::timer().start("alltoall");
-    dispatcher.alltoallv(messages2, local_work);
-    messages2.clear();
-    // comm.alltoallv(kmp::recv_buf<kamping::BufferResizePolicy::resize_to_fit>(local_work),
-    //                kmp::send_buf(send_buf), kmp::send_counts(send_counts),
-    //                kmp::send_displs(send_displs));
+    dispatcher.alltoallv(messages, local_work);
+    messages.clear();
     kamping::measurements::timer().stop_and_append();
 
     for (std::size_t i = 0; i < local_work.size(); ++i) {
