@@ -27,7 +27,8 @@ auto reverse_list(std::span<const idx_t> succ_array,
                   std::span<idx_t> pred_array,
                   std::span<rank_t> dist_to_pred,
                   Distribution const& dist,
-                  kamping::Communicator<> const& comm) -> std::vector<idx_t>;
+                  kamping::Communicator<> const& comm,
+                  bool use_grid_comm = false) -> std::vector<idx_t>;
 
 template <typename T>
 class maybe_owning_contiguous_range {

@@ -14,6 +14,7 @@
 #include <kamping/utils/flatten.hpp>
 #include <spdlog/spdlog.h>
 
+#include "grid_alltoall.hpp"
 #include "kascade/assertion_levels.hpp"
 #include "kascade/distribution.hpp"
 #include "types.hpp"
@@ -144,8 +145,9 @@ auto reverse_list(std::span<const idx_t> succ_array,
                   std::span<idx_t> pred_array,
                   std::span<rank_t> dist_to_pred,
                   Distribution const& dist,
-                  kamping::Communicator<> const& comm) -> std::vector<idx_t> {
-  std::vector<idx_t> roots;
+                  kamping::Communicator<> const& comm,
+                  bool use_grid_comm /* = false */
+                  ) -> std::vector<idx_t> {
   KASSERT(is_list(succ_array, dist, comm), kascade::assert::with_communication);
   struct message_type {
     idx_t pred;
@@ -154,29 +156,27 @@ auto reverse_list(std::span<const idx_t> succ_array,
   };
   kamping::measurements::timer().start("build_messages");
   absl::flat_hash_map<int, std::vector<message_type>> requests;
-  for (auto [global_idx, succ, weight] :
-       std::views::zip(dist.global_indices(comm.rank()), succ_array, dist_to_succ)) {
-    if (succ == global_idx) {
-      roots.push_back(dist.get_local_idx(global_idx, comm.rank()));
-      continue;
-    }
-    auto owner = dist.get_owner(succ);
-    requests[static_cast<int>(owner)].push_back(
-        message_type{.pred = global_idx, .succ = succ, .dist_pred_succ = weight});
-  }
-  kamping::measurements::timer().stop();
-  kamping::measurements::timer().start("pack_messages");
-  auto [send_buf, send_counts, send_displs] = kamping::flatten(requests, comm.size());
-  requests.clear();
-  kamping::measurements::timer().stop();
-
-  kamping::measurements::timer().start("exchange_messages");
-  auto recv_buf =
-      comm.alltoallv(kamping::send_buf(send_buf), kamping::send_counts(send_counts),
-                     kamping::send_displs(send_displs));
-  kamping::measurements::timer().stop();
-
-  kamping::measurements::timer().start("update_local");
+  auto roots = dist.local_indices(comm.rank()) | std::views::filter([&](idx_t local_idx) {
+                 return is_root(local_idx, succ_array, dist, comm);
+               }) |
+               std::ranges::to<std::vector>();
+  auto request_range =
+      dist.local_indices(comm.rank()) | std::views::filter([&](idx_t local_idx) {
+        // filter non-roots
+        return !is_root(local_idx, succ_array, dist, comm);
+      }) |
+      std::views::transform([&](idx_t local_idx) {
+        auto global_idx = dist.get_global_idx(local_idx, comm.rank());
+        auto succ = succ_array[local_idx];
+        auto weight = dist_to_succ[local_idx];
+        auto owner = dist.get_owner(succ);
+        return std::pair{
+            owner,
+            message_type{.pred = global_idx, .succ = succ, .dist_pred_succ = weight}};
+      });
+  SPDLOG_DEBUG("[reverse_list] Using grid_communication={} for alltoall", use_grid_comm);
+  AlltoallDispatcher<message_type> dispatcher(use_grid_comm, comm);
+  auto recv_buf = dispatcher.alltoallv(request_range);
   // initially, every node is its own predecessor
   std::ranges::copy(dist.global_indices(comm.rank()), pred_array.begin());
   std::ranges::fill(dist_to_pred, 0);
