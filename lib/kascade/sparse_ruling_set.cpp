@@ -5,7 +5,6 @@
 #include <cstdint>
 #include <functional>
 #include <limits>
-#include <numeric>
 #include <queue>
 #include <random>
 #include <ranges>
@@ -29,11 +28,11 @@
 #include <kassert/kassert.hpp>
 #include <spdlog/spdlog.h>
 
-#include "grid_alltoall.hpp"
 #include "kascade/assertion_levels.hpp"
 #include "kascade/bits.hpp"
 #include "kascade/configuration.hpp"
 #include "kascade/distribution.hpp"
+#include "kascade/grid_alltoall.hpp"
 #include "kascade/list_ranking.hpp"
 #include "kascade/pack.hpp"
 #include "kascade/pointer_doubling.hpp"
@@ -278,13 +277,12 @@ struct RulerTrace {
   }
 };
 
-auto ruler_propagation(SparseRulingSetConfig const& /* config */,
+auto ruler_propagation(SparseRulingSetConfig const& config,
                        std::span<idx_t> succ_array,
                        std::span<rank_t> rank_array,
                        std::vector<NodeType> const& node_type,
                        Distribution const& dist,
                        kamping::Communicator<> const& comm) {
-  namespace kmp = kamping::params;
   absl::flat_hash_map<int, absl::flat_hash_set<idx_t>> requests;
   auto needs_to_request_ruler = [&](idx_t local_idx) {
     // if the msb is set, this node was reached from a leaf, so root and rank are already
@@ -295,7 +293,7 @@ auto ruler_propagation(SparseRulingSetConfig const& /* config */,
            node_type[local_idx] != NodeType::leaf;
   };
   std::size_t deduped_requests = 0;
-  kamping::measurements::timer().start("build_requests");
+  absl::flat_hash_set<idx_t> requested_rulers;
   for (auto local_idx : dist.local_indices(comm.rank())) {
     if (!needs_to_request_ruler(local_idx)) {
       continue;
@@ -304,7 +302,7 @@ auto ruler_propagation(SparseRulingSetConfig const& /* config */,
     if (dist.is_local(ruler, comm.rank())) {
       continue;
     }
-    auto inserted = requests[dist.get_owner_signed(ruler)].insert(ruler).second;
+    bool inserted = requested_rulers.insert(ruler).second;
     if (inserted) {
       SPDLOG_TRACE("Requesting info for ruler {} from PE {}", ruler,
                    dist.get_owner(ruler));
@@ -313,56 +311,43 @@ auto ruler_propagation(SparseRulingSetConfig const& /* config */,
     }
   }
   SPDLOG_DEBUG("[ruler_propagation] removed {} duplicate requests", deduped_requests);
-  kamping::measurements::timer().stop();
-  // pack the requests into send buffer
-  kamping::measurements::timer().start("pack_requests");
-  std::vector<int> send_counts(comm.size());
-  std::vector<int> send_displs(comm.size());
-  for (auto& [target, requests_to_target] : requests) {
-    send_counts[target] = static_cast<int>(requests_to_target.size());
-  }
-  std::exclusive_scan(send_counts.begin(), send_counts.end(), send_displs.begin(), 0);
-  std::vector<idx_t> ruler_requests_flat(send_displs.back() + send_counts.back());
-  for (auto& [target, requests_to_target] : requests) {
-    std::ranges::copy_n(requests_to_target.begin(), send_counts[target],
-                        ruler_requests_flat.begin() + send_displs[target]);
-  }
-  kamping::measurements::timer().stop();
-  // exchange requests
-  kamping::measurements::timer().start("exchange_requests");
-  auto [requests_received, recv_counts, recv_displs] = comm.alltoallv(
-      kmp::send_buf(ruler_requests_flat), kmp::send_counts(send_counts),
-      kmp::send_displs(send_displs), kmp::recv_counts_out(), kmp::recv_displs_out());
-  kamping::measurements::timer().stop();
+
+  struct ruler_request {
+    int requesting_rank;
+    idx_t requested_ruler;
+  };
+
+  AlltoallDispatcher<ruler_request> request_dispatcher(config.use_grid_communication,
+                                                       comm);
+  auto requests_received = request_dispatcher.alltoallv(
+      requested_rulers | std::views::transform([&](auto const& requested_ruler) {
+        return std::make_pair(dist.get_owner(requested_ruler),
+                              ruler_request{comm.rank_signed(), requested_ruler});
+      }));
 
   // map requests to replies
   kamping::measurements::timer().start("build_replies");
   struct ruler_reply {
+    idx_t ruler;
     idx_t root;
     rank_t dist_to_root;
   };
-
-  std::vector<ruler_reply> replies(requests_received.size());
-  std::ranges::transform(
-      requests_received, replies.begin(), [&](auto const& requested_ruler) {
-        KASSERT(dist.get_owner(requested_ruler) == comm.rank());
-        auto local_idx = dist.get_local_idx(requested_ruler, comm.rank());
-        return ruler_reply{.root = succ_array[local_idx],
-                           .dist_to_root = rank_array[local_idx]};
-      });
-  kamping::measurements::timer().stop();
-  // exchange replies
-  kamping::measurements::timer().start("exchange_replies");
-  auto replies_received =
-      comm.alltoallv(kmp::send_buf(replies), kmp::send_counts(recv_counts),
-                     kmp::send_displs(recv_displs));
-  kamping::measurements::timer().stop();
-  kamping::measurements::timer().start("update_local");
+  AlltoallDispatcher<ruler_reply> reply_dispatcher(config.use_grid_communication, comm);
+  auto replies = requests_received | std::views::transform([&](auto const& request) {
+                   auto const& [requesting_rank, requested_ruler] = request;
+                   KASSERT(dist.get_owner(requested_ruler) == comm.rank());
+                   auto local_idx = dist.get_local_idx(requested_ruler, comm.rank());
+                   return std::pair{requesting_rank,
+                                    ruler_reply{.ruler = requested_ruler,
+                                                .root = succ_array[local_idx],
+                                                .dist_to_root = rank_array[local_idx]}};
+                 });
+  auto replies_received = reply_dispatcher.alltoallv(replies);
 
   // store replies
   absl::flat_hash_map<idx_t, ruler_reply> ruler_info;
-  for (auto [ruler, reply] : std::views::zip(ruler_requests_flat, replies_received)) {
-    ruler_info[ruler] = reply;
+  for (auto const& reply : replies_received) {
+    ruler_info[reply.ruler] = reply;
   }
   for (auto local_idx : dist.local_indices(comm.rank())) {
     if (!needs_to_request_ruler(local_idx)) {
