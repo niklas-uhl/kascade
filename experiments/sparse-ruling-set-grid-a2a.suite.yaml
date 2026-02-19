@@ -1,4 +1,4 @@
-name: sparse-ruling-set-two-level
+name: sparse-ruling-set-grid-a2a
 executable: bench/kascade
 output_path_option_name: "output-file"
 ncores: [64, 128, 256, 512, 1024, 2048]
@@ -32,4 +32,5 @@ config:
     sparse-ruling-set-spawn: True
     sparse-ruling-set-sync: [True]
     sparse-ruling-set-sync-locality-aware: True
-    sparse-ruling-set-base-algorithm: [PointerDoubling, SparseRulingSet]
+    sparse-ruling-set-base-algorithm: [PointerDoubling]
+    sparse-ruling-set-use-grid-communication: [False, True]
