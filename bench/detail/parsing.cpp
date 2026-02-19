@@ -40,6 +40,12 @@ auto lexical_cast(const std::string& input,
   ruler_selection_strategy = input_json.template get<kascade::RulerSelectionStrategy>();
   return ruler_selection_strategy != kascade::RulerSelectionStrategy::invalid;
 }
+auto lexical_cast(const std::string& input,
+                               RulerPropagationMode& ruler_propagation_mode) -> bool {
+  nlohmann::json input_json = input;
+  ruler_propagation_mode = input_json.template get<kascade::RulerPropagationMode>();
+  return ruler_propagation_mode != kascade::RulerPropagationMode::invalid;
+}
 
 namespace input {
 auto lexical_cast(const std::string& input, InputProcessing& processing) -> bool {
@@ -115,6 +121,9 @@ auto parse_args(std::span<char*> args) -> Config {
       ->group("Sparse Ruling Set");
   app.add_option("--sparse-ruling-set-ruler-selection",
                  config.sparse_ruling_set.ruler_selection)
+      ->group("Sparse Ruling Set");
+  app.add_option("--sparse-ruling-set-ruler-propagation-mode",
+                 config.sparse_ruling_set.ruler_propagation_mode)
       ->group("Sparse Ruling Set");
   app.add_option("--sparse-ruling-set-dehne-factor",
                  config.sparse_ruling_set.dehne_factor)

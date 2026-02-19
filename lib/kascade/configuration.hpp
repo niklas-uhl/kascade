@@ -37,6 +37,7 @@ struct PointerDoublingConfig {
 };
 
 enum class RulerSelectionStrategy : std::uint8_t { dehne, heuristic, sanders, invalid };
+enum class RulerPropagationMode : std::uint8_t { pull, push, invalid };
 
 struct BriefkastenConfig {
   std::size_t local_threshold = 32ULL * 1024;
@@ -47,6 +48,7 @@ struct SparseRulingSetConfig {
   RulerSelectionStrategy ruler_selection = RulerSelectionStrategy::dehne;
   Algorithm base_algorithm = Algorithm::PointerDoubling;
   std::any base_algorithm_config;
+  RulerPropagationMode ruler_propagation_mode = RulerPropagationMode::pull;
   double dehne_factor = 1.0;
   double heuristic_factor = 0.01;
   double sanders_factor = 1.0;
@@ -54,7 +56,7 @@ struct SparseRulingSetConfig {
   bool sync = false;
   bool sync_locality_aware = false;
   bool spawn = false;
-  BriefkastenConfig briefkasten {};
+  BriefkastenConfig briefkasten{};
   bool use_grid_communication = false;
 };
 

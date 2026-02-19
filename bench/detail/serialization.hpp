@@ -56,12 +56,17 @@ NLOHMANN_JSON_SERIALIZE_ENUM(RulerSelectionStrategy,
                               {RulerSelectionStrategy::dehne, "dehne"},
                               {RulerSelectionStrategy::heuristic, "heuristic"},
                               {RulerSelectionStrategy::sanders, "sanders"}});
+NLOHMANN_JSON_SERIALIZE_ENUM(RulerPropagationMode,
+                             {{RulerPropagationMode::invalid, nullptr},
+                              {RulerPropagationMode::pull, "pull"},
+                              {RulerPropagationMode::push, "push"}})
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(BriefkastenConfig,
                                    local_threshold,
                                    poll_skip_threshold);
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(SparseRulingSetConfig,
                                    base_algorithm,
                                    ruler_selection,
+                                   ruler_propagation_mode,
                                    dehne_factor,
                                    heuristic_factor,
                                    sanders_factor,

@@ -277,12 +277,20 @@ struct RulerTrace {
   }
 };
 
+namespace propagation_mode {
+struct pull_tag {};
+struct push_tag {};
+constexpr pull_tag pull{};
+constexpr push_tag push{};
+}  // namespace propagation_mode
+
 auto ruler_propagation(SparseRulingSetConfig const& config,
                        std::span<idx_t> succ_array,
                        std::span<rank_t> rank_array,
                        std::vector<NodeType> const& node_type,
                        Distribution const& dist,
-                       kamping::Communicator<> const& comm) {
+                       kamping::Communicator<> const& comm,
+                       propagation_mode::pull_tag /* tag */ = {}) {
   auto needs_to_request_ruler = [&](idx_t local_idx) {
     // if the msb is set, this node was reached from a leaf, so root and rank are already
     // correct
@@ -364,7 +372,7 @@ auto ruler_propagation(SparseRulingSetConfig const& config,
   for (auto local_idx : dist.local_indices(comm.rank())) {
     if (!needs_to_request_ruler(local_idx)) {
       // this node might have been reached by a leaf, so its msb might be still be set,
-      // fix thatxo
+      // fix that
       succ_array[local_idx] = bits::clear_root_flag(succ_array[local_idx]);
       continue;
     }
@@ -384,6 +392,64 @@ auto ruler_propagation(SparseRulingSetConfig const& config,
     rank_array[local_idx] += info_it->second.dist_to_root;
   }
   kamping::measurements::timer().stop();
+}
+
+auto ruler_propagation(SparseRulingSetConfig const& config,
+                       std::span<idx_t> succ_array,
+                       std::span<rank_t> rank_array,
+                       std::span<idx_t> initial_succ_array,
+                       std::vector<NodeType> const& node_type,
+                       std::span<idx_t> rulers,
+                       Distribution const& dist,
+                       kamping::Communicator<> const& comm,
+                       propagation_mode::push_tag /* tag */) {
+  auto init = [&](auto&& enqueue_locally, auto&& send_to) {
+    for (auto const& ruler_local : rulers) {
+      if (node_type[ruler_local] == NodeType::leaf) {
+        // nodes reached from leafs already have the correct root and rank, so we can just
+        // skip them
+        continue;
+      }
+      auto succ = initial_succ_array[ruler_local];
+      auto ruler_root = succ_array[ruler_local];
+      auto ruler_rank = rank_array[ruler_local];
+      RulerMessage msg{
+          .target_idx = succ, .ruler = ruler_root, .dist_from_ruler = ruler_rank};
+      if (dist.is_local(succ, comm.rank())) {
+        enqueue_locally(msg);
+        continue;
+      }
+      send_to(msg, dist.get_owner(succ));
+    }
+  };
+  auto work_on_item = [&](RulerMessage const& msg, auto&& enqueue_locally,
+                          auto&& send_to) {
+    const auto& [idx, ruler_root, ruler_rank] = msg;
+    KASSERT(dist.is_local(idx, comm.rank()));
+    auto idx_local = dist.get_local_idx(idx, comm.rank());
+    if (node_type[idx_local] == NodeType::ruler) {
+      return;
+    }
+    succ_array[idx_local] = ruler_root;
+    rank_array[idx_local] += ruler_rank;
+    if (node_type[idx_local] == NodeType::root) {
+      return;
+    }
+    KASSERT(node_type[idx_local] == NodeType::reached);
+    auto succ = initial_succ_array[idx_local];
+    RulerMessage forward_msg = msg;
+    forward_msg.target_idx = succ;
+    if (dist.is_local(succ, comm.rank())) {
+      enqueue_locally(forward_msg);
+      return;
+    }
+    send_to(forward_msg, dist.get_owner(succ));
+  };
+  if (config.sync) {
+    handle_messages(config, init, work_on_item, dist, comm, ruler_chasing::sync);
+  } else {
+    handle_messages(config, init, work_on_item, dist, comm, ruler_chasing::async);
+  }
 }
 }  // namespace
 
@@ -469,6 +535,12 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
   //////////////////////
   // Ruler chasing    //
   //////////////////////
+  kamping::measurements::timer().synchronize_and_start("backup_succ_array");
+  std::optional<std::vector<idx_t>> inital_succ_array;
+  if (config.ruler_propagation_mode == RulerPropagationMode::push) {
+    inital_succ_array = std::vector(succ_array.begin(), succ_array.end());
+  }
+  kamping::measurements::timer().stop();
   kamping::measurements::timer().synchronize_and_start("chase_ruler");
 
   // initialization
@@ -487,7 +559,9 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
       if (node_type[ruler_local] == NodeType::leaf) {
         // this is a leaf, so set the msb to distinguish it from normal rulers, which
         // will help to avoid them requesting their ruler's information in the end
-        ruler = bits::set_root_flag(ruler);
+        if (config.ruler_propagation_mode == RulerPropagationMode::pull) {
+          ruler = bits::set_root_flag(ruler);
+        }
         succ_array[ruler_local] = ruler;
         rank_array[ruler_local] = 0;
       } else {
@@ -614,7 +688,19 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
   // Request rank and root from rulers //
   ///////////////////////////////////////
   kamping::measurements::timer().synchronize_and_start("ruler_propagation");
-  ruler_propagation(config, succ_array, rank_array, node_type, dist, comm);
+  switch (config.ruler_propagation_mode) {
+    case RulerPropagationMode::pull:
+      ruler_propagation(config, succ_array, rank_array, node_type, dist, comm,
+                        propagation_mode::pull);
+      break;
+    case RulerPropagationMode::push:
+      ruler_propagation(config, succ_array, rank_array, inital_succ_array.value(),
+                        node_type, rulers, dist, comm, propagation_mode::push);
+      break;
+    case RulerPropagationMode::invalid:
+      throw std::runtime_error("Invalid ruler propagation mode");
+      break;
+  }
   kamping::measurements::timer().stop();
 }
 }  // namespace
