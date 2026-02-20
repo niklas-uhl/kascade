@@ -139,7 +139,7 @@ auto handle_messages(SparseRulingSetConfig const& config,
                      auto&& work_on_item,
                      Distribution const& /* dist */,
                      kamping::Communicator<> const& comm,
-                     ruler_chasing::sync_tag /* tag */) {
+                     ruler_chasing::sync_tag /* tag */) -> std::size_t {
   auto queue =
       briefkasten::BufferedMessageQueueBuilder<RulerMessage>(comm.mpi_communicator())
           .build();
@@ -157,7 +157,7 @@ auto handle_messages(SparseRulingSetConfig const& config,
 
   AlltoallDispatcher<RulerMessage> dispatcher(config.use_grid_communication, comm);
 
-  std::int64_t rounds = 0;
+  std::size_t rounds = 0;
   namespace kmp = kamping::params;
   while (!comm.allreduce_single(kmp::send_buf(messages.empty()),
                                 kmp::op(std::logical_and<>{}))) {
@@ -178,10 +178,7 @@ auto handle_messages(SparseRulingSetConfig const& config,
     }
     rounds++;
   }
-  kamping::measurements::counter().add(
-      "ruler_chasing_rounds", rounds,
-      {kamping::measurements::GlobalAggregationMode::max,
-       kamping::measurements::GlobalAggregationMode::min});
+  return rounds;
 }
 
 enum class NodeType : std::uint8_t { root, leaf, ruler, unreached, reached };
@@ -193,17 +190,10 @@ struct RulerTrace {
   RulerTrace(RulerTrace&&) = delete;
   auto operator=(const RulerTrace&) -> RulerTrace& = default;
   auto operator=(RulerTrace&&) -> RulerTrace& = delete;
-
-  RulerTrace(std::size_t local_num_rulers, std::size_t local_num_leaves) {
-    kamping::measurements::counter().add(
-        "local_num_ruler", static_cast<std::int64_t>(local_num_rulers),
-        {kamping::measurements::GlobalAggregationMode::max,
-         kamping::measurements::GlobalAggregationMode::min});
-    kamping::measurements::counter().add(
-        "local_num_leaves", static_cast<std::int64_t>(local_num_leaves),
-        {kamping::measurements::GlobalAggregationMode::max,
-         kamping::measurements::GlobalAggregationMode::min});
-  }
+  std::size_t local_num_rulers_;
+  std::size_t local_num_leaves_;
+  RulerTrace(std::size_t local_num_rulers, std::size_t local_num_leaves)
+      : local_num_rulers_(local_num_rulers), local_num_leaves_(local_num_leaves) {}
   ~RulerTrace() {
     kamping::measurements::timer().start("aggregate_ruler_stats");
     idx_t min_length = std::numeric_limits<idx_t>::max();
@@ -233,32 +223,44 @@ struct RulerTrace {
     };
     kamping::comm_world().allreduce(kamping::send_recv_buf(stats),
                                     kamping::op(agg, kamping::ops::commutative));
-    kamping::measurements::counter().add(
+    kamping::measurements::counter().append(
         "ruler_list_length_min", static_cast<std::int64_t>(stats.min_length),
         {
             kamping::measurements::GlobalAggregationMode::min,
         });
-    kamping::measurements::counter().add(
+    kamping::measurements::counter().append(
         "ruler_list_length_max", static_cast<std::int64_t>(stats.max_length),
         {
             kamping::measurements::GlobalAggregationMode::max,
         });
-    kamping::measurements::counter().add(
+    kamping::measurements::counter().append(
         "ruler_list_length_avg",
         static_cast<std::int64_t>(static_cast<double>(stats.length_sum) /
                                   static_cast<double>(stats.num_rulers)),
         {
             kamping::measurements::GlobalAggregationMode::max,
         });
-    kamping::measurements::counter().add(
+    kamping::measurements::counter().append(
+        "local_num_ruler", static_cast<std::int64_t>(local_num_rulers_),
+        {kamping::measurements::GlobalAggregationMode::max,
+         kamping::measurements::GlobalAggregationMode::min});
+    kamping::measurements::counter().append(
+        "local_num_leaves", static_cast<std::int64_t>(local_num_leaves_),
+        {kamping::measurements::GlobalAggregationMode::max,
+         kamping::measurements::GlobalAggregationMode::min});
+    kamping::measurements::counter().append(
         "local_subproblem_size", static_cast<std::int64_t>(local_subproblem_size_),
         {kamping::measurements::GlobalAggregationMode::sum,
          kamping::measurements::GlobalAggregationMode::max,
          kamping::measurements::GlobalAggregationMode::min});
-    kamping::measurements::counter().add(
+    kamping::measurements::counter().append(
         "num_spawned_rulers", static_cast<std::int64_t>(num_spawned_rulers_),
         {kamping::measurements::GlobalAggregationMode::sum,
          kamping::measurements::GlobalAggregationMode::max,
+         kamping::measurements::GlobalAggregationMode::min});
+    kamping::measurements::counter().append(
+        "ruler_chasing_rounds", static_cast<std::int64_t>(rounds_),
+        {kamping::measurements::GlobalAggregationMode::max,
          kamping::measurements::GlobalAggregationMode::min});
     kamping::measurements::timer().stop();
   }
@@ -266,11 +268,13 @@ struct RulerTrace {
     ruler_list_length[ruler] = dist_from_ruler;
   }
   std::size_t num_spawned_rulers_ = 0;
-  void track_spawn()  {
-    num_spawned_rulers_++;
-  }
+  void track_spawn() { num_spawned_rulers_++; }
   void track_base_case(std::size_t local_subproblem_size) {
     local_subproblem_size_ = local_subproblem_size;
+  }
+  std::size_t rounds_;
+  void track_ruler_chasing_rounds(std::size_t ruler_chasing_rounds) {
+    rounds_ = ruler_chasing_rounds;
   }
 };
 
@@ -389,7 +393,7 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
   kamping::measurements::timer().synchronize_and_start("invert_list");
   auto leaves = reverse_list(succ_array, rank_array, succ_array, rank_array, dist, comm);
   kamping::measurements::timer().stop();
-  
+
   kamping::measurements::timer().synchronize_and_start("cache_owners");
   std::vector<std::size_t> succ_owner(succ_array.size());
   for (std::size_t i = 0; i < succ_owner.size(); i++) {
@@ -407,7 +411,7 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
     }
     return succ_owner[local_idx];
   };
-  
+
   kamping::measurements::timer().synchronize_and_start("init_node_type");
   std::vector<NodeType> node_type(succ_array.size(), NodeType::unreached);
   std::size_t num_unreached = 0;
@@ -551,7 +555,9 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
     // succ_rank);
   };
   if (config.sync) {
-    handle_messages(config, init, work_on_item, dist, comm, ruler_chasing::sync);
+    auto rounds =
+        handle_messages(config, init, work_on_item, dist, comm, ruler_chasing::sync);
+    trace.track_ruler_chasing_rounds(rounds);
   } else {
     handle_messages(config, init, work_on_item, dist, comm, ruler_chasing::async);
   }
