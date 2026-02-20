@@ -1,5 +1,7 @@
 #pragma once
 
+#include <kamping/measurements/timer.hpp>
+
 #include "kascade/alltoall_utils.hpp"
 #include "kascade/grid_communicator.hpp"
 
@@ -125,12 +127,16 @@ public:
       KASSERT(grid_comm_.has_value());
       recv_buf = kascade::grid_alltoallv(std::forward<R>(messages), grid_comm_.value());
     } else {
+      kamping::measurements::timer().start("prepare_send_buf");
       prepare_send_buf_inplace(std::forward<R>(messages), send_buf, send_counts,
                                send_displs, comm_->size());
+      kamping::measurements::timer().stop();
+      kamping::measurements::timer().start("alltoallv");
       comm_->alltoallv(
           kmp::send_buf(send_buf), kmp::send_counts(send_counts),
           kmp::send_displs(send_displs),
           kmp::recv_buf<kamping::BufferResizePolicy::resize_to_fit>(recv_buf));
+      kamping::measurements::timer().stop();
     }
   }
 

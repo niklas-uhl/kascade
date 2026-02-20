@@ -154,12 +154,12 @@ auto reverse_list(std::span<const idx_t> succ_array,
     idx_t succ;
     rank_t dist_pred_succ;
   };
-  kamping::measurements::timer().start("build_messages");
-  absl::flat_hash_map<int, std::vector<message_type>> requests;
+  kamping::measurements::timer().start("collect_roots");
   auto roots = dist.local_indices(comm.rank()) | std::views::filter([&](idx_t local_idx) {
                  return is_root(local_idx, succ_array, dist, comm);
                }) |
                std::ranges::to<std::vector>();
+  kamping::measurements::timer().stop();
   auto request_range =
       dist.local_indices(comm.rank()) | std::views::filter([&](idx_t local_idx) {
         // filter non-roots
@@ -175,8 +175,14 @@ auto reverse_list(std::span<const idx_t> succ_array,
             message_type{.pred = global_idx, .succ = succ, .dist_pred_succ = weight}};
       });
   SPDLOG_DEBUG("[reverse_list] Using grid_communication={} for alltoall", use_grid_comm);
+  kamping::measurements::timer().start("dispatcher_init");
   AlltoallDispatcher<message_type> dispatcher(use_grid_comm, comm);
+  kamping::measurements::timer().stop();
+  kamping::measurements::timer().start("message_exchange");
   auto recv_buf = dispatcher.alltoallv(request_range);
+  kamping::measurements::timer().stop();
+
+  kamping::measurements::timer().start("update_local");
   // initially, every node is its own predecessor
   std::ranges::copy(dist.global_indices(comm.rank()), pred_array.begin());
   std::ranges::fill(dist_to_pred, 0);
