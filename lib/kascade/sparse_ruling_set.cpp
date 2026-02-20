@@ -361,34 +361,42 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
                        kamping::Communicator<> const& comm) {
   KASSERT(is_list(succ_array, dist, comm), kascade::assert::with_communication);
   kamping::measurements::timer().synchronize_and_start("invert_list");
-  reverse_list(succ_array, rank_array, succ_array, rank_array, dist, comm);
+  auto leaves = reverse_list(succ_array, rank_array, succ_array, rank_array, dist, comm);
   kamping::measurements::timer().stop();
-
-  kamping::measurements::timer().synchronize_and_start("find_rulers");
-  LeafInfo leaf_info{succ_array, dist, comm};
-
-  std::int64_t local_num_rulers =
-      // NOLINTNEXTLINE(*-narrowing-conversions)
-      static_cast<std::int64_t>(compute_local_num_rulers(config, dist, comm)) -
-      leaf_info.num_local_leaves();
-  local_num_rulers = std::max(local_num_rulers, std::int64_t{0});
-
-  RulerTrace trace{static_cast<size_t>(local_num_rulers), leaf_info.num_local_leaves()};
-
-  SPDLOG_DEBUG("picking {} rulers", local_num_rulers);
-  std::mt19937 rng{static_cast<std::mt19937::result_type>(42 + comm.rank_signed())};
+  kamping::measurements::timer().synchronize_and_start("init_node_type");
 
   std::vector<NodeType> node_type(succ_array.size(), NodeType::unreached);
   std::size_t num_unreached = 0;
   for (auto local_idx : dist.local_indices(comm.rank())) {
     if (is_root(local_idx, succ_array, dist, comm)) {
       node_type[local_idx] = NodeType::root;
-    } else if (leaf_info.is_leaf(local_idx)) {
-      node_type[local_idx] = NodeType::leaf;
     } else {
       num_unreached++;
     }
   }
+  std::size_t num_real_leaves = 0;
+  for (auto leaf_local : leaves) {
+    if (node_type[leaf_local] == NodeType::root) {
+      continue;
+    }
+    node_type[leaf_local] = NodeType::leaf;
+    num_real_leaves++;
+    num_unreached--;
+  }
+  kamping::measurements::timer().stop();
+  kamping::measurements::timer().synchronize_and_start("find_rulers");
+
+  std::int64_t local_num_rulers =
+      // NOLINTNEXTLINE(*-narrowing-conversions)
+      static_cast<std::int64_t>(compute_local_num_rulers(config, dist, comm)) -
+      num_real_leaves;
+  local_num_rulers = std::max(local_num_rulers, std::int64_t{0});
+
+  RulerTrace trace{static_cast<size_t>(local_num_rulers), num_real_leaves};
+
+  SPDLOG_DEBUG("picking {} rulers", local_num_rulers);
+  std::mt19937 rng{static_cast<std::mt19937::result_type>(42 + comm.rank_signed())};
+
   auto rulers = pick_rulers(succ_array, local_num_rulers, rng, [&](idx_t local_idx) {
     return node_type[local_idx] == NodeType::unreached;
   });
@@ -401,8 +409,11 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
   kamping::measurements::timer().synchronize_and_start("chase_ruler");
 
   // initialization
-  for (auto leaf : leaf_info.leaves()) {
-    rulers.push_back(leaf);
+  for (auto leaf_local : leaves) {
+    // only use "real" leaves as rulers
+    if (node_type[leaf_local] == NodeType::leaf) {
+      rulers.push_back(leaf_local);
+    }
   }
   // chasing loop
   auto init = [&](auto&& enqueue_locally, auto&& send_to) {
