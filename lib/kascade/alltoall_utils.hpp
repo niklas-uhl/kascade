@@ -5,6 +5,7 @@
 #include <ranges>
 #include <vector>
 
+#include <kamping/measurements/timer.hpp>
 #include <kassert/kassert.hpp>
 
 namespace kascade {
@@ -72,18 +73,22 @@ void prepare_send_buf_inplace(
   send_displs.clear();
   send_counts.resize(comm_size, 0);
   send_displs.resize(comm_size);
+  kamping::measurements::timer().start("compute_send_counts");
   for (auto&& msg : messages) {
     int target_rank = get_target_rank(msg);
     KASSERT(0 <= target_rank && target_rank < static_cast<int>(comm_size));
     ++send_counts[target_rank];
   }
+  kamping::measurements::timer().stop();
   std::exclusive_scan(send_counts.begin(), send_counts.end(), send_displs.begin(), 0);
   send_buf.resize(send_displs.back() + send_counts.back());
+  kamping::measurements::timer().start("fill_send_buf");
   for (auto&& msg : messages) {
     int target_rank = get_target_rank(msg);
     int pos = send_displs[target_rank]++;
     send_buf[static_cast<std::size_t>(pos)] = get_message(msg);
   }
+  kamping::measurements::timer().stop();
   std::exclusive_scan(send_counts.begin(), send_counts.end(), send_displs.begin(), 0);
 }
 
