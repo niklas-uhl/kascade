@@ -8,6 +8,7 @@
 #include <kamping/collectives/allreduce.hpp>
 #include <kamping/collectives/alltoall.hpp>
 #include <kamping/collectives/exscan.hpp>
+#include <kamping/measurements/timer.hpp>
 #include <kamping/types/unsafe/tuple.hpp>
 #include <kamping/types/unsafe/utility.hpp>
 #include <kamping/utils/flatten.hpp>
@@ -151,6 +152,7 @@ auto reverse_list(std::span<const idx_t> succ_array,
     idx_t succ;
     rank_t dist_pred_succ;
   };
+  kamping::measurements::timer().start("build_messages");
   absl::flat_hash_map<int, std::vector<message_type>> requests;
   for (auto [global_idx, succ, weight] :
        std::views::zip(dist.global_indices(comm.rank()), succ_array, dist_to_succ)) {
@@ -162,11 +164,19 @@ auto reverse_list(std::span<const idx_t> succ_array,
     requests[static_cast<int>(owner)].push_back(
         message_type{.pred = global_idx, .succ = succ, .dist_pred_succ = weight});
   }
+  kamping::measurements::timer().stop();
+  kamping::measurements::timer().start("pack_messages");
   auto [send_buf, send_counts, send_displs] = kamping::flatten(requests, comm.size());
   requests.clear();
+  kamping::measurements::timer().stop();
+
+  kamping::measurements::timer().start("exchange_messages");
   auto recv_buf =
       comm.alltoallv(kamping::send_buf(send_buf), kamping::send_counts(send_counts),
                      kamping::send_displs(send_displs));
+  kamping::measurements::timer().stop();
+
+  kamping::measurements::timer().start("update_local");
   // initially, every node is its own predecessor
   std::ranges::copy(dist.global_indices(comm.rank()), pred_array.begin());
   std::ranges::fill(dist_to_pred, 0);
@@ -175,6 +185,7 @@ auto reverse_list(std::span<const idx_t> succ_array,
     pred_array[local_idx] = msg.pred;
     dist_to_pred[local_idx] = msg.dist_pred_succ;
   }
+  kamping::measurements::timer().stop();
   KASSERT(is_list(pred_array, dist, comm), kascade::assert::with_communication);
   return roots;
 }

@@ -295,6 +295,7 @@ auto ruler_propagation(SparseRulingSetConfig const& /* config */,
            node_type[local_idx] != NodeType::leaf;
   };
   std::size_t deduped_requests = 0;
+  kamping::measurements::timer().start("build_requests");
   for (auto local_idx : dist.local_indices(comm.rank())) {
     if (!needs_to_request_ruler(local_idx)) {
       continue;
@@ -312,7 +313,9 @@ auto ruler_propagation(SparseRulingSetConfig const& /* config */,
     }
   }
   SPDLOG_DEBUG("[ruler_propagation] removed {} duplicate requests", deduped_requests);
+  kamping::measurements::timer().stop();
   // pack the requests into send buffer
+  kamping::measurements::timer().start("pack_requests");
   std::vector<int> send_counts(comm.size());
   std::vector<int> send_displs(comm.size());
   for (auto& [target, requests_to_target] : requests) {
@@ -324,16 +327,21 @@ auto ruler_propagation(SparseRulingSetConfig const& /* config */,
     std::ranges::copy_n(requests_to_target.begin(), send_counts[target],
                         ruler_requests_flat.begin() + send_displs[target]);
   }
+  kamping::measurements::timer().stop();
   // exchange requests
+  kamping::measurements::timer().start("exchange_requests");
   auto [requests_received, recv_counts, recv_displs] = comm.alltoallv(
       kmp::send_buf(ruler_requests_flat), kmp::send_counts(send_counts),
       kmp::send_displs(send_displs), kmp::recv_counts_out(), kmp::recv_displs_out());
+  kamping::measurements::timer().stop();
 
   // map requests to replies
+  kamping::measurements::timer().start("build_replies");
   struct ruler_reply {
     idx_t root;
     rank_t dist_to_root;
   };
+
   std::vector<ruler_reply> replies(requests_received.size());
   std::ranges::transform(
       requests_received, replies.begin(), [&](auto const& requested_ruler) {
@@ -342,10 +350,14 @@ auto ruler_propagation(SparseRulingSetConfig const& /* config */,
         return ruler_reply{.root = succ_array[local_idx],
                            .dist_to_root = rank_array[local_idx]};
       });
+  kamping::measurements::timer().stop();
   // exchange replies
+  kamping::measurements::timer().start("exchange_replies");
   auto replies_received =
       comm.alltoallv(kmp::send_buf(replies), kmp::send_counts(recv_counts),
                      kmp::send_displs(recv_displs));
+  kamping::measurements::timer().stop();
+  kamping::measurements::timer().start("update_local");
 
   // store replies
   absl::flat_hash_map<idx_t, ruler_reply> ruler_info;
@@ -374,6 +386,7 @@ auto ruler_propagation(SparseRulingSetConfig const& /* config */,
     succ_array[local_idx] = info_it->second.root;
     rank_array[local_idx] += info_it->second.dist_to_root;
   }
+  kamping::measurements::timer().stop();
 }
 }  // namespace
 
