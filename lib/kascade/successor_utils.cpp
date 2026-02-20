@@ -154,32 +154,30 @@ auto reverse_list(std::span<const idx_t> succ_array,
     idx_t succ;
     rank_t dist_pred_succ;
   };
-  kamping::measurements::timer().start("collect_roots");
-  auto roots = dist.local_indices(comm.rank()) | std::views::filter([&](idx_t local_idx) {
-                 return is_root(local_idx, succ_array, dist, comm);
-               }) |
-               std::ranges::to<std::vector>();
+  
+  std::vector<idx_t> roots;
+  kamping::measurements::timer().start("build_requests");
+  std::vector<std::pair<int, message_type>> request_buf;
+  request_buf.reserve(succ_array.size());
+  for (idx_t local_idx = 0; local_idx < succ_array.size(); ++local_idx) {
+    if (is_root(local_idx, succ_array, dist, comm)) {
+      roots.push_back(local_idx);
+    } else {
+      auto global_idx = dist.get_global_idx(local_idx, comm.rank());
+      auto succ = succ_array[local_idx];
+      auto weight = dist_to_succ[local_idx];
+      auto owner = dist.is_local(succ, comm.rank()) ? comm.rank() : dist.get_owner(succ);
+      request_buf.emplace_back(owner, message_type{.pred = global_idx, .succ = succ, .dist_pred_succ = weight});
+    }
+  }
   kamping::measurements::timer().stop();
-  auto request_range =
-      dist.local_indices(comm.rank()) | std::views::filter([&](idx_t local_idx) {
-        // filter non-roots
-        return !is_root(local_idx, succ_array, dist, comm);
-      }) |
-      std::views::transform([&](idx_t local_idx) {
-        auto global_idx = dist.get_global_idx(local_idx, comm.rank());
-        auto succ = succ_array[local_idx];
-        auto weight = dist_to_succ[local_idx];
-        auto owner = dist.get_owner(succ);
-        return std::pair{
-            owner,
-            message_type{.pred = global_idx, .succ = succ, .dist_pred_succ = weight}};
-      });
+
   SPDLOG_DEBUG("[reverse_list] Using grid_communication={} for alltoall", use_grid_comm);
   kamping::measurements::timer().start("dispatcher_init");
   AlltoallDispatcher<message_type> dispatcher(use_grid_comm, comm);
   kamping::measurements::timer().stop();
   kamping::measurements::timer().start("message_exchange");
-  auto recv_buf = dispatcher.alltoallv(request_range);
+  auto recv_buf = dispatcher.alltoallv(request_buf);
   kamping::measurements::timer().stop();
 
   kamping::measurements::timer().start("update_local");
