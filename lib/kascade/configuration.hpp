@@ -36,7 +36,13 @@ struct PointerDoublingConfig {
   AggregationLevel aggregation_level = AggregationLevel::none;
 };
 
-enum class RulerSelectionStrategy : std::uint8_t { dehne, heuristic, sanders, invalid };
+enum class RulerSelectionStrategy : std::uint8_t {
+  dehne,
+  heuristic,
+  sanders,
+  limit_rounds,
+  invalid
+};
 enum class RulerPropagationMode : std::uint8_t { pull, push, invalid };
 
 struct BriefkastenConfig {
@@ -52,6 +58,7 @@ struct SparseRulingSetConfig {
   double dehne_factor = 1.0;
   double heuristic_factor = 0.01;
   double sanders_factor = 1.0;
+  std::size_t round_limit = 100;
   bool cache_owners = false;
   bool sync = false;
   bool sync_locality_aware = false;

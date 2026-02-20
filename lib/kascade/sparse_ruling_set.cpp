@@ -66,6 +66,16 @@ auto compute_local_num_rulers(SparseRulingSetConfig const& config,
       return static_cast<std::size_t>(config.sanders_factor * std::sqrt(n) *
                                       static_cast<double>(p) / std::log(n) *
                                       rel_local_size);
+    case RulerSelectionStrategy::limit_rounds: {
+      if (!config.spawn) {
+        SPDLOG_LOGGER_WARN(spdlog::get("root"),
+                           "limit-rounds ruler selection strategy is only effective if "
+                           "spawn is enabled");
+      }
+      auto total_num_rulers = n / config.round_limit;
+      return static_cast<std::size_t>(static_cast<double>(total_num_rulers) *
+                                      rel_local_size);
+    }
     case RulerSelectionStrategy::invalid:
       throw std::runtime_error("Invalid ruler selection strategy");
       break;
