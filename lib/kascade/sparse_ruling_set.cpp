@@ -283,7 +283,6 @@ auto ruler_propagation(SparseRulingSetConfig const& config,
                        std::vector<NodeType> const& node_type,
                        Distribution const& dist,
                        kamping::Communicator<> const& comm) {
-  absl::flat_hash_map<int, absl::flat_hash_set<idx_t>> requests;
   auto needs_to_request_ruler = [&](idx_t local_idx) {
     // if the msb is set, this node was reached from a leaf, so root and rank are already
     // correct
@@ -292,6 +291,7 @@ auto ruler_propagation(SparseRulingSetConfig const& config,
            node_type[local_idx] != NodeType::ruler &&
            node_type[local_idx] != NodeType::leaf;
   };
+  kamping::measurements::timer().start("collect_requests");
   std::size_t deduped_requests = 0;
   absl::flat_hash_set<idx_t> requested_rulers;
   for (auto local_idx : dist.local_indices(comm.rank())) {
@@ -310,6 +310,7 @@ auto ruler_propagation(SparseRulingSetConfig const& config,
       deduped_requests++;
     }
   }
+  kamping::measurements::timer().stop();
   SPDLOG_DEBUG("[ruler_propagation] removed {} duplicate requests", deduped_requests);
 
   struct ruler_request {
@@ -319,11 +320,17 @@ auto ruler_propagation(SparseRulingSetConfig const& config,
 
   AlltoallDispatcher<ruler_request> request_dispatcher(config.use_grid_communication,
                                                        comm);
-  auto requests_received = request_dispatcher.alltoallv(
+  kamping::measurements::timer().start("pack_requests");
+  auto requests =
       requested_rulers | std::views::transform([&](auto const& requested_ruler) {
         return std::make_pair(dist.get_owner(requested_ruler),
                               ruler_request{comm.rank_signed(), requested_ruler});
-      }));
+      }) |
+      std::ranges::to<std::vector>();
+  kamping::measurements::timer().stop();
+  kamping::measurements::timer().start("exchange_requests");
+  auto requests_received = request_dispatcher.alltoallv(requests);
+  kamping::measurements::timer().stop();
 
   // map requests to replies
   kamping::measurements::timer().start("build_replies");
@@ -341,10 +348,15 @@ auto ruler_propagation(SparseRulingSetConfig const& config,
                                     ruler_reply{.ruler = requested_ruler,
                                                 .root = succ_array[local_idx],
                                                 .dist_to_root = rank_array[local_idx]}};
-                 });
+                 }) |
+                 std::ranges::to<std::vector>();
+  kamping::measurements::timer().stop();
+  kamping::measurements::timer().start("exchange_replies");
   auto replies_received = reply_dispatcher.alltoallv(replies);
+  kamping::measurements::timer().stop();
 
   // store replies
+  kamping::measurements::timer().start("process_replies");
   absl::flat_hash_map<idx_t, ruler_reply> ruler_info;
   for (auto const& reply : replies_received) {
     ruler_info[reply.ruler] = reply;
