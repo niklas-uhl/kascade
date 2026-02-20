@@ -137,12 +137,14 @@ auto roots(std::span<const idx_t> succ_array,
          std::ranges::to<std::vector>();
 }
 
+/// @return the original roots of the tree (which are now leaves)
 auto reverse_list(std::span<const idx_t> succ_array,
                   std::span<const rank_t> dist_to_succ,
                   std::span<idx_t> pred_array,
                   std::span<rank_t> dist_to_pred,
                   Distribution const& dist,
-                  kamping::Communicator<> const& comm) -> void {
+                  kamping::Communicator<> const& comm) -> std::vector<idx_t> {
+  std::vector<idx_t> roots;
   KASSERT(is_list(succ_array, dist, comm), kascade::assert::with_communication);
   struct message_type {
     idx_t pred;
@@ -153,6 +155,7 @@ auto reverse_list(std::span<const idx_t> succ_array,
   for (auto [global_idx, succ, weight] :
        std::views::zip(dist.global_indices(comm.rank()), succ_array, dist_to_succ)) {
     if (succ == global_idx) {
+      roots.push_back(dist.get_local_idx(global_idx, comm.rank()));
       continue;
     }
     auto owner = dist.get_owner(succ);
@@ -173,6 +176,7 @@ auto reverse_list(std::span<const idx_t> succ_array,
     dist_to_pred[local_idx] = msg.dist_pred_succ;
   }
   KASSERT(is_list(pred_array, dist, comm), kascade::assert::with_communication);
+  return roots;
 }
 
 namespace {

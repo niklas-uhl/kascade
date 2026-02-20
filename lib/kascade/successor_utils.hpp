@@ -27,7 +27,7 @@ auto reverse_list(std::span<const idx_t> succ_array,
                   std::span<idx_t> pred_array,
                   std::span<rank_t> dist_to_pred,
                   Distribution const& dist,
-                  kamping::Communicator<> const& comm) -> void;
+                  kamping::Communicator<> const& comm) -> std::vector<idx_t>;
 
 template <typename T>
 class maybe_owning_contiguous_range {
@@ -57,8 +57,6 @@ auto reverse_rooted_tree(std::span<const idx_t> succ_array,
 
 struct resolve_high_degree_tag {};
 static constexpr resolve_high_degree_tag resolve_high_degree{};
-
-
 
 auto reverse_rooted_tree(std::span<const idx_t> succ_array,
                          std::span<const rank_t> dist_to_succ,
