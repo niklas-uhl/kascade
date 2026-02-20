@@ -408,7 +408,7 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
                              config.use_grid_communication);
   kamping::measurements::timer().stop();
 
-  kamping::measurements::timer().synchronize_and_start("cache_owners");
+  kamping::measurements::timer().start("cache_owners");
   std::optional<std::vector<std::size_t>> succ_owner;
   if (config.cache_owners) {
     succ_owner.emplace(succ_array.size());
@@ -430,7 +430,7 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
     return (*succ_owner)[local_idx];
   };
 
-  kamping::measurements::timer().synchronize_and_start("init_node_type");
+  kamping::measurements::timer().start("init_node_type");
   std::vector<NodeType> node_type(succ_array.size(), NodeType::unreached);
   std::size_t num_unreached = 0;
   for (auto local_idx : dist.local_indices(comm.rank())) {
@@ -450,7 +450,7 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
     num_unreached--;
   }
   kamping::measurements::timer().stop();
-  kamping::measurements::timer().synchronize_and_start("find_rulers");
+  kamping::measurements::timer().start("find_rulers");
 
   std::int64_t local_num_rulers =
       // NOLINTNEXTLINE(*-narrowing-conversions)
@@ -595,7 +595,7 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
   }
 
   {
-    kamping::measurements::timer().synchronize_and_start("pack_base_case");
+    kamping::measurements::timer().start("pack_base_case");
     std::vector<idx_t> succ_array_base(rulers.size());
     std::vector<rank_t> rank_array_base(rulers.size());
     auto [dist_base, unpack] = pack(succ_array, rank_array, dist, rulers, succ_array_base,
@@ -607,7 +607,7 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
     base_algorithm(succ_array_base, rank_array_base, dist_base, comm);
     kamping::measurements::timer().stop();
 
-    kamping::measurements::timer().synchronize_and_start("unpack_base_case");
+    kamping::measurements::timer().start("unpack_base_case");
     unpack(succ_array_base, rank_array_base, dist_base, succ_array, rank_array, dist,
            rulers, comm);
     kamping::measurements::timer().stop();
