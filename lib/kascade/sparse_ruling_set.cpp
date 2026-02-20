@@ -408,13 +408,17 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
   kamping::measurements::timer().stop();
 
   kamping::measurements::timer().synchronize_and_start("cache_owners");
-  std::vector<std::size_t> succ_owner(succ_array.size());
-  for (std::size_t i = 0; i < succ_owner.size(); i++) {
-    auto succ = succ_array[i];
-    if (dist.is_local(succ, comm.rank())) {
-      succ_owner[i] = comm.rank();
-    } else {
-      succ_owner[i] = dist.get_owner(succ);
+  std::optional<std::vector<std::size_t>> succ_owner;
+  if (config.cache_owners) {
+    succ_owner.emplace(succ_array.size());
+    std::vector<std::size_t> succ_owner(succ_array.size());
+    for (std::size_t i = 0; i < succ_owner.size(); i++) {
+      auto succ = succ_array[i];
+      if (dist.is_local(succ, comm.rank())) {
+        succ_owner[i] = comm.rank();
+      } else {
+        succ_owner[i] = dist.get_owner(succ);
+      }
     }
   }
   kamping::measurements::timer().stop();
@@ -422,7 +426,7 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
     if (!config.cache_owners) {
       return dist.get_owner(succ_global);
     }
-    return succ_owner[local_idx];
+    return (*succ_owner)[local_idx];
   };
 
   kamping::measurements::timer().synchronize_and_start("init_node_type");
