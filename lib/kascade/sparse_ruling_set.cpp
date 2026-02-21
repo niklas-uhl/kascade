@@ -346,6 +346,12 @@ auto ruler_propagation(SparseRulingSetConfig const& config,
       }) |
       std::ranges::to<std::vector>();
   kamping::measurements::timer().stop();
+  kamping::measurements::counter().append(
+      "ruler_propagation_requests", static_cast<std::int64_t>(requests.size()),
+      {
+          kamping::measurements::GlobalAggregationMode::min,
+          kamping::measurements::GlobalAggregationMode::max,
+      });
   kamping::measurements::timer().start("exchange_requests");
   auto requests_received = request_dispatcher.alltoallv(requests);
   kamping::measurements::timer().stop();
@@ -400,6 +406,75 @@ auto ruler_propagation(SparseRulingSetConfig const& config,
                         ruler));
     succ_array[local_idx] = info_it->second.root;
     rank_array[local_idx] += info_it->second.dist_to_root;
+  }
+  kamping::measurements::timer().stop();
+}
+
+auto ruler_propagation_(SparseRulingSetConfig const& config,
+                        std::span<idx_t> succ_array,
+                        std::span<rank_t> rank_array,
+                        std::vector<NodeType> const& node_type,
+                        Distribution const& dist,
+                        kamping::Communicator<> const& comm,
+                        propagation_mode::pull_tag /* tag */ = {}) {
+  auto needs_to_request_ruler = [&](idx_t local_idx) {
+    // if the msb is set, this node was reached from a leaf, so root and rank are already
+    // correct
+    // rulers and leafs also have the correct result already from the base algorithm
+    return !bits::has_root_flag(succ_array[local_idx]) &&
+           node_type[local_idx] != NodeType::ruler &&
+           node_type[local_idx] != NodeType::leaf;
+  };
+  kamping::measurements::timer().start("collect_requests");
+  std::vector<std::pair<int, idx_t>> requests;
+  requests.reserve(dist.local_indices(comm.rank()).size());
+  std::size_t deduped_requests = 0;
+  absl::flat_hash_set<idx_t> requested_rulers;
+  std::vector<std::uint32_t> writeback_pos;
+  writeback_pos.reserve(dist.local_indices(comm.rank()).size());
+  for (auto local_idx : dist.local_indices(comm.rank())) {
+    if (!needs_to_request_ruler(local_idx)) {
+      continue;
+    }
+    auto ruler = succ_array[local_idx];
+    requests.emplace_back(dist.get_owner(ruler), ruler);
+    writeback_pos.emplace_back(local_idx);
+  }
+  kamping::measurements::timer().stop();
+  SPDLOG_DEBUG("[ruler_propagation] removed {} duplicate requests", deduped_requests);
+
+  struct ruler_reply {
+    idx_t root;
+    rank_t dist_to_root;
+  };
+
+  kamping::measurements::timer().start("request_reply");
+  MPIBuffer<idx_t> req_sbuffer;
+  MPIBuffer<idx_t> req_rbuffer;
+  std::vector<ruler_reply> reply_sbuffer;
+  std::vector<ruler_reply> reply_rbuffer;
+
+  auto make_reply = [&](const auto& requested_ruler) {
+    auto local_idx = dist.get_local_idx(requested_ruler, comm.rank());
+    return ruler_reply{.root = succ_array[local_idx],
+                       .dist_to_root = rank_array[local_idx]};
+  };
+  request_reply_without_remote_aggregation(requests, make_reply, req_sbuffer, req_rbuffer,
+                                           reply_sbuffer, reply_rbuffer, comm);
+
+  kamping::measurements::timer().stop();
+  kamping::measurements::timer().start("postprocessing");
+  for (auto local_idx : dist.local_indices(comm.rank())) {
+    if (!needs_to_request_ruler(local_idx)) {
+      // this node might have been reached by a leaf, so its msb might be still be set,
+      // fix that
+      succ_array[local_idx] = bits::clear_root_flag(succ_array[local_idx]);
+      continue;
+    }
+    auto target = dist.get_owner(succ_array[local_idx]);
+    auto pos = req_sbuffer.displs[target]++;
+    succ_array[local_idx] = reply_rbuffer[pos].root;
+    rank_array[local_idx] += reply_rbuffer[pos].dist_to_root;
   }
   kamping::measurements::timer().stop();
 }
@@ -700,7 +775,7 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
   kamping::measurements::timer().synchronize_and_start("ruler_propagation");
   switch (config.ruler_propagation_mode) {
     case RulerPropagationMode::pull:
-      ruler_propagation(config, succ_array, rank_array, node_type, dist, comm,
+      ruler_propagation_(config, succ_array, rank_array, node_type, dist, comm,
                         propagation_mode::pull);
       break;
     case RulerPropagationMode::push:
