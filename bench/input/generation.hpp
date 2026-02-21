@@ -22,6 +22,7 @@ namespace kascade::input {
 enum class InputProcessing : std::uint8_t {
   none,
   bfs,
+  eulertour,
   invalid,
 };
 struct Config {
@@ -29,6 +30,20 @@ struct Config {
   InputProcessing input_processing;
 };
 
+struct InputDistributionStats {
+  std::size_t min_local_size;
+  std::size_t max_local_size;
+  std::size_t total_size;
+};
+
 auto generate_input(Config const& config, kamping::Communicator<> const& comm)
     -> std::vector<kascade::idx_t>;
+
+auto rebalance_input(std::vector<idx_t> succ_array, kamping::Communicator<> const& comm)
+    -> std::vector<kascade::idx_t>;
+
+auto get_input_distribution_stats(std::span<idx_t> succ_array,
+                                  kamping::Communicator<> const& comm)
+    -> InputDistributionStats;
+
 }  // namespace kascade::input

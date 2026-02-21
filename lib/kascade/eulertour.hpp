@@ -26,4 +26,6 @@ void rank_via_euler_tour(EulerTourConfig const& config,
 
 auto format_as(std::pair<EulerTour const&, kamping::Communicator<> const&> obj)
     -> std::string;
+
+auto compute_euler_tour(std::span<idx_t> parent_array, kamping::Communicator<> const& comm, bool use_high_degree_handling) -> std::vector<idx_t>;
 }  // namespace kascade

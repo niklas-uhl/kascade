@@ -26,6 +26,13 @@ auto main(int argc, char* argv[]) -> int {
     auto config = parse_args(std::span{argv, static_cast<std::size_t>(argc)});
 
     std::vector<kascade::idx_t> succ = kascade::input::generate_input(config.input, comm);
+    auto input_distribution = kascade::input::get_input_distribution_stats(succ, comm);
+    if (input_distribution.min_local_size + 1 < input_distribution.max_local_size) {
+      succ = kascade::input::rebalance_input(std::move(succ), comm);
+    }
+    auto rebalanced_input_distribution =
+        kascade::input::get_input_distribution_stats(succ, comm);
+
     comm.barrier();
 
     // reference implementation
@@ -46,6 +53,9 @@ auto main(int argc, char* argv[]) -> int {
 
     // actual benchmark runs
     Report report;
+    report.push_stats("input_distribution", [&]() { return input_distribution; });
+    report.push_stats("rebalanced_input_distribution",
+                      [&]() { return rebalanced_input_distribution; });
     for (std::size_t i = 0; i < config.iterations; i++) {
       comm.barrier();
       spdlog::stopwatch stopwatch;

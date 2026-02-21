@@ -30,10 +30,10 @@ auto is_proxy(idx_t v, PartitionedDistribution const& part_dist) {
 /// the edge (v,u) is stored on owner(v) as a global id
 /// we set dist_to_root(v, u) = 1 if u is parent of v and -1 otherwise
 /// If v is a root, we determine exactly one edge (u, v), which has itself as successor.
-auto compute_euler_tour(graph::DistributedCSRGraph const& forest,
-                        PartitionedDistribution const& part_dist,
-                        std::span<idx_t const> parent_array,
-                        kamping::Communicator<> const& comm) -> EulerTour {
+auto compute_euler_tour_impl(graph::DistributedCSRGraph const& forest,
+                             PartitionedDistribution const& part_dist,
+                             std::span<idx_t const> parent_array,
+                             kamping::Communicator<> const& comm) -> EulerTour {
   using Edge = EulerTour::Edge;
   namespace kmp = kamping::params;
 
@@ -348,7 +348,7 @@ void rank_via_euler_tour(EulerTourConfig const& config,
       num_proxy_vertices, tree, parent_array.span().size(), parent_array.span());
   PartitionedDistribution part_dist(succ_array.size(), num_proxy_vertices, comm);
 
-  auto euler_tour = compute_euler_tour(tree, part_dist, parent_array.span(), comm);
+  auto euler_tour = compute_euler_tour_impl(tree, part_dist, parent_array.span(), comm);
   SPDLOG_LOGGER_DEBUG(spdlog::get("gather"), "euler tour {}", std::tie(euler_tour, comm));
   SPDLOG_LOGGER_DEBUG(spdlog::get("gather"),
                       "before ranking succ_array {}\nrank_array {}",
@@ -371,6 +371,21 @@ void rank_via_euler_tour(EulerTourConfig const& config,
   }
   SPDLOG_LOGGER_DEBUG(spdlog::get("gather"), "mapped: \nsucc_array {}\nrank_array {}",
                       succ_array, rank_array);
+}
+
+auto compute_euler_tour(std::span<idx_t> input_parent_array,
+                        kamping::Communicator<> const& comm,
+                        bool use_high_degree_handling) -> std::vector<idx_t> {
+  std::vector<rank_t> dummy_array(input_parent_array.size());
+  Distribution dist(input_parent_array.size(), comm);
+
+  auto [num_proxy_vertices, parent_array, tree] = select_tree_construction(
+      use_high_degree_handling, input_parent_array, dummy_array, dist, comm);
+  PartitionedDistribution partitioned_dist(input_parent_array.size(), num_proxy_vertices,
+                                           comm);  // no proxy vertices
+  auto result =
+      compute_euler_tour_impl(tree, partitioned_dist, parent_array.span(), comm);
+  return result.succ_array;
 }
 
 }  // namespace kascade

@@ -20,9 +20,11 @@ namespace kascade::input {
 NLOHMANN_JSON_SERIALIZE_ENUM(InputProcessing,
                              {{InputProcessing::invalid, nullptr},
                               {InputProcessing::bfs, "bfs"},
+                              {InputProcessing::eulertour, "eulertour"},
                               {InputProcessing::none, "none"}})
 
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Config, kagen_option_string, input_processing);
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(InputDistributionStats, min_local_size, max_local_size, total_size);
 
 }  // namespace kascade::input
 
