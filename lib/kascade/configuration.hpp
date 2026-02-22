@@ -55,6 +55,7 @@ struct SparseRulingSetConfig {
   Algorithm base_algorithm = Algorithm::PointerDoubling;
   std::any base_algorithm_config;
   RulerPropagationMode ruler_propagation_mode = RulerPropagationMode::pull;
+  bool use_aggregation_in_ruler_propagation = false;
   double dehne_factor = 1.0;
   double heuristic_factor = 0.01;
   double sanders_factor = 1.0;

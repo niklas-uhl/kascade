@@ -293,6 +293,9 @@ struct pull_tag {};
 struct push_tag {};
 constexpr pull_tag pull{};
 constexpr push_tag push{};
+
+struct local_aggregation_tag {};
+struct local_aggregation_tag local_aggregation{};
 }  // namespace propagation_mode
 
 auto ruler_propagation(SparseRulingSetConfig const& config,
@@ -301,6 +304,7 @@ auto ruler_propagation(SparseRulingSetConfig const& config,
                        std::vector<NodeType> const& node_type,
                        Distribution const& dist,
                        kamping::Communicator<> const& comm,
+                       propagation_mode::local_aggregation_tag /*tag*/,
                        propagation_mode::pull_tag /* tag */ = {}) {
   auto needs_to_request_ruler = [&](idx_t local_idx) {
     // if the msb is set, this node was reached from a leaf, so root and rank are already
@@ -310,9 +314,10 @@ auto ruler_propagation(SparseRulingSetConfig const& config,
            node_type[local_idx] != NodeType::ruler &&
            node_type[local_idx] != NodeType::leaf;
   };
+
   kamping::measurements::timer().start("collect_requests");
   std::size_t deduped_requests = 0;
-  absl::flat_hash_set<idx_t> requested_rulers;
+  absl::flat_hash_set<packed_index> requested_rulers;
   for (auto local_idx : dist.local_indices(comm.rank())) {
     if (!needs_to_request_ruler(local_idx)) {
       continue;
@@ -321,7 +326,8 @@ auto ruler_propagation(SparseRulingSetConfig const& config,
     if (dist.is_local(ruler, comm.rank())) {
       continue;
     }
-    bool inserted = requested_rulers.insert(ruler).second;
+    packed_index packed_ruler{ruler, static_cast<std::uint32_t>(dist.get_owner(ruler))};
+    bool inserted = requested_rulers.insert(packed_ruler).second;
     if (inserted) {
       SPDLOG_TRACE("Requesting info for ruler {} from PE {}", ruler,
                    dist.get_owner(ruler));
@@ -332,20 +338,18 @@ auto ruler_propagation(SparseRulingSetConfig const& config,
   kamping::measurements::timer().stop();
   SPDLOG_DEBUG("[ruler_propagation] removed {} duplicate requests", deduped_requests);
 
-  struct ruler_request {
-    int requesting_rank;
-    idx_t requested_ruler;
-  };
-
-  AlltoallDispatcher<ruler_request> request_dispatcher(config.use_grid_communication,
-                                                       comm);
   kamping::measurements::timer().start("pack_requests");
   auto requests =
       requested_rulers | std::views::transform([&](auto const& requested_ruler) {
-        return std::make_pair(dist.get_owner(requested_ruler),
-                              ruler_request{comm.rank_signed(), requested_ruler});
+        return std::make_pair(requested_ruler.get_owner(), requested_ruler.get_index());
       }) |
       std::ranges::to<std::vector>();
+  struct ruler_reply {
+    idx_t ruler;
+    idx_t root;
+    rank_t dist_to_root;
+  };
+
   kamping::measurements::timer().stop();
   kamping::measurements::counter().append(
       "ruler_propagation_requests", static_cast<std::int64_t>(requests.size()),
@@ -353,37 +357,23 @@ auto ruler_propagation(SparseRulingSetConfig const& config,
           kamping::measurements::GlobalAggregationMode::min,
           kamping::measurements::GlobalAggregationMode::max,
       });
-  kamping::measurements::timer().start("exchange_requests");
-  auto requests_received = request_dispatcher.alltoallv(requests);
-  kamping::measurements::timer().stop();
 
-  // map requests to replies
-  kamping::measurements::timer().start("build_replies");
-  struct ruler_reply {
-    idx_t ruler;
-    idx_t root;
-    rank_t dist_to_root;
+  kamping::measurements::timer().start("request_reply");
+  auto make_reply = [&](const auto& requested_ruler) {
+    auto local_idx = dist.get_local_idx(requested_ruler, comm.rank());
+    return ruler_reply{.ruler = requested_ruler,
+                       .root = succ_array[local_idx],
+                       .dist_to_root = rank_array[local_idx]};
   };
-  AlltoallDispatcher<ruler_reply> reply_dispatcher(config.use_grid_communication, comm);
-  auto replies = requests_received | std::views::transform([&](auto const& request) {
-                   auto const& [requesting_rank, requested_ruler] = request;
-                   KASSERT(dist.get_owner(requested_ruler) == comm.rank());
-                   auto local_idx = dist.get_local_idx(requested_ruler, comm.rank());
-                   return std::pair{requesting_rank,
-                                    ruler_reply{.ruler = requested_ruler,
-                                                .root = succ_array[local_idx],
-                                                .dist_to_root = rank_array[local_idx]}};
-                 }) |
-                 std::ranges::to<std::vector>();
-  kamping::measurements::timer().stop();
-  kamping::measurements::timer().start("exchange_replies");
-  auto replies_received = reply_dispatcher.alltoallv(replies);
+  auto recv_replies =
+      request_reply_without_remote_aggregation(requests, make_reply, comm);
+
   kamping::measurements::timer().stop();
 
   // store replies
   kamping::measurements::timer().start("process_replies");
   absl::flat_hash_map<idx_t, ruler_reply> ruler_info;
-  for (auto const& reply : replies_received) {
+  for (auto const& reply : recv_replies) {
     ruler_info[reply.ruler] = reply;
   }
   for (auto local_idx : dist.local_indices(comm.rank())) {
@@ -411,13 +401,13 @@ auto ruler_propagation(SparseRulingSetConfig const& config,
   kamping::measurements::timer().stop();
 }
 
-auto ruler_propagation_single_level(SparseRulingSetConfig const& config,
-                                    std::span<idx_t> succ_array,
-                                    std::span<rank_t> rank_array,
-                                    std::vector<NodeType> const& node_type,
-                                    Distribution const& dist,
-                                    kamping::Communicator<> const& comm,
-                                    propagation_mode::pull_tag /* tag */ = {}) {
+auto ruler_propagation(SparseRulingSetConfig const& config,
+                       std::span<idx_t> succ_array,
+                       std::span<rank_t> rank_array,
+                       std::vector<NodeType> const& node_type,
+                       Distribution const& dist,
+                       kamping::Communicator<> const& comm,
+                       propagation_mode::pull_tag /* tag */ = {}) {
   auto needs_to_request_ruler = [&](idx_t local_idx) {
     // if the msb is set, this node was reached from a leaf, so root and rank are already
     // correct
@@ -789,8 +779,13 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
   kamping::measurements::timer().synchronize_and_start("ruler_propagation");
   switch (config.ruler_propagation_mode) {
     case RulerPropagationMode::pull:
-      ruler_propagation_single_level(config, succ_array, rank_array, node_type, dist,
-                                     comm, propagation_mode::pull);
+      if (config.use_aggregation_in_ruler_propagation) {
+        ruler_propagation(config, succ_array, rank_array, node_type, dist, comm,
+                          propagation_mode::local_aggregation, propagation_mode::pull);
+      } else {
+        ruler_propagation(config, succ_array, rank_array, node_type, dist, comm,
+                          propagation_mode::pull);
+      }
       break;
     case RulerPropagationMode::push:
       ruler_propagation(config, succ_array, rank_array, inital_succ_array.value(),
