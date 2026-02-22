@@ -298,7 +298,7 @@ struct local_aggregation_tag {};
 struct local_aggregation_tag local_aggregation{};
 }  // namespace propagation_mode
 
-auto ruler_propagation(SparseRulingSetConfig const& config,
+auto ruler_propagation(SparseRulingSetConfig const& /*config*/,
                        std::span<idx_t> succ_array,
                        std::span<rank_t> rank_array,
                        std::vector<NodeType> const& node_type,
