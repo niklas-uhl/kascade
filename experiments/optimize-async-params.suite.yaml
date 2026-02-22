@@ -1,4 +1,4 @@
-name: optimize-comm-rounds
+name: optimize-async-params
 executable: bench/kascade
 output_path_option_name: "output-file"
 ncores: [64, 128, 256, 512, 1024, 2048]
