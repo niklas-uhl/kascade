@@ -314,7 +314,6 @@ auto ruler_propagation(SparseRulingSetConfig const& config,
            node_type[local_idx] != NodeType::ruler &&
            node_type[local_idx] != NodeType::leaf;
   };
-
   kamping::measurements::timer().start("collect_requests");
   std::size_t deduped_requests = 0;
   absl::flat_hash_set<packed_index> requested_rulers;
@@ -416,18 +415,28 @@ auto ruler_propagation(SparseRulingSetConfig const& config,
            node_type[local_idx] != NodeType::ruler &&
            node_type[local_idx] != NodeType::leaf;
   };
-  kamping::measurements::timer().start("pack");
-  kamping::measurements::timer().start("init");
-  std::vector<packed_index> packed_succ_array;
-  packed_succ_array.reserve(succ_array.size());
-  kamping::measurements::timer().stop();
-  for (const auto& succ : succ_array) {
-    packed_succ_array.emplace_back(succ, dist.get_owner(succ));
+  kamping::measurements::timer().start("cache_owners");
+  std::optional<std::vector<std::size_t>> succ_owner;
+  if (config.cache_owners) {
+    succ_owner.emplace(succ_array.size());
+    for (std::size_t i = 0; i < succ_owner->size(); i++) {
+      auto succ = succ_array[i];
+      if (dist.is_local(succ, comm.rank())) {
+        (*succ_owner)[i] = comm.rank();
+      } else {
+        (*succ_owner)[i] = dist.get_owner(bits::clear_root_flag(succ));
+      }
+    }
   }
-
   kamping::measurements::timer().stop();
+  auto get_succ_owner = [&](idx_t local_idx, idx_t succ_global) {
+    if (!config.cache_owners) {
+      return dist.get_owner(succ_global);
+    }
+    return (*succ_owner)[local_idx];
+  };
   kamping::measurements::timer().start("collect_requests");
-  std::vector<packed_index> requests;
+  std::vector<std::pair<int, idx_t>> requests;
   std::vector<std::uint32_t> writeback_pos;
   std::size_t const max_size_requests = dist.local_indices(comm.rank()).size();
   requests.reserve(max_size_requests);
@@ -436,14 +445,10 @@ auto ruler_propagation(SparseRulingSetConfig const& config,
     if (!needs_to_request_ruler(local_idx)) {
       continue;
     }
-    auto ruler = packed_succ_array[local_idx];
-    requests.emplace_back(ruler);
+    auto ruler = succ_array[local_idx];
+    requests.emplace_back(get_succ_owner(local_idx, ruler), ruler);
     writeback_pos.emplace_back(local_idx);
   }
-  auto request_targets = requests | std::views::transform([&](auto request) {
-                           return static_cast<int>(request.get_owner());
-                         });
-
   kamping::measurements::timer().stop();
 
   struct ruler_reply {
@@ -452,18 +457,17 @@ auto ruler_propagation(SparseRulingSetConfig const& config,
   };
 
   kamping::measurements::timer().start("request_reply");
-  MPIBuffer<packed_index> req_sbuffer;
-  MPIBuffer<packed_index> req_rbuffer;
+  MPIBuffer<idx_t> req_sbuffer;
+  MPIBuffer<idx_t> req_rbuffer;
   std::vector<ruler_reply> reply_sbuffer;
   std::vector<ruler_reply> reply_rbuffer;
 
   auto make_reply = [&](const auto& requested_ruler) {
-    auto local_idx = dist.get_local_idx(requested_ruler.get_index(), comm.rank());
+    auto local_idx = dist.get_local_idx(requested_ruler, comm.rank());
     return ruler_reply{.root = succ_array[local_idx],
                        .dist_to_root = rank_array[local_idx]};
   };
-  request_reply_without_remote_aggregation(std::views::zip(request_targets, requests),
-                                           make_reply, req_sbuffer, req_rbuffer,
+  request_reply_without_remote_aggregation(requests, make_reply, req_sbuffer, req_rbuffer,
                                            reply_sbuffer, reply_rbuffer, comm);
 
   kamping::measurements::timer().stop();
@@ -475,7 +479,7 @@ auto ruler_propagation(SparseRulingSetConfig const& config,
       succ_array[local_idx] = bits::clear_root_flag(succ_array[local_idx]);
       continue;
     }
-    auto target = packed_succ_array[local_idx].get_owner();
+    auto target = get_succ_owner(local_idx, succ_array[local_idx]);
     auto pos = req_sbuffer.displs[target]++;
     succ_array[local_idx] = reply_rbuffer[pos].root;
     rank_array[local_idx] += reply_rbuffer[pos].dist_to_root;
@@ -564,13 +568,12 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
   std::optional<std::vector<std::size_t>> succ_owner;
   if (config.cache_owners) {
     succ_owner.emplace(succ_array.size());
-    std::vector<std::size_t> succ_owner(succ_array.size());
-    for (std::size_t i = 0; i < succ_owner.size(); i++) {
+    for (std::size_t i = 0; i < succ_owner->size(); i++) {
       auto succ = succ_array[i];
       if (dist.is_local(succ, comm.rank())) {
-        succ_owner[i] = comm.rank();
+        (*succ_owner)[i] = comm.rank();
       } else {
-        succ_owner[i] = dist.get_owner(succ);
+        (*succ_owner)[i] = dist.get_owner(succ);
       }
     }
   }
@@ -579,6 +582,7 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
     if (!config.cache_owners) {
       return dist.get_owner(succ_global);
     }
+    KASSERT(dist.get_owner(succ_global) == (*succ_owner)[local_idx]);
     return (*succ_owner)[local_idx];
   };
 
