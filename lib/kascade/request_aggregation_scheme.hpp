@@ -2,6 +2,7 @@
 
 #include <absl/container/flat_hash_map.h>
 #include <kamping/collectives/alltoall.hpp>
+#include <kamping/measurements/timer.hpp>
 #include <kamping/utils/flatten.hpp>
 
 #include "alltoall_utils.hpp"
@@ -120,22 +121,32 @@ auto request_without_remote_aggregation(Requests&& requests,
     -> std::vector<Reply> {
   namespace kmp = kamping::params;
   using Request = std::ranges::range_value_t<Requests>;
+  kamping::measurements::timer().start("collect");
   absl::flat_hash_map<int, std::vector<Request>> send_bufs;
 
   for (auto const& req : requests) {
     int owner = get_target_rank(req);
     send_bufs[owner].emplace_back(req);
   }
+  kamping::measurements::timer().stop();
+  kamping::measurements::timer().start("flatten");
   auto [send_buf, send_counts, send_displs] = kamping::flatten(send_bufs, comm.size());
+  kamping::measurements::timer().stop();
+  kamping::measurements::timer().start("request_alltoall");
   auto [recv_requests, recv_counts] =
       comm.alltoallv(kmp::send_buf(send_buf), kmp::send_counts(send_counts),
                      kmp::send_displs(send_displs), kmp::recv_counts_out());
-
+  kamping::measurements::timer().stop();
+  kamping::measurements::timer().start("build_replies");
   auto replies =
       recv_requests |
       std::views::transform([&](auto const& request) { return make_reply(request); }) |
       std::ranges::to<std::vector>();
-  return comm.alltoallv(kmp::send_buf(replies), kmp::send_counts(recv_counts));
+  kamping::measurements::timer().stop();
+  kamping::measurements::timer().start("reply_alltoall");
+  auto result = comm.alltoallv(kmp::send_buf(replies), kmp::send_counts(recv_counts));
+  kamping::measurements::timer().stop();
+  return result;
 }
 
 template <EnvelopedMsgRange Requests,
