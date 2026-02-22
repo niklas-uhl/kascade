@@ -35,6 +35,7 @@
 #include "kascade/grid_alltoall.hpp"
 #include "kascade/list_ranking.hpp"
 #include "kascade/pack.hpp"
+#include "kascade/packed_index.hpp"
 #include "kascade/pointer_doubling.hpp"
 #include "kascade/successor_utils.hpp"
 #include "kascade/types.hpp"
@@ -425,8 +426,18 @@ auto ruler_propagation_single_level(SparseRulingSetConfig const& config,
            node_type[local_idx] != NodeType::ruler &&
            node_type[local_idx] != NodeType::leaf;
   };
+  kamping::measurements::timer().start("pack");
+  kamping::measurements::timer().start("init");
+  std::vector<packed_index> packed_succ_array;
+  packed_succ_array.reserve(succ_array.size());
+  kamping::measurements::timer().stop();
+  for (const auto& succ : succ_array) {
+    packed_succ_array.emplace_back(succ, dist.get_owner(succ));
+  }
+
+  kamping::measurements::timer().stop();
   kamping::measurements::timer().start("collect_requests");
-  std::vector<idx_t> requests;
+  std::vector<packed_index> requests;
   std::vector<std::uint32_t> writeback_pos;
   std::size_t const max_size_requests = dist.local_indices(comm.rank()).size();
   requests.reserve(max_size_requests);
@@ -435,12 +446,12 @@ auto ruler_propagation_single_level(SparseRulingSetConfig const& config,
     if (!needs_to_request_ruler(local_idx)) {
       continue;
     }
-    auto ruler = succ_array[local_idx];
+    auto ruler = packed_succ_array[local_idx];
     requests.emplace_back(ruler);
     writeback_pos.emplace_back(local_idx);
   }
-  auto request_targets = requests | std::views::transform([&](idx_t request) {
-                           return static_cast<int>(dist.get_owner(request));
+  auto request_targets = requests | std::views::transform([&](auto request) {
+                           return static_cast<int>(request.get_owner());
                          });
 
   kamping::measurements::timer().stop();
@@ -451,13 +462,13 @@ auto ruler_propagation_single_level(SparseRulingSetConfig const& config,
   };
 
   kamping::measurements::timer().start("request_reply");
-  MPIBuffer<idx_t> req_sbuffer;
-  MPIBuffer<idx_t> req_rbuffer;
+  MPIBuffer<packed_index> req_sbuffer;
+  MPIBuffer<packed_index> req_rbuffer;
   std::vector<ruler_reply> reply_sbuffer;
   std::vector<ruler_reply> reply_rbuffer;
 
   auto make_reply = [&](const auto& requested_ruler) {
-    auto local_idx = dist.get_local_idx(requested_ruler, comm.rank());
+    auto local_idx = dist.get_local_idx(requested_ruler.get_index(), comm.rank());
     return ruler_reply{.root = succ_array[local_idx],
                        .dist_to_root = rank_array[local_idx]};
   };
@@ -474,7 +485,7 @@ auto ruler_propagation_single_level(SparseRulingSetConfig const& config,
       succ_array[local_idx] = bits::clear_root_flag(succ_array[local_idx]);
       continue;
     }
-    auto target = dist.get_owner(succ_array[local_idx]);
+    auto target = packed_succ_array[local_idx].get_owner();
     auto pos = req_sbuffer.displs[target]++;
     succ_array[local_idx] = reply_rbuffer[pos].root;
     rank_array[local_idx] += reply_rbuffer[pos].dist_to_root;
