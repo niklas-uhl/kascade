@@ -13,13 +13,16 @@ struct packed_index {
   idx_t value;
   constexpr packed_index() = default;
   constexpr explicit packed_index(idx_t v) : value(v) {}
-
-  constexpr void set_pe_rank(std::uint32_t rank) noexcept {
-    rank &= pe_mask32;  // truncate to 19 bits
-    value = (value & ~pe_mask) | (static_cast<idx_t>(rank) << index_bits);
+  constexpr explicit packed_index(idx_t v, std::uint32_t owner) : value(v) {
+    set_owner(owner);
   }
-  [[nodiscard]] constexpr auto get_pe_rank() const noexcept -> std::uint32_t {
-    return static_cast<std::uint32_t>((value >> index_bits) & pe_mask32);
+
+  constexpr void set_owner(std::uint32_t rank) noexcept {
+    rank &= owner_mask32;  // truncate to 19 bits
+    value = (value & ~owner_mask) | (static_cast<idx_t>(rank) << index_bits);
+  }
+  [[nodiscard]] constexpr auto get_owner() const noexcept -> std::uint32_t {
+    return static_cast<std::uint32_t>((value >> index_bits) & owner_mask32);
   }
 
   [[nodiscard]] constexpr auto get_index() const noexcept -> idx_t {
@@ -36,13 +39,13 @@ struct packed_index {
   constexpr void clear_msb() noexcept { value &= ~msb_mask; }
 
   // masks and bit widths
-  static constexpr unsigned pe_bits = 19U;
+  static constexpr unsigned owner_bits = 19U;
   static constexpr unsigned index_bits = 44U;
   static constexpr idx_t index_mask = (idx_t(1) << index_bits) - 1;  // bits 0..43
-  static constexpr idx_t pe_mask = ((idx_t(1) << pe_bits) - 1)
-                                   << index_bits;  // bits 44..62
-  static constexpr std::uint32_t pe_mask32 =
-      (1U << pe_bits) - 1;  // 19-bit mask as 32-bit
+  static constexpr idx_t owner_mask = ((idx_t(1) << owner_bits) - 1)
+                                      << index_bits;  // bits 44..62
+  static constexpr std::uint32_t owner_mask32 =
+      (1U << owner_bits) - 1;  // 19-bit mask as 32-bit
   static constexpr idx_t msb_mask = idx_t(1) << 63;
 };
 
