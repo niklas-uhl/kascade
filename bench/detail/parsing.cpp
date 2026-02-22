@@ -125,6 +125,10 @@ auto parse_args(std::span<char*> args) -> Config {
   app.add_option("--sparse-ruling-set-ruler-propagation-mode",
                  config.sparse_ruling_set.ruler_propagation_mode)
       ->group("Sparse Ruling Set");
+
+  app.add_flag("--sparse-ruling-set-ruler-propagation-use-aggregation",
+               config.sparse_ruling_set.use_aggregation_in_ruler_propagation)
+      ->group("Sparse Ruling Set");
   app.add_option("--sparse-ruling-set-dehne-factor",
                  config.sparse_ruling_set.dehne_factor)
       ->group("Sparse Ruling Set");

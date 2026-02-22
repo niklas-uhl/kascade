@@ -178,6 +178,22 @@ auto request_reply_without_remote_aggregation(Requests const& requests,
                  kmp::recv_buf_out<kamping::resize_to_fit>(reply_rbuffer));
 }
 
+template <EnvelopedMsgRange Requests,
+          typename Request,
+          typename Reply,
+          typename MakeReplyFn>
+auto request_reply_without_remote_aggregation(Requests const& requests,
+                                              MakeReplyFn const& make_reply,
+                                              kamping::Communicator<> const& comm) {
+  MPIBuffer<Request> req_sbuffer;
+  MPIBuffer<Request> req_rbuffer;
+  std::vector<Reply> reply_sbuffer;
+  std::vector<Reply> reply_rbuffer;
+  request_reply_without_remote_aggregation(requests, make_reply, req_sbuffer, req_rbuffer,
+                                           reply_sbuffer, reply_rbuffer, comm);
+  return req_rbuffer;
+}
+
 template <EnvelopedMsgRange Requests, typename MakeReplyFn>
 auto request_reply_without_remote_aggregation(
     Requests const& requests,

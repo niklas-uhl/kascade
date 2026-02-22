@@ -53,6 +53,18 @@ inline auto operator<<(std::ostream& out, packed_index v) -> std::ostream& {
   return out << v.value;
 }
 
+inline auto operator==(packed_index const& lhs, packed_index const& rhs) -> bool {
+ return lhs.value == rhs.value;
+}
+
 }  // namespace kascade
+namespace std {
+template <>
+struct hash<kascade::packed_index> {
+  std::size_t operator()(const kascade::packed_index& index) const noexcept {
+    return std::hash<id_t>{}(index.value);
+  }
+};
+}  // namespace std
 template <>
 struct fmt::formatter<kascade::packed_index> : fmt::ostream_formatter {};
