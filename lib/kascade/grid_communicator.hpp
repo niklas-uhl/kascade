@@ -8,7 +8,7 @@ namespace kascade {
 class TopologyAwareGridCommunicator {
 public:
   using GlobalCommunicator = kamping::Communicator<>;
-  TopologyAwareGridCommunicator(kamping::Communicator<> const& global_comm);
+  explicit TopologyAwareGridCommunicator(kamping::Communicator<> const& global_comm);
   TopologyAwareGridCommunicator(kamping::Communicator<> const& global_comm,
                                 std::size_t intra_comm_size);
 

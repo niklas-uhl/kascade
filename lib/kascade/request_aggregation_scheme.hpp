@@ -179,19 +179,19 @@ auto request_reply_without_remote_aggregation(Requests const& requests,
 }
 
 template <EnvelopedMsgRange Requests,
-          typename Request,
-          typename Reply,
           typename MakeReplyFn>
 auto request_reply_without_remote_aggregation(Requests const& requests,
                                               MakeReplyFn const& make_reply,
                                               kamping::Communicator<> const& comm) {
+  using Request = MsgTypeOf<std::ranges::range_value_t<Requests>>;
+  using Reply = std::remove_cvref_t<std::invoke_result_t<MakeReplyFn, Request>>;
   MPIBuffer<Request> req_sbuffer;
   MPIBuffer<Request> req_rbuffer;
   std::vector<Reply> reply_sbuffer;
   std::vector<Reply> reply_rbuffer;
   request_reply_without_remote_aggregation(requests, make_reply, req_sbuffer, req_rbuffer,
                                            reply_sbuffer, reply_rbuffer, comm);
-  return req_rbuffer;
+  return reply_rbuffer;
 }
 
 template <EnvelopedMsgRange Requests, typename MakeReplyFn>
