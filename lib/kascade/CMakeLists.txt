@@ -11,6 +11,7 @@ target_sources(
           rma_pointer_doubling.cpp
           grid_communicator.cpp
           eulertour.cpp
+	  sparse_ruling_set.cpp
   PUBLIC FILE_SET
          HEADERS
          BASE_DIRS

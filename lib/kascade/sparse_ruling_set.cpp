@@ -6,22 +6,18 @@
 #include <functional>
 #include <limits>
 #include <optional>
-#include <queue>
 #include <random>
 #include <ranges>
 #include <utility>
 
 #include <absl/container/flat_hash_map.h>
 #include <absl/container/flat_hash_set.h>
-#include <briefkasten/buffered_queue.hpp>
-#include <briefkasten/queue_builder.hpp>
 #include <fmt/ranges.h>
 #include <kamping/collectives/allreduce.hpp>
 #include <kamping/collectives/alltoall.hpp>
 #include <kamping/communicator.hpp>
 #include <kamping/data_buffer.hpp>
 #include <kamping/measurements/counter.hpp>
-#include <kamping/measurements/measurement_aggregation_definitions.hpp>
 #include <kamping/measurements/timer.hpp>
 #include <kamping/mpi_ops.hpp>
 #include <kamping/named_parameters.hpp>
@@ -37,11 +33,11 @@
 #include "kascade/list_ranking.hpp"
 #include "kascade/pack.hpp"
 #include "kascade/pointer_doubling.hpp"
-#include "kascade/sparse_ruling_set_detail/ruler_chasing_engine.hpp"
-#include "kascade/sparse_ruling_set_detail/ruler_propagation.hpp"
-#include "kascade/sparse_ruling_set_detail/types.hpp"
 #include "kascade/successor_utils.hpp"
 #include "kascade/types.hpp"
+#include "sparse_ruling_set_detail/ruler_chasing_engine.hpp"
+#include "sparse_ruling_set_detail/ruler_propagation.hpp"
+#include "sparse_ruling_set_detail/types.hpp"
 
 namespace kascade {
 namespace sparse_ruling_set_detail {
