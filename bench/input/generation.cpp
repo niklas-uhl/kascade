@@ -79,10 +79,13 @@ auto generate_input(Config const& config, kamping::Communicator<> const& comm)
       auto succ_array = internal::generate_bfs_tree(G, comm);
       return succ_array;
     }
-    case InputProcessing::eulertour: {
+    case InputProcessing::eulertour:
+    case InputProcessing::eulertour_break_high_degree: {
       auto G = gen.GenerateFromOptionString(config.kagen_option_string);
       auto parent_array = internal::generate_bfs_tree(G, comm);
-      auto succ_array = compute_euler_tour(parent_array, comm, false);
+      auto succ_array = compute_euler_tour(
+          parent_array, comm,
+          config.input_processing == InputProcessing::eulertour_break_high_degree);
       return succ_array;
     }
     case InputProcessing::invalid:
@@ -106,7 +109,8 @@ auto rebalance_input(std::vector<idx_t> succ_array, kamping::Communicator<> cons
   }
   std::exclusive_scan(distribution.begin(), distribution.end(), distribution.begin(),
                       std::size_t{0});
-  SPDLOG_LOGGER_TRACE(spdlog::get("root"), "total size {} dist {}", total_size, distribution);
+  SPDLOG_LOGGER_TRACE(spdlog::get("root"), "total size {} dist {}", total_size,
+                      distribution);
   return reshape(succ_array, distribution, comm);
 }
 

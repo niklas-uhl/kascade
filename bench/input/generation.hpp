@@ -23,6 +23,7 @@ enum class InputProcessing : std::uint8_t {
   none,
   bfs,
   eulertour,
+  eulertour_break_high_degree,
   invalid,
 };
 struct Config {
