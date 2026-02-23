@@ -8,6 +8,7 @@
 #include <kamping/communicator.hpp>
 #include <spdlog/spdlog.h>
 
+#include "grid_communicator.hpp"
 #include "kascade/distribution.hpp"
 #include "kascade/eulertour.hpp"
 #include "kascade/graph/graph.hpp"
@@ -28,6 +29,15 @@ auto reverse_list(std::span<const idx_t> succ_array,
                   std::span<rank_t> dist_to_pred,
                   Distribution const& dist,
                   kamping::Communicator<> const& comm,
+                  bool use_grid_comm = false) -> std::vector<idx_t>;
+  
+auto reverse_list(std::span<const idx_t> succ_array,
+                  std::span<const rank_t> dist_to_succ,
+                  std::span<idx_t> pred_array,
+                  std::span<rank_t> dist_to_pred,
+                  Distribution const& dist,
+                  kamping::Communicator<> const& comm,
+                  std::optional<TopologyAwareGridCommunicator> const& grid_comm,
                   bool use_grid_comm = false) -> std::vector<idx_t>;
 
 template <typename T>

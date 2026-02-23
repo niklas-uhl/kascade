@@ -24,11 +24,8 @@ auto pack(std::span<const idx_t> succ_array,
           std::span<idx_t> succ_array_packed,
           std::span<rank_t> rank_array_packed,
           kamping::Communicator<> const& comm,
+          std::optional<TopologyAwareGridCommunicator> const& grid_comm,
           bool use_grid_communication = false) {
-  std::optional<TopologyAwareGridCommunicator> grid_comm;
-  if (use_grid_communication) {
-    grid_comm.emplace(comm);
-  }
   auto local_size_packed = std::ranges::size(active_indices);
   KASSERT(succ_array_packed.size() >= local_size_packed);
   KASSERT(rank_array_packed.size() >= local_size_packed);
@@ -85,11 +82,8 @@ auto pack(std::span<const idx_t> succ_array,
                     std::span<rank_t> rank_array, Distribution const& dist_unpacked,
                     IndexRange auto const& active_indices,
                     kamping::Communicator<> const& comm,
+                    std::optional<TopologyAwareGridCommunicator> const& grid_comm,
                     bool use_grid_communication = false) {
-    std::optional<TopologyAwareGridCommunicator> grid_comm;
-    if (use_grid_communication) {
-      grid_comm.emplace(comm);
-    }
     auto local_packed_size = std::ranges::size(active_indices);
     auto unpacked_idx_requests = succ_array_packed.first(local_packed_size) |
                                  std::views::filter([&](auto succ_packed) {
@@ -170,4 +164,21 @@ auto pack(std::span<const idx_t> succ_array,
   };
   return std::make_pair(std::move(packed_dist), std::move(unpack));
 }
+
+auto pack(std::span<const idx_t> succ_array,
+          std::span<const rank_t> rank_array,
+          Distribution const& dist,
+          IndexRange auto const& active_indices,
+          std::span<idx_t> succ_array_packed,
+          std::span<rank_t> rank_array_packed,
+          kamping::Communicator<> const& comm,
+          bool use_grid_communication = false) {
+  std::optional<TopologyAwareGridCommunicator> grid_comm;
+  if (use_grid_communication) {
+    grid_comm.emplace(comm);
+  }
+  return pack(succ_array, rank_array, dist, active_indices, succ_array_packed,
+              rank_array_packed, comm, grid_comm, use_grid_communication);
+}
+
 }  // namespace kascade

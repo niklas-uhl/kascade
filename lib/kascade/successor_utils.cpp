@@ -138,8 +138,6 @@ auto roots(std::span<const idx_t> succ_array,
          }) |
          std::ranges::to<std::vector>();
 }
-
-/// @return the original roots of the tree (which are now leaves)
 auto reverse_list(std::span<const idx_t> succ_array,
                   std::span<const rank_t> dist_to_succ,
                   std::span<idx_t> pred_array,
@@ -148,13 +146,31 @@ auto reverse_list(std::span<const idx_t> succ_array,
                   kamping::Communicator<> const& comm,
                   bool use_grid_comm /* = false */
                   ) -> std::vector<idx_t> {
+  std::optional<TopologyAwareGridCommunicator> grid_comm;
+  if (use_grid_comm) {
+    grid_comm.emplace(comm);
+  }
+  return reverse_list(succ_array, dist_to_succ, pred_array, dist_to_pred, dist, comm,
+                      grid_comm, use_grid_comm);
+}
+
+/// @return the original roots of the tree (which are now leaves)
+auto reverse_list(std::span<const idx_t> succ_array,
+                  std::span<const rank_t> dist_to_succ,
+                  std::span<idx_t> pred_array,
+                  std::span<rank_t> dist_to_pred,
+                  Distribution const& dist,
+                  kamping::Communicator<> const& comm,
+                  std::optional<TopologyAwareGridCommunicator> const& grid_comm,
+                  bool use_grid_comm /* = false */
+                  ) -> std::vector<idx_t> {
   KASSERT(is_list(succ_array, dist, comm), kascade::assert::with_communication);
   struct message_type {
     idx_t pred;
     idx_t succ;
     rank_t dist_pred_succ;
   };
-  
+
   std::vector<idx_t> roots;
   kamping::measurements::timer().start("build_requests");
   std::vector<std::pair<int, message_type>> request_buf;
@@ -167,14 +183,16 @@ auto reverse_list(std::span<const idx_t> succ_array,
       auto succ = succ_array[local_idx];
       auto weight = dist_to_succ[local_idx];
       auto owner = dist.is_local(succ, comm.rank()) ? comm.rank() : dist.get_owner(succ);
-      request_buf.emplace_back(owner, message_type{.pred = global_idx, .succ = succ, .dist_pred_succ = weight});
+      request_buf.emplace_back(
+          owner,
+          message_type{.pred = global_idx, .succ = succ, .dist_pred_succ = weight});
     }
   }
   kamping::measurements::timer().stop();
 
   SPDLOG_DEBUG("[reverse_list] Using grid_communication={} for alltoall", use_grid_comm);
   kamping::measurements::timer().start("dispatcher_init");
-  AlltoallDispatcher<message_type> dispatcher(use_grid_comm, comm);
+  AlltoallDispatcher<message_type> dispatcher(use_grid_comm, comm, grid_comm);
   kamping::measurements::timer().stop();
   kamping::measurements::timer().start("message_exchange");
   auto recv_buf = dispatcher.alltoallv(request_buf);

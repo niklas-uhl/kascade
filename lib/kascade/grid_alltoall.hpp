@@ -127,10 +127,11 @@ auto grid_alltoallv(R&& messages, TopologyAwareGridCommunicator const& grid_comm
 template <typename T>
 class AlltoallDispatcher {
 public:
-  AlltoallDispatcher(bool use_grid_alltoall, kamping::Communicator<> const& comm)
-      : use_grid_alltoall_{use_grid_alltoall}, comm_{&comm} {
+  AlltoallDispatcher(bool use_grid_alltoall, kamping::Communicator<> const& comm, std::optional<TopologyAwareGridCommunicator> const& grid_comm)
+  : use_grid_alltoall_{use_grid_alltoall}, comm_{&comm} {
     if (use_grid_alltoall) {
-      grid_comm_ = TopologyAwareGridCommunicator(comm);
+      KASSERT(grid_comm.has_value());
+      grid_comm_ = &*grid_comm;
     }
   }
 
@@ -140,8 +141,8 @@ public:
   auto alltoallv(R&& messages, std::vector<T>& recv_buf) {
     namespace kmp = kamping::params;
     if (use_grid_alltoall_) {
-      KASSERT(grid_comm_.has_value());
-      recv_buf = kascade::grid_alltoallv(std::forward<R>(messages), grid_comm_.value());
+      KASSERT(grid_comm_ != nullptr);
+      recv_buf = kascade::grid_alltoallv(std::forward<R>(messages), *grid_comm_);
     } else {
       kamping::measurements::timer().start("prepare_send_buf");
       prepare_send_buf_inplace(std::forward<R>(messages), send_buf, send_counts,
@@ -167,7 +168,7 @@ public:
 private:
   bool use_grid_alltoall_;
   kamping::Communicator<> const* comm_;
-  std::optional<TopologyAwareGridCommunicator> grid_comm_;
+  TopologyAwareGridCommunicator const* grid_comm_ = nullptr;
   std::vector<T> send_buf;
   std::vector<int> send_counts;
   std::vector<int> send_displs;

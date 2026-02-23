@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <functional>
 #include <limits>
+#include <optional>
 #include <queue>
 #include <random>
 #include <ranges>
@@ -33,6 +34,7 @@
 #include "kascade/configuration.hpp"
 #include "kascade/distribution.hpp"
 #include "kascade/grid_alltoall.hpp"
+#include "kascade/grid_communicator.hpp"
 #include "kascade/list_ranking.hpp"
 #include "kascade/pack.hpp"
 #include "kascade/packed_index.hpp"
@@ -149,6 +151,7 @@ auto handle_messages(SparseRulingSetConfig const& config,
                      auto&& work_on_item,
                      Distribution const& /* dist */,
                      kamping::Communicator<> const& comm,
+                     std::optional<TopologyAwareGridCommunicator> const& grid_comm,
                      ruler_chasing::sync_tag /* tag */) -> std::size_t {
   auto queue =
       briefkasten::BufferedMessageQueueBuilder<RulerMessage>(comm.mpi_communicator())
@@ -165,7 +168,8 @@ auto handle_messages(SparseRulingSetConfig const& config,
   auto enqueue_locally = [&](RulerMessage const& msg) { local_work.push_back(msg); };
   initialize(enqueue_locally_to_message_buffer, send_to);
 
-  AlltoallDispatcher<RulerMessage> dispatcher(config.use_grid_communication, comm);
+  AlltoallDispatcher<RulerMessage> dispatcher(config.use_grid_communication, comm,
+                                              grid_comm);
 
   std::size_t rounds = 0;
   namespace kmp = kamping::params;
@@ -495,6 +499,7 @@ auto ruler_propagation(SparseRulingSetConfig const& config,
                        std::span<idx_t> rulers,
                        Distribution const& dist,
                        kamping::Communicator<> const& comm,
+                       std::optional<TopologyAwareGridCommunicator> const& grid_comm,
                        propagation_mode::push_tag /* tag */) {
   auto init = [&](auto&& enqueue_locally, auto&& send_to) {
     for (auto const& ruler_local : rulers) {
@@ -539,7 +544,8 @@ auto ruler_propagation(SparseRulingSetConfig const& config,
     send_to(forward_msg, dist.get_owner(succ));
   };
   if (config.sync) {
-    handle_messages(config, init, work_on_item, dist, comm, ruler_chasing::sync);
+    handle_messages(config, init, work_on_item, dist, comm, grid_comm,
+                    ruler_chasing::sync);
   } else {
     handle_messages(config, init, work_on_item, dist, comm, ruler_chasing::async);
   }
@@ -559,9 +565,15 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
                        BaseAlgorithm const& base_algorithm,
                        kamping::Communicator<> const& comm) {
   KASSERT(is_list(succ_array, dist, comm), kascade::assert::with_communication);
+  kamping::measurements::timer().start("init_grid_comm");
+  std::optional<TopologyAwareGridCommunicator> grid_comm;
+  if (config.use_grid_communication) {
+    grid_comm = TopologyAwareGridCommunicator{comm};
+  }
+  kamping::measurements::timer().stop();
   kamping::measurements::timer().synchronize_and_start("invert_list");
   auto leaves = reverse_list(succ_array, rank_array, succ_array, rank_array, dist, comm,
-                             config.use_grid_communication);
+                             grid_comm, config.use_grid_communication);
   kamping::measurements::timer().stop();
 
   kamping::measurements::timer().start("cache_owners");
@@ -737,8 +749,8 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
     // succ_rank);
   };
   if (config.sync) {
-    auto rounds =
-        handle_messages(config, init, work_on_item, dist, comm, ruler_chasing::sync);
+    auto rounds = handle_messages(config, init, work_on_item, dist, comm, grid_comm,
+                                  ruler_chasing::sync);
     trace.track_ruler_chasing_rounds(rounds);
   } else {
     handle_messages(config, init, work_on_item, dist, comm, ruler_chasing::async);
@@ -762,8 +774,9 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
     kamping::measurements::timer().start("pack_base_case");
     std::vector<idx_t> succ_array_base(rulers.size());
     std::vector<rank_t> rank_array_base(rulers.size());
-    auto [dist_base, unpack] = pack(succ_array, rank_array, dist, rulers, succ_array_base,
-                                    rank_array_base, comm);
+    auto [dist_base, unpack] =
+        pack(succ_array, rank_array, dist, rulers, succ_array_base, rank_array_base, comm,
+             grid_comm, config.use_grid_communication);
     kamping::measurements::timer().stop();
 
     kamping::measurements::timer().synchronize_and_start("base_case");
@@ -773,7 +786,7 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
 
     kamping::measurements::timer().start("unpack_base_case");
     unpack(succ_array_base, rank_array_base, dist_base, succ_array, rank_array, dist,
-           rulers, comm);
+           rulers, comm, grid_comm, config.use_grid_communication);
     kamping::measurements::timer().stop();
   }
 
@@ -793,7 +806,7 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
       break;
     case RulerPropagationMode::push:
       ruler_propagation(config, succ_array, rank_array, inital_succ_array.value(),
-                        node_type, rulers, dist, comm, propagation_mode::push);
+                        node_type, rulers, dist, comm, grid_comm, propagation_mode::push);
       break;
     case RulerPropagationMode::invalid:
       throw std::runtime_error("Invalid ruler propagation mode");
