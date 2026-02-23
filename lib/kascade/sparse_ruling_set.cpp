@@ -302,12 +302,13 @@ struct local_aggregation_tag {};
 struct local_aggregation_tag local_aggregation{};
 }  // namespace propagation_mode
 
-auto ruler_propagation(SparseRulingSetConfig const& /*config*/,
+auto ruler_propagation(SparseRulingSetConfig const& config,
                        std::span<idx_t> succ_array,
                        std::span<rank_t> rank_array,
                        std::vector<NodeType> const& node_type,
                        Distribution const& dist,
                        kamping::Communicator<> const& comm,
+                       std::optional<TopologyAwareGridCommunicator> const& grid_comm,
                        propagation_mode::local_aggregation_tag /*tag*/,
                        propagation_mode::pull_tag /* tag */ = {}) {
   auto needs_to_request_ruler = [&](idx_t local_idx) {
@@ -368,8 +369,14 @@ auto ruler_propagation(SparseRulingSetConfig const& /*config*/,
                        .root = succ_array[local_idx],
                        .dist_to_root = rank_array[local_idx]};
   };
-  auto recv_replies =
-      request_reply_without_remote_aggregation(requests, make_reply, comm);
+  auto recv_replies = [&]() {
+    if (config.use_grid_communication) {
+      KASSERT(grid_comm.has_value());
+      return request_reply_without_remote_aggregation(requests, make_reply,
+                                                      grid_comm.value());
+    }
+    return request_reply_without_remote_aggregation(requests, make_reply, comm);
+  }();
 
   kamping::measurements::timer().stop();
 
@@ -404,6 +411,7 @@ auto ruler_propagation(SparseRulingSetConfig const& /*config*/,
   kamping::measurements::timer().stop();
 }
 
+namespace internal {
 auto ruler_propagation(SparseRulingSetConfig const& config,
                        std::span<idx_t> succ_array,
                        std::span<rank_t> rank_array,
@@ -489,6 +497,84 @@ auto ruler_propagation(SparseRulingSetConfig const& config,
     rank_array[local_idx] += reply_rbuffer[pos].dist_to_root;
   }
   kamping::measurements::timer().stop();
+}
+auto ruler_propagation_grid(std::span<idx_t> succ_array,
+                            std::span<rank_t> rank_array,
+                            std::vector<NodeType> const& node_type,
+                            Distribution const& dist,
+                            TopologyAwareGridCommunicator const& grid_comm,
+                            propagation_mode::pull_tag /* tag */ = {}) {
+  auto needs_to_request_ruler = [&](idx_t local_idx) {
+    // if the msb is set, this node was reached from a leaf, so root and rank are already
+    // correct
+    // rulers and leafs also have the correct result already from the base algorithm
+    return !bits::has_root_flag(succ_array[local_idx]) &&
+           node_type[local_idx] != NodeType::ruler &&
+           node_type[local_idx] != NodeType::leaf;
+  };
+  kamping::measurements::timer().start("collect_requests");
+  struct ruler_request {
+    idx_t ruler;
+    idx_t write_back_pos;
+  };
+  auto const& comm = grid_comm.global_comm();
+  std::vector<std::pair<int, ruler_request>> requests;
+  std::size_t const max_size_requests = dist.local_indices(comm.rank()).size();
+  requests.reserve(max_size_requests);
+  for (auto local_idx : dist.local_indices(comm.rank())) {
+    if (!needs_to_request_ruler(local_idx)) {
+      succ_array[local_idx] = bits::clear_root_flag(succ_array[local_idx]);
+      continue;
+    }
+    auto ruler = succ_array[local_idx];
+    auto owner = dist.get_owner(ruler);
+    requests.emplace_back(owner,
+                          ruler_request{.ruler = ruler, .write_back_pos = local_idx});
+  }
+  kamping::measurements::timer().stop();
+
+  struct ruler_reply {
+    idx_t root;
+    rank_t dist_to_root;
+    idx_t write_back_pos;
+  };
+
+  kamping::measurements::timer().start("request_reply");
+
+  auto make_reply = [&](const auto& request) {
+    auto local_idx = dist.get_local_idx(request.ruler, comm.rank());
+    return ruler_reply{.root = succ_array[local_idx],
+                       .dist_to_root = rank_array[local_idx],
+                       .write_back_pos = request.write_back_pos};
+  };
+
+  auto recv_replies =
+      request_reply_without_remote_aggregation(requests, make_reply, grid_comm);
+
+  kamping::measurements::timer().stop();
+  kamping::measurements::timer().start("postprocessing");
+  for (auto const& [root, dist_to_root, local_idx] : recv_replies) {
+    succ_array[local_idx] = root;
+    rank_array[local_idx] += dist_to_root;
+  }
+  kamping::measurements::timer().stop();
+}
+}  // namespace internal
+auto ruler_propagation(SparseRulingSetConfig const& config,
+                       std::span<idx_t> succ_array,
+                       std::span<rank_t> rank_array,
+                       std::vector<NodeType> const& node_type,
+                       Distribution const& dist,
+                       kamping::Communicator<> const& comm,
+                       std::optional<TopologyAwareGridCommunicator> const& grid_comm,
+                       propagation_mode::pull_tag /* tag */ = {}) {
+  if (config.use_grid_communication) {
+    internal::ruler_propagation_grid(succ_array, rank_array, node_type, dist,
+                                     grid_comm.value(), propagation_mode::pull);
+  } else {
+    internal::ruler_propagation(config, succ_array, rank_array, node_type, dist, comm,
+                                propagation_mode::pull);
+  }
 }
 
 auto ruler_propagation(SparseRulingSetConfig const& config,
@@ -798,10 +884,11 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
     case RulerPropagationMode::pull:
       if (config.use_aggregation_in_ruler_propagation) {
         ruler_propagation(config, succ_array, rank_array, node_type, dist, comm,
-                          propagation_mode::local_aggregation, propagation_mode::pull);
+                          grid_comm, propagation_mode::local_aggregation,
+                          propagation_mode::pull);
       } else {
         ruler_propagation(config, succ_array, rank_array, node_type, dist, comm,
-                          propagation_mode::pull);
+                          grid_comm, propagation_mode::pull);
       }
       break;
     case RulerPropagationMode::push:
