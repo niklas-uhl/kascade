@@ -1,6 +1,9 @@
 #pragma once
 
+#include <type_traits>
+
 #include <kamping/measurements/timer.hpp>
+#include <kamping/mpi_datatype.hpp>
 
 #include "kascade/alltoall_utils.hpp"
 #include "kascade/grid_communicator.hpp"
@@ -12,6 +15,19 @@ struct Envelope {
   int target_rank;
   Msg msg;
 };
+}  // namespace kascade
+
+namespace kamping {
+template <typename Msg>
+struct mpi_type_traits<
+    kascade::Envelope<Msg>,
+    std::enable_if_t<std::is_same_v<decltype(type_dispatcher<kascade::Envelope<Msg>>()),
+                                    no_matching_type>>>
+    // : kamping::struct_type<kascade::Envelope<Msg>> {};
+    : kamping::byte_serialized<kascade::Envelope<Msg>> {};
+}  // namespace kamping
+
+namespace kascade {
 template <typename Msg>
 auto get_target_rank(Envelope<Msg> const& envelope) -> int {
   return envelope.target_rank;
