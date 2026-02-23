@@ -8,6 +8,7 @@ Checks:
   - 'performance-*'
   - 'misc-*'
   - '-misc-include-*'
+  - '-readability-function-cognitive-complexity'
 HeaderFilterRegex: 'include/'
 UseColor: true
 CheckOptions:
