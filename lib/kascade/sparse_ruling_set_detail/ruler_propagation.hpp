@@ -5,19 +5,10 @@
 
 #include <absl/container/flat_hash_map.h>
 #include <absl/container/flat_hash_set.h>
-#include <briefkasten/buffered_queue.hpp>
-#include <briefkasten/queue_builder.hpp>
 #include <fmt/ranges.h>
-#include <kamping/collectives/allreduce.hpp>
-#include <kamping/collectives/alltoall.hpp>
 #include <kamping/communicator.hpp>
-#include <kamping/data_buffer.hpp>
 #include <kamping/measurements/counter.hpp>
-#include <kamping/measurements/measurement_aggregation_definitions.hpp>
 #include <kamping/measurements/timer.hpp>
-#include <kamping/mpi_ops.hpp>
-#include <kamping/named_parameters.hpp>
-#include <kamping/utils/flatten.hpp>
 #include <kassert/kassert.hpp>
 #include <spdlog/spdlog.h>
 
@@ -28,7 +19,6 @@
 #include "kascade/sparse_ruling_set_detail/ruler_chasing_engine.hpp"
 #include "kascade/sparse_ruling_set_detail/types.hpp"
 #include "kascade/types.hpp"
-
 
 namespace kascade::sparse_ruling_set_detail {
 namespace propagation_mode {
@@ -50,7 +40,7 @@ inline auto ruler_propagation(
     kamping::Communicator<> const& comm,
     std::optional<TopologyAwareGridCommunicator> const& grid_comm,
     propagation_mode::local_aggregation_tag /*tag*/,
-    propagation_mode::pull_tag /* tag */ = {}) {
+    propagation_mode::pull_tag /* tag */ ) {
   auto needs_to_request_ruler = [&](idx_t local_idx) {
     // if the msb is set, this node was reached from a leaf, so root and rank are already
     // correct
@@ -322,9 +312,9 @@ inline auto ruler_propagation(
     SparseRulingSetConfig const& config,
     std::span<idx_t> succ_array,
     std::span<rank_t> rank_array,
-    std::span<idx_t> initial_succ_array,
+    std::span<const idx_t> initial_succ_array,
     std::vector<NodeType> const& node_type,
-    std::span<idx_t> rulers,
+    std::span<const idx_t> rulers,
     Distribution const& dist,
     kamping::Communicator<> const& comm,
     std::optional<TopologyAwareGridCommunicator> const& grid_comm,
@@ -378,7 +368,38 @@ inline auto ruler_propagation(
     ruler_chasing_engine(config, init, work_on_item, dist, comm, ruler_chasing::async);
   }
 }
+  
+inline auto ruler_propagation(
+    SparseRulingSetConfig const& config,
+    std::span<idx_t> succ_array,
+    std::span<rank_t> rank_array,
+    std::optional<std::span<const idx_t>> initial_succ_array,
+    std::vector<NodeType> const& node_type,
+    std::span<const idx_t> rulers,
+    Distribution const& dist,
+    kamping::Communicator<> const& comm,
+    std::optional<TopologyAwareGridCommunicator> const& grid_comm) {
+  switch (config.ruler_propagation_mode) {
+    case RulerPropagationMode::pull:
+      if (config.use_aggregation_in_ruler_propagation) {
+        ruler_propagation(config, succ_array, rank_array, node_type, dist, comm,
+                          grid_comm,
+                          sparse_ruling_set_detail::propagation_mode::local_aggregation,
+                          sparse_ruling_set_detail::propagation_mode::pull);
+      } else {
+        ruler_propagation(config, succ_array, rank_array, node_type, dist, comm,
+                          grid_comm, sparse_ruling_set_detail::propagation_mode::pull);
+      }
+      break;
+    case RulerPropagationMode::push:
+      ruler_propagation(config, succ_array, rank_array, initial_succ_array.value(),
+                        node_type, rulers, dist, comm, grid_comm,
+                        sparse_ruling_set_detail::propagation_mode::push);
+      break;
+    case RulerPropagationMode::invalid:
+      throw std::runtime_error("Invalid ruler propagation mode");
+      break;
+  }
+}
 
-} // namespace kascade::sparse_ruling_set_detail
-
-
+}  // namespace kascade::sparse_ruling_set_detail

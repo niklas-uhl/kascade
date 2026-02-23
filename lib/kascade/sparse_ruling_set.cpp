@@ -11,17 +11,8 @@
 #include <utility>
 
 #include <absl/container/flat_hash_map.h>
-#include <absl/container/flat_hash_set.h>
-#include <fmt/ranges.h>
-#include <kamping/collectives/allreduce.hpp>
-#include <kamping/collectives/alltoall.hpp>
 #include <kamping/communicator.hpp>
-#include <kamping/data_buffer.hpp>
-#include <kamping/measurements/counter.hpp>
 #include <kamping/measurements/timer.hpp>
-#include <kamping/mpi_ops.hpp>
-#include <kamping/named_parameters.hpp>
-#include <kamping/utils/flatten.hpp>
 #include <kassert/kassert.hpp>
 #include <spdlog/spdlog.h>
 
@@ -37,163 +28,12 @@
 #include "kascade/types.hpp"
 #include "sparse_ruling_set_detail/ruler_chasing_engine.hpp"
 #include "sparse_ruling_set_detail/ruler_propagation.hpp"
+#include "sparse_ruling_set_detail/ruler_selection.hpp"
+#include "sparse_ruling_set_detail/trace.hpp"
 #include "sparse_ruling_set_detail/types.hpp"
 
 namespace kascade {
 namespace sparse_ruling_set_detail {
-namespace {
-auto compute_local_num_rulers(SparseRulingSetConfig const& config,
-                              Distribution const& dist,
-                              kamping::Communicator<> const& comm) -> std::size_t {
-  // NOLINTBEGIN(readability-identifier-length)
-  auto n = dist.get_global_size();
-  auto p = comm.size();
-  auto rel_local_size =
-      static_cast<double>(dist.get_local_size(comm.rank())) / static_cast<double>(n);
-  // NOLINTEND(readability-identifier-length)
-
-  switch (config.ruler_selection) {
-    case RulerSelectionStrategy::dehne:
-      // pick O(n/p) rulers in total
-      return static_cast<std::size_t>(config.dehne_factor *
-                                      (static_cast<double>(n) / static_cast<double>(p))) /
-             p;
-    case RulerSelectionStrategy::heuristic:
-      // pick heuristic_factor * local_num_leaves per PE
-      return static_cast<std::size_t>(
-          config.heuristic_factor *
-          static_cast<double>(dist.get_local_size(comm.rank())));
-    case kascade::RulerSelectionStrategy::sanders:
-      return static_cast<std::size_t>(config.sanders_factor * std::sqrt(n) *
-                                      static_cast<double>(p) / std::log(n) *
-                                      rel_local_size);
-    case RulerSelectionStrategy::limit_rounds: {
-      if (!config.spawn) {
-        SPDLOG_LOGGER_WARN(spdlog::get("root"),
-                           "limit-rounds ruler selection strategy is only effective if "
-                           "spawn is enabled");
-      }
-      auto total_num_rulers = n / config.round_limit;
-      return static_cast<std::size_t>(static_cast<double>(total_num_rulers) *
-                                      rel_local_size);
-    }
-    case RulerSelectionStrategy::invalid:
-      throw std::runtime_error("Invalid ruler selection strategy");
-      break;
-  }
-  std::unreachable();
-}
-auto pick_rulers(std::span<const idx_t> succ_array,
-                 std::size_t local_num_rulers,
-                 auto& rng,
-                 std::predicate<idx_t> auto const& idx_predicate) -> std::vector<idx_t> {
-  std::vector<idx_t> rulers(local_num_rulers);
-  auto indices = std::views::iota(idx_t{0}, static_cast<idx_t>(succ_array.size())) |
-                 std::views::filter(idx_predicate);
-  auto it = std::ranges::sample(
-      indices, rulers.begin(),
-      static_cast<std::ranges::range_difference_t<decltype(indices)>>(local_num_rulers),
-      rng);
-  rulers.erase(it, rulers.end());
-  return rulers;
-}
-
-struct RulerTrace {
-  absl::flat_hash_map<idx_t, idx_t> ruler_list_length;
-  std::size_t local_subproblem_size_{};
-  RulerTrace(const RulerTrace&) = default;
-  RulerTrace(RulerTrace&&) = delete;
-  auto operator=(const RulerTrace&) -> RulerTrace& = default;
-  auto operator=(RulerTrace&&) -> RulerTrace& = delete;
-  std::size_t local_num_rulers_;
-  std::size_t local_num_leaves_;
-  RulerTrace(std::size_t local_num_rulers, std::size_t local_num_leaves)
-      : local_num_rulers_(local_num_rulers), local_num_leaves_(local_num_leaves) {}
-  ~RulerTrace() {
-    kamping::measurements::timer().start("aggregate_ruler_stats");
-    idx_t min_length = std::numeric_limits<idx_t>::max();
-    idx_t max_length = std::numeric_limits<idx_t>::min();
-    idx_t length_sum = 0;
-    std::size_t num_rulers = ruler_list_length.size();
-    for (auto& [_, length] : ruler_list_length) {
-      min_length = std::min(min_length, length);
-      max_length = std::max(max_length, length);
-      length_sum += length;
-    }
-    struct ruler_stats {
-      idx_t min_length;
-      idx_t max_length;
-      idx_t length_sum;
-      std::size_t num_rulers;
-    };
-    ruler_stats stats{.min_length = min_length,
-                      .max_length = max_length,
-                      .length_sum = length_sum,
-                      .num_rulers = num_rulers};
-    auto agg = [](auto const& lhs, auto const& rhs) {
-      return ruler_stats{.min_length = std::min(lhs.min_length, rhs.min_length),
-                         .max_length = std::max(lhs.max_length, rhs.max_length),
-                         .length_sum = std::plus<>{}(lhs.length_sum, rhs.length_sum),
-                         .num_rulers = std::plus<>{}(lhs.num_rulers, rhs.num_rulers)};
-    };
-    kamping::comm_world().allreduce(kamping::send_recv_buf(stats),
-                                    kamping::op(agg, kamping::ops::commutative));
-    kamping::measurements::counter().append(
-        "ruler_list_length_min", static_cast<std::int64_t>(stats.min_length),
-        {
-            kamping::measurements::GlobalAggregationMode::min,
-        });
-    kamping::measurements::counter().append(
-        "ruler_list_length_max", static_cast<std::int64_t>(stats.max_length),
-        {
-            kamping::measurements::GlobalAggregationMode::max,
-        });
-    kamping::measurements::counter().append(
-        "ruler_list_length_avg",
-        static_cast<std::int64_t>(static_cast<double>(stats.length_sum) /
-                                  static_cast<double>(stats.num_rulers)),
-        {
-            kamping::measurements::GlobalAggregationMode::max,
-        });
-    kamping::measurements::counter().append(
-        "local_num_ruler", static_cast<std::int64_t>(local_num_rulers_),
-        {kamping::measurements::GlobalAggregationMode::max,
-         kamping::measurements::GlobalAggregationMode::min});
-    kamping::measurements::counter().append(
-        "local_num_leaves", static_cast<std::int64_t>(local_num_leaves_),
-        {kamping::measurements::GlobalAggregationMode::max,
-         kamping::measurements::GlobalAggregationMode::min});
-    kamping::measurements::counter().append(
-        "local_subproblem_size", static_cast<std::int64_t>(local_subproblem_size_),
-        {kamping::measurements::GlobalAggregationMode::sum,
-         kamping::measurements::GlobalAggregationMode::max,
-         kamping::measurements::GlobalAggregationMode::min});
-    kamping::measurements::counter().append(
-        "num_spawned_rulers", static_cast<std::int64_t>(num_spawned_rulers_),
-        {kamping::measurements::GlobalAggregationMode::sum,
-         kamping::measurements::GlobalAggregationMode::max,
-         kamping::measurements::GlobalAggregationMode::min});
-    kamping::measurements::counter().append(
-        "ruler_chasing_rounds", static_cast<std::int64_t>(rounds_),
-        {kamping::measurements::GlobalAggregationMode::max,
-         kamping::measurements::GlobalAggregationMode::min});
-    kamping::measurements::timer().stop();
-  }
-  void track_chain_end(idx_t ruler, rank_t dist_from_ruler) {
-    ruler_list_length[ruler] = dist_from_ruler;
-  }
-  std::size_t num_spawned_rulers_ = 0;
-  void track_spawn() { num_spawned_rulers_++; }
-  void track_base_case(std::size_t local_subproblem_size) {
-    local_subproblem_size_ = local_subproblem_size;
-  }
-  std::size_t rounds_;
-  void track_ruler_chasing_rounds(std::size_t ruler_chasing_rounds) {
-    rounds_ = ruler_chasing_rounds;
-  }
-};
-
-}  // namespace
 
 using BaseAlgorithm = std::function<void(std::span<idx_t>,
                                          std::span<rank_t>,
@@ -207,7 +47,7 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
                        Distribution const& dist,
                        BaseAlgorithm const& base_algorithm,
                        kamping::Communicator<> const& comm) {
-  KASSERT(is_list(succ_array, dist, comm), kascade::assert::with_communication);
+  KASSERT(is_list(succ_array, dist, comm), assert::with_communication);
   kamping::measurements::timer().start("init_grid_comm");
   std::optional<TopologyAwareGridCommunicator> grid_comm;
   if (config.use_grid_communication) {
@@ -437,28 +277,8 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
   // Request rank and root from rulers //
   ///////////////////////////////////////
   kamping::measurements::timer().synchronize_and_start("ruler_propagation");
-  switch (config.ruler_propagation_mode) {
-    case RulerPropagationMode::pull:
-      if (config.use_aggregation_in_ruler_propagation) {
-        sparse_ruling_set_detail::ruler_propagation(
-            config, succ_array, rank_array, node_type, dist, comm, grid_comm,
-            sparse_ruling_set_detail::propagation_mode::local_aggregation,
-            sparse_ruling_set_detail::propagation_mode::pull);
-      } else {
-        sparse_ruling_set_detail::ruler_propagation(
-            config, succ_array, rank_array, node_type, dist, comm, grid_comm,
-            sparse_ruling_set_detail::propagation_mode::pull);
-      }
-      break;
-    case RulerPropagationMode::push:
-      sparse_ruling_set_detail::ruler_propagation(
-          config, succ_array, rank_array, inital_succ_array.value(), node_type, rulers,
-          dist, comm, grid_comm, sparse_ruling_set_detail::propagation_mode::push);
-      break;
-    case RulerPropagationMode::invalid:
-      throw std::runtime_error("Invalid ruler propagation mode");
-      break;
-  }
+  ruler_propagation(config, succ_array, rank_array, inital_succ_array, node_type, rulers,
+                    dist, comm, grid_comm);
   kamping::measurements::timer().stop();
 }
 }  // namespace
@@ -472,9 +292,9 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
   using namespace sparse_ruling_set_detail;
   BaseAlgorithm base_algorithm;
   switch (config.base_algorithm) {
-    case kascade::Algorithm::PointerDoubling:
+    case Algorithm::PointerDoubling:
       base_algorithm = [&](auto&&... args) {
-        kascade::pointer_doubling(
+        pointer_doubling(
             std::any_cast<PointerDoublingConfig>(config.base_algorithm_config), args...);
       };
       break;
@@ -483,14 +303,14 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
       break;
     case Algorithm::AsyncPointerDoubling:
       base_algorithm = [&](auto&&... args) {
-        kascade::async_pointer_doubling(
+        async_pointer_doubling(
             std::any_cast<AsyncPointerChasingConfig>(config.base_algorithm_config),
             args...);
       };
       break;
     case Algorithm::RMAPointerDoubling:
       base_algorithm = [&](auto&&... args) {
-        kascade::rma_pointer_doubling(
+        rma_pointer_doubling(
             std::any_cast<RMAPointerChasingConfig>(config.base_algorithm_config),
             args...);
       };

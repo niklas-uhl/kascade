@@ -9,4 +9,7 @@ target_sources(
           FILES
           ruler_chasing_engine.hpp
           ruler_propagation.hpp
-          types.hpp)
+	  ruler_selection.hpp
+          types.hpp
+	  trace.hpp
+	)
