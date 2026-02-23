@@ -91,9 +91,6 @@ auto compute_per_tree_stats(bool gather_tree_stats,
     std::size_t num_trivial_trees = stats.num_trees - stats.num_nontrivial_trees;
     stats.avg_size =
         safe_division(stats.nontrivial_size_sum + num_trivial_trees, stats.num_trees);
-    spdlog::get("root")->info("num trivial {}, nontrivial {}, num trees {}, res {}",
-                              num_trivial_trees, stats.num_nontrivial_trees,
-                              stats.num_trees, stats.avg_size);
     stats.nontrivial_avg_size =
         safe_division(stats.nontrivial_size_sum, stats.num_nontrivial_trees);
 

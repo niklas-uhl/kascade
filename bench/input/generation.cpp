@@ -106,7 +106,7 @@ auto rebalance_input(std::vector<idx_t> succ_array, kamping::Communicator<> cons
   }
   std::exclusive_scan(distribution.begin(), distribution.end(), distribution.begin(),
                       std::size_t{0});
-  spdlog::get("root")->info("total size {} dist {}", total_size, distribution);
+  SPDLOG_LOGGER_TRACE(spdlog::get("root"), "total size {} dist {}", total_size, distribution);
   return reshape(succ_array, distribution, comm);
 }
 

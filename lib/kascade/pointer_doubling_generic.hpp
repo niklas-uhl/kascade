@@ -314,14 +314,11 @@ auto select_doubling_strategy(
       return nullptr;
     case kascade::AggregationLevel::none: {
       if (!config.use_grid_communication) {
-        spdlog::get("root")->info("no agg");
         return std::make_unique<DoublingWithoutAggregation>(comm, grid_comm);
       }
-      spdlog::get("root")->info("no agg but grid");
       return std::make_unique<GridDoublingWithoutAggregation>(comm, grid_comm);
     }
     case kascade::AggregationLevel::local:
-      spdlog::get("root")->info("local agg but grid");
       return std::make_unique<DoublingWithAggregation>(
           comm, grid_comm, config.use_grid_communication, false);
     case kascade::AggregationLevel::all:

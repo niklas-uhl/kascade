@@ -43,7 +43,6 @@ class forest_regular_ruling_set2 //this is for trees
 		rank = comm.rank();
 		num_local_vertices = s.size();
 		node_offset = rank * num_local_vertices;
-    spdlog::get("gather")->info("bla");
 		//now turn around s array
 		
 		calculate_adj_arr(s, comm, grid_comm, node_offset, timer);

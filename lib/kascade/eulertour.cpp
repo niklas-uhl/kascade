@@ -337,27 +337,27 @@ void rank_via_euler_tour(EulerTourConfig const& config,
                          std::span<rank_t> rank_array,
                          Distribution const& dist,
                          kamping::Communicator<> const& comm) {
-  SPDLOG_LOGGER_DEBUG(spdlog::get("gather"), "size {}\nsucc_array {}\nrank_array {}",
+  SPDLOG_LOGGER_TRACE(spdlog::get("gather"), "size {}\nsucc_array {}\nrank_array {}",
                       succ_array.size(), succ_array, rank_array);
   auto [num_proxy_vertices, parent_array, tree] = select_tree_construction(
       config.use_high_degree_handling, succ_array, rank_array, dist, comm);
   KASSERT(config.use_high_degree_handling || (num_proxy_vertices == 0),
           "Without high degree handling, no proxy vertices");
-  SPDLOG_LOGGER_DEBUG(
+  SPDLOG_LOGGER_TRACE(
       spdlog::get("gather"), "num proxies {}, tree {}\nparent size {} parent array {}",
       num_proxy_vertices, tree, parent_array.span().size(), parent_array.span());
   PartitionedDistribution part_dist(succ_array.size(), num_proxy_vertices, comm);
 
   auto euler_tour = compute_euler_tour_impl(tree, part_dist, parent_array.span(), comm);
-  SPDLOG_LOGGER_DEBUG(spdlog::get("gather"), "euler tour {}", std::tie(euler_tour, comm));
-  SPDLOG_LOGGER_DEBUG(spdlog::get("gather"),
+  SPDLOG_LOGGER_TRACE(spdlog::get("gather"), "euler tour {}", std::tie(euler_tour, comm));
+  SPDLOG_LOGGER_TRACE(spdlog::get("gather"),
                       "before ranking succ_array {}\nrank_array {}",
                       euler_tour.succ_array, euler_tour.rank_array);
-  SPDLOG_LOGGER_DEBUG(
+  SPDLOG_LOGGER_TRACE(
       spdlog::get("root"), "traced {}",
       trace_successor_list(euler_tour.succ_array, euler_tour.rank_array, comm));
   rank_via_euler_tour_select_algorithm(config, euler_tour, comm);
-  SPDLOG_LOGGER_DEBUG(
+  SPDLOG_LOGGER_TRACE(
       spdlog::get("gather"), "ranked size {}  succ_array {}\nrank_array {}",
       euler_tour.succ_array.size(), euler_tour.succ_array, euler_tour.rank_array);
   if (config.use_high_degree_handling) {
@@ -369,7 +369,7 @@ void rank_via_euler_tour(EulerTourConfig const& config,
         euler_tour, tree, succ_array, rank_array, part_dist,
         [](auto const&) { return false; }, comm);
   }
-  SPDLOG_LOGGER_DEBUG(spdlog::get("gather"), "mapped: \nsucc_array {}\nrank_array {}",
+  SPDLOG_LOGGER_TRACE(spdlog::get("gather"), "mapped: \nsucc_array {}\nrank_array {}",
                       succ_array, rank_array);
 }
 
