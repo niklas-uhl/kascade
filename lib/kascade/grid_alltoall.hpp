@@ -3,7 +3,10 @@
 #include <type_traits>
 
 #include <kamping/measurements/timer.hpp>
+#include <kamping/collectives/alltoall.hpp>
 #include <kamping/mpi_datatype.hpp>
+#include <spdlog/spdlog.h>
+#include <fmt/ranges.h>
 
 #include "kascade/alltoall_utils.hpp"
 #include "kascade/grid_communicator.hpp"
@@ -127,8 +130,10 @@ auto grid_alltoallv(R&& messages, TopologyAwareGridCommunicator const& grid_comm
 template <typename T>
 class AlltoallDispatcher {
 public:
-  AlltoallDispatcher(bool use_grid_alltoall, kamping::Communicator<> const& comm, std::optional<TopologyAwareGridCommunicator> const& grid_comm)
-  : use_grid_alltoall_{use_grid_alltoall}, comm_{&comm} {
+  AlltoallDispatcher(bool use_grid_alltoall,
+                     kamping::Communicator<> const& comm,
+                     std::optional<TopologyAwareGridCommunicator> const& grid_comm)
+      : use_grid_alltoall_{use_grid_alltoall}, comm_{&comm} {
     if (use_grid_alltoall) {
       KASSERT(grid_comm.has_value());
       grid_comm_ = &*grid_comm;

@@ -10,7 +10,6 @@ target_sources(
           async_pointer_doubling.cpp
           rma_pointer_doubling.cpp
           grid_communicator.cpp
-          sparse_ruling_set.cpp
           eulertour.cpp
   PUBLIC FILE_SET
          HEADERS
@@ -24,6 +23,7 @@ target_sources(
          configuration.hpp
          eulertour.hpp
          types.hpp)
+add_subdirectory(sparse_ruling_set_detail)
 target_link_libraries(
   ${CMAKE_PROJECT_NAME}_list_ranking
   PUBLIC MPI::MPI_CXX kamping::kamping ${CMAKE_PROJECT_NAME}_graph
