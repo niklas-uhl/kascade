@@ -15,6 +15,7 @@ value_paths = Dict(
     "sparse_ruling_set_grid_comm" => ["config", "sparse_ruling_set", "use_grid_communication"],
     "sparse_ruling_set_dehne_factor" => ["config", "sparse_ruling_set", "dehne_factor"],
     "sparse_ruling_set_sanders_factor" => ["config", "sparse_ruling_set", "sanders_factor"],
+    "sparse_ruling_set_round_limit" => ["config", "sparse_ruling_set", "round_limit"],
     "sparse_ruling_set_ruler_selection" => ["config", "sparse_ruling_set", "ruler_selection"],
     "sparse_ruling_set_ruler_propagation_mode" => ["config", "sparse_ruling_set", "ruler_propagation_mode"],
     "sparse_ruling_set_briefkasten_local_threshold" => ["config", "sparse_ruling_set", "briefkasten", "local_threshold"],
