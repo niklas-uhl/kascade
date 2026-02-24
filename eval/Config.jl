@@ -29,6 +29,12 @@ value_paths = Dict(
 
 timer_value_paths = Dict(
     "total_time" => ["root", "ranking", "max"],
+    "base_case" => ["root", "ranking", "base_case", "max"], 
+    "chase_rulers" => ["root", "ranking", "chase_ruler", "max"],
+    "invert_list" => ["root", "ranking", "invert_list", "max"],
+    "ruler_propagation" => ["root", "ranking", "ruler_propagation", "max"],
+    "pack_base_case" => ["root", "ranking", "pack_base_case", "max"],
+    "unpack_base_case" => ["root", "ranking", "unpack_base_case", "max"]
 )
 
 first_iteration = 1
