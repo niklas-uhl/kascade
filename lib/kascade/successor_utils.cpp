@@ -188,7 +188,7 @@ auto reverse_list(std::span<const idx_t> succ_array,
       auto global_idx = dist.get_global_idx(local_idx, comm.rank());
       auto succ = succ_array[local_idx];
       auto weight = dist_to_succ[local_idx];
-      if (locality_aware || dist.is_local(succ, comm.rank())) {
+      if (locality_aware && dist.is_local(succ, comm.rank())) {
         local_request_buf.emplace_back(
             message_type{.pred = global_idx, .succ = succ, .dist_pred_succ = weight});
         continue;
@@ -215,11 +215,13 @@ auto reverse_list(std::span<const idx_t> succ_array,
   std::ranges::copy(dist.global_indices(comm.rank()), pred_array.begin());
   std::ranges::fill(dist_to_pred, 0);
   for (auto const& msg : local_request_buf) {
+    KASSERT(dist.is_local(msg.succ, comm.rank()));
     auto local_idx = dist.get_local_idx(msg.succ, comm.rank());
     pred_array[local_idx] = msg.pred;
     dist_to_pred[local_idx] = msg.dist_pred_succ;
   }
   for (auto const& msg : recv_buf) {
+    KASSERT(dist.is_local(msg.succ, comm.rank()));
     auto local_idx = dist.get_local_idx(msg.succ, comm.rank());
     pred_array[local_idx] = msg.pred;
     dist_to_pred[local_idx] = msg.dist_pred_succ;
