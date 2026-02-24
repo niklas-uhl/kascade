@@ -152,6 +152,9 @@ auto parse_args(std::span<char*> args) -> Config {
       ->group("Sparse Ruling Set");
   app.add_flag("--sparse-ruling-set-spawn", config.sparse_ruling_set.spawn)
       ->group("Sparse Ruling Set");
+  app.add_flag("--sparse-ruling-set-spawn-hash-unreached",
+               config.sparse_ruling_set.spawn_hash_unreached)
+      ->group("Sparse Ruling Set");
   app.add_option("--sparse-ruling-set-briefkasten-local-threshold",
                  config.sparse_ruling_set.briefkasten.local_threshold)
       ->group("Sparse Ruling Set");
