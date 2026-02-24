@@ -1,5 +1,7 @@
 #pragma once
 
+#include <chrono>
+
 #include <absl/container/flat_hash_map.h>
 #include <kamping/collectives/allreduce.hpp>
 #include <kamping/measurements/counter.hpp>
@@ -87,13 +89,24 @@ struct RulerTrace {
         "ruler_chasing_rounds", static_cast<std::int64_t>(rounds_),
         {kamping::measurements::GlobalAggregationMode::max,
          kamping::measurements::GlobalAggregationMode::min});
+    kamping::measurements::counter().append(
+        "total_spawn_time_millis",
+        static_cast<std::int64_t>(
+            std::chrono::duration_cast<std::chrono::milliseconds>(total_spawn_time_)
+                .count()),
+        {kamping::measurements::GlobalAggregationMode::max,
+         kamping::measurements::GlobalAggregationMode::min});
     kamping::measurements::timer().stop();
   }
   void track_chain_end(idx_t ruler, rank_t dist_from_ruler) {
     ruler_list_length[ruler] = dist_from_ruler;
   }
   std::size_t num_spawned_rulers_ = 0;
-  void track_spawn() { num_spawned_rulers_++; }
+  std::chrono::duration<double> total_spawn_time_ = std::chrono::seconds(0);
+  void track_spawn(std::chrono::duration<double> spawn_time = std::chrono::seconds(0)) {
+    num_spawned_rulers_++;
+    total_spawn_time_ += spawn_time;
+  }
   void track_base_case(std::size_t local_subproblem_size) {
     local_subproblem_size_ = local_subproblem_size;
   }

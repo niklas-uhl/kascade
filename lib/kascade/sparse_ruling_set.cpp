@@ -1,6 +1,7 @@
 #include "kascade/sparse_ruling_set.hpp"
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <cstdint>
 #include <functional>
@@ -168,6 +169,7 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
   };
 
   auto spawn_new_ruler = [&](auto&& enqueue_locally, auto&& send_to) {
+    auto begin = std::chrono::high_resolution_clock::now();
     if (num_unreached == 0) {
       return;
     }
@@ -179,8 +181,9 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
         break;
       }
     } while (true);
+    auto end = std::chrono::high_resolution_clock::now();
     rulers.push_back(ruler_local);
-    trace.track_spawn();
+    trace.track_spawn(end - begin);
     auto ruler = dist.get_global_idx(ruler_local, comm.rank());
     SPDLOG_TRACE("spawning new ruler {}", ruler);
     node_type[ruler_local] = NodeType::ruler;
