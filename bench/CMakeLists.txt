@@ -24,7 +24,7 @@ FetchContent_Declare(
 FetchContent_Declare(
   kamping-nlohmann-json-adapter
   GIT_REPOSITORY https://github.com/kamping-site/kamping-nlohmann-json-adaptor
-  GIT_TAG main
+  GIT_TAG 9685077
   GIT_SHALLOW ON)
 set(ABSL_PROPAGATE_CXX_STD ON)
 FetchContent_Declare(

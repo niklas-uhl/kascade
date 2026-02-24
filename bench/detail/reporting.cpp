@@ -49,7 +49,7 @@ void Report::step_iteration() {
 
 void Report::print(std::ostream& out) {
   if (kamping::comm_world().is_root()) {
-    nlohmann::json json;
+    nlohmann::ordered_json json;
     json["config"] = config_;
     json["stats"] = stats_;
     // json["stats"]["components"] = component_stats;

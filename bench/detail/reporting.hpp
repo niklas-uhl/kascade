@@ -30,8 +30,8 @@ public:
   }
 
 private:
-  nlohmann::json config_;
-  nlohmann::json stats_;
-  std::vector<nlohmann::json> times_;
-  std::vector<nlohmann::json> counters_;
+  nlohmann::ordered_json config_;
+  nlohmann::ordered_json stats_;
+  std::vector<nlohmann::ordered_json> times_;
+  std::vector<nlohmann::ordered_json> counters_;
 };
