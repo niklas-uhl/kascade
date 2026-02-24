@@ -18,6 +18,7 @@ value_paths = Dict(
     "sparse_ruling_set_round_limit" => ["config", "sparse_ruling_set", "round_limit"],
     "sparse_ruling_set_ruler_selection" => ["config", "sparse_ruling_set", "ruler_selection"],
     "sparse_ruling_set_ruler_propagation_mode" => ["config", "sparse_ruling_set", "ruler_propagation_mode"],
+    "sparse_ruling_set_ruler_propagation_use_aggregation" => ["config", "sparse_ruling_set", "use_aggregation_in_ruler_propagation"],
     "sparse_ruling_set_briefkasten_local_threshold" => ["config", "sparse_ruling_set", "briefkasten", "local_threshold"],
     "sparse_ruling_set_briefkasten_poll_skip_threshold" => ["config", "sparse_ruling_set", "briefkasten", "poll_skip_threshold"],
     "eulertour_algorithm" => ["config", "euler_tour", "algorithm"],

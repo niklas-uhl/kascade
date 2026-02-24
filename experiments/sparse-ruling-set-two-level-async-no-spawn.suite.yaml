@@ -1,0 +1,48 @@
+name: sparse-ruling-set-two-level-async-no-spawn
+executable: bench/kascade
+output_path_option_name: "output-file"
+ncores: [64, 128, 256, 512, 1024, 2048]
+time_limit: 4
+threads_per_rank: [1]
+# tasks_per_node: 64
+graphs:
+  - generator: kagen
+    type: path
+    N: 20
+    extra_args:
+      statistics-level: extensive-reduced-output
+      input-processing: none
+      verify-level: 0
+      iterations: 5
+    scale_weak: True
+  - generator: kagen
+    type: path
+    N: 20
+    permute: True
+    extra_args:
+      statistics-level: extensive-reduced-output
+      input-processing: none
+      verify-level: 0
+      iterations: 5
+    scale_weak: True
+config:
+  - algorithm: SparseRulingSet
+    sparse-ruling-set-ruler-selection: sanders
+    sparse-ruling-set-sanders-factor: [1.0, 10.0, 100.0]
+    sparse-ruling-set-spawn: False
+    sparse-ruling-set-sync: False
+    sparse-ruling-set-base-algorithm: SparseRulingSet
+    sparse-ruling-set-ruler-propagation-use-aggregation: [False, True]
+    sparse-ruling-set-use-grid-communication: [False, True]
+    sparse-ruling-set-briefkasten-local-threshold: 2048
+    sparse-ruling-set-briefkasten-poll-skip-threshold: 1000
+  - algorithm: SparseRulingSet
+    sparse-ruling-set-ruler-selection: dehne
+    sparse-ruling-set-dehne-factor: [1.0, 10.0, 100.0]
+    sparse-ruling-set-spawn: False
+    sparse-ruling-set-sync: False
+    sparse-ruling-set-base-algorithm: SparseRulingSet
+    sparse-ruling-set-ruler-propagation-use-aggregation: [False, True]
+    sparse-ruling-set-use-grid-communication: [False, True]
+    sparse-ruling-set-briefkasten-local-threshold: 2048
+    sparse-ruling-set-briefkasten-poll-skip-threshold: 1000
