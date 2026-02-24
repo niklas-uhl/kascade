@@ -144,14 +144,15 @@ auto reverse_list(std::span<const idx_t> succ_array,
                   std::span<rank_t> dist_to_pred,
                   Distribution const& dist,
                   kamping::Communicator<> const& comm,
-                  bool use_grid_comm /* = false */
+                  bool use_grid_comm /* = false */,
+                  bool locality_aware /* = false */
                   ) -> std::vector<idx_t> {
   std::optional<TopologyAwareGridCommunicator> grid_comm;
   if (use_grid_comm) {
     grid_comm.emplace(comm);
   }
   return reverse_list(succ_array, dist_to_succ, pred_array, dist_to_pred, dist, comm,
-                      grid_comm, use_grid_comm);
+                      grid_comm, use_grid_comm, locality_aware);
 }
 
 /// @return the original roots of the tree (which are now leaves)
@@ -162,7 +163,8 @@ auto reverse_list(std::span<const idx_t> succ_array,
                   Distribution const& dist,
                   kamping::Communicator<> const& comm,
                   std::optional<TopologyAwareGridCommunicator> const& grid_comm,
-                  bool use_grid_comm /* = false */
+                  bool use_grid_comm /* = false */,
+                  bool locality_aware /* = false */
                   ) -> std::vector<idx_t> {
   KASSERT(is_list(succ_array, dist, comm), kascade::assert::with_communication);
   struct message_type {
@@ -174,6 +176,10 @@ auto reverse_list(std::span<const idx_t> succ_array,
   std::vector<idx_t> roots;
   kamping::measurements::timer().start("build_requests");
   std::vector<std::pair<int, message_type>> request_buf;
+  std::vector<message_type> local_request_buf;
+  if (locality_aware) {
+    local_request_buf.reserve(succ_array.size());
+  }
   request_buf.reserve(succ_array.size());
   for (idx_t local_idx = 0; local_idx < succ_array.size(); ++local_idx) {
     if (is_root(local_idx, succ_array, dist, comm)) {
@@ -182,6 +188,12 @@ auto reverse_list(std::span<const idx_t> succ_array,
       auto global_idx = dist.get_global_idx(local_idx, comm.rank());
       auto succ = succ_array[local_idx];
       auto weight = dist_to_succ[local_idx];
+      if (locality_aware || dist.is_local(succ, comm.rank())) {
+        local_request_buf.emplace_back(
+            message_type{.pred = global_idx, .succ = succ, .dist_pred_succ = weight});
+        continue;
+      }
+
       auto owner = dist.is_local(succ, comm.rank()) ? comm.rank() : dist.get_owner(succ);
       request_buf.emplace_back(
           owner,
@@ -202,6 +214,11 @@ auto reverse_list(std::span<const idx_t> succ_array,
   // initially, every node is its own predecessor
   std::ranges::copy(dist.global_indices(comm.rank()), pred_array.begin());
   std::ranges::fill(dist_to_pred, 0);
+  for (auto const& msg : local_request_buf) {
+    auto local_idx = dist.get_local_idx(msg.succ, comm.rank());
+    pred_array[local_idx] = msg.pred;
+    dist_to_pred[local_idx] = msg.dist_pred_succ;
+  }
   for (auto const& msg : recv_buf) {
     auto local_idx = dist.get_local_idx(msg.succ, comm.rank());
     pred_array[local_idx] = msg.pred;

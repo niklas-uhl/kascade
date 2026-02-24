@@ -55,8 +55,9 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
   }
   kamping::measurements::timer().stop();
   kamping::measurements::timer().synchronize_and_start("invert_list");
-  auto leaves = reverse_list(succ_array, rank_array, succ_array, rank_array, dist, comm,
-                             grid_comm, config.use_grid_communication);
+  auto leaves =
+      reverse_list(succ_array, rank_array, succ_array, rank_array, dist, comm, grid_comm,
+                   config.use_grid_communication, config.reverse_list_locality_aware);
   kamping::measurements::timer().stop();
 
   kamping::measurements::timer().start("cache_owners");
