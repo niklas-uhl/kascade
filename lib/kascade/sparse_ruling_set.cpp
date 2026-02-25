@@ -89,7 +89,7 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
   std::vector<idx_t> local_indices_permuted;
   std::mt19937 rng{static_cast<std::mt19937::result_type>(42 + comm.rank_signed())};
 
-  if (config.spawn_hash_unreached) {
+  if (!config.no_precompute_rulers) {
     local_indices_permuted =
         dist.local_indices(comm.rank()) | std::ranges::to<std::vector>();
     std::ranges::shuffle(local_indices_permuted, rng);
@@ -185,7 +185,7 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
     }
     std::uniform_int_distribution<std::size_t> distribution(0, succ_array.size() - 1);
     std::size_t ruler_local{};
-    if (config.spawn_hash_unreached) {
+    if (!config.no_precompute_rulers) {
       next_ruler_it = std::ranges::find_if(
           next_ruler_it, local_indices_permuted.end(),
           [&](idx_t local_idx) { return node_type[local_idx] == NodeType::unreached; });

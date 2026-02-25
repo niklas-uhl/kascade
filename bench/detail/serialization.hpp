@@ -85,7 +85,7 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(SparseRulingSetConfig,
                                    sync,
                                    sync_locality_aware,
                                    spawn,
-                                   spawn_hash_unreached,
+                                   no_precompute_rulers,
                                    briefkasten,
                                    use_grid_communication);
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(EulerTourConfig, algorithm, use_high_degree_handling);

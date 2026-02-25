@@ -65,7 +65,7 @@ auto pick_rulers(SparseRulingSetConfig const& config,
                  std::predicate<idx_t> auto const& idx_predicate,
                  kamping::Communicator<> const& comm) -> std::pair<std::vector<idx_t>, std::ranges::iterator_t<R>> {
   std::vector<idx_t> rulers(local_num_rulers);
-  if (config.spawn_hash_unreached) {
+  if (!config.no_precompute_rulers) {
     auto current = std::ranges::begin(local_indices_permuted);
     std::size_t ruler_idx = 0;
     for (; current != std::ranges::end(local_indices_permuted); ++current) {
