@@ -56,19 +56,38 @@ auto compute_local_num_rulers(SparseRulingSetConfig const& config,
   std::unreachable();
 }
 
-auto pick_rulers(std::span<const idx_t> succ_array,
+template <typename R>
+auto pick_rulers(SparseRulingSetConfig const& config,
                  std::size_t local_num_rulers,
+                 Distribution const& dist,
                  auto& rng,
-                 std::predicate<idx_t> auto const& idx_predicate) -> std::vector<idx_t> {
+                 R&& local_indices_permuted,
+                 std::predicate<idx_t> auto const& idx_predicate,
+                 kamping::Communicator<> const& comm) -> std::pair<std::vector<idx_t>, std::ranges::iterator_t<R>> {
   std::vector<idx_t> rulers(local_num_rulers);
-  auto indices = std::views::iota(idx_t{0}, static_cast<idx_t>(succ_array.size())) |
-                 std::views::filter(idx_predicate);
+  if (config.spawn_hash_unreached) {
+    auto current = std::ranges::begin(local_indices_permuted);
+    std::size_t ruler_idx = 0;
+    for (; current != std::ranges::end(local_indices_permuted); ++current) {
+      idx_t idx = *current;
+      if (idx_predicate(idx)) {
+        rulers[ruler_idx++] = idx;
+        if (ruler_idx == local_num_rulers) {
+          break;
+        }
+      }
+    }
+    rulers.resize(ruler_idx);
+    return {rulers, current};
+  }
+  auto indices = dist.local_indices(comm.rank()) | std::views::filter(idx_predicate);
   auto it = std::ranges::sample(
       indices, rulers.begin(),
       static_cast<std::ranges::range_difference_t<decltype(indices)>>(local_num_rulers),
       rng);
   rulers.erase(it, rulers.end());
-  return rulers;
+  return {rulers, std::ranges::end(local_indices_permuted)};
 }
 }  // namespace
 }  // namespace kascade::sparse_ruling_set_detail
+

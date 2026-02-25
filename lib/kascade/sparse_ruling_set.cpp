@@ -86,17 +86,19 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
   kamping::measurements::timer().start("init_node_type");
   std::vector<NodeType> node_type(succ_array.size(), NodeType::unreached);
   std::size_t num_unreached = 0;
-  absl::flat_hash_set<idx_t> unreached;
+  std::vector<idx_t> local_indices_permuted;
+  std::mt19937 rng{static_cast<std::mt19937::result_type>(42 + comm.rank_signed())};
+
   if (config.spawn_hash_unreached) {
-    unreached.reserve(dist.get_local_size(comm.rank()));
+    local_indices_permuted =
+        dist.local_indices(comm.rank()) | std::ranges::to<std::vector>();
+    std::ranges::shuffle(local_indices_permuted, rng);
   }
+
   for (auto local_idx : dist.local_indices(comm.rank())) {
     if (is_root(local_idx, succ_array, dist, comm)) {
       node_type[local_idx] = NodeType::root;
     } else {
-      if (config.spawn_hash_unreached) {
-        unreached.insert(local_idx);
-      }
       num_unreached++;
     }
   }
@@ -108,9 +110,6 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
     node_type[leaf_local] = NodeType::leaf;
     num_real_leaves++;
     num_unreached--;
-    if (config.spawn_hash_unreached) {
-      unreached.erase(leaf_local);
-    }
   }
   kamping::measurements::timer().stop();
   kamping::measurements::timer().start("find_rulers");
@@ -124,11 +123,10 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
   RulerTrace trace{static_cast<size_t>(local_num_rulers), num_real_leaves};
 
   SPDLOG_DEBUG("picking {} rulers", local_num_rulers);
-  std::mt19937 rng{static_cast<std::mt19937::result_type>(42 + comm.rank_signed())};
 
-  auto rulers = pick_rulers(succ_array, local_num_rulers, rng, [&](idx_t local_idx) {
-    return node_type[local_idx] == NodeType::unreached;
-  });
+  auto [rulers, next_ruler_it] = pick_rulers(
+      config, local_num_rulers, dist, rng, local_indices_permuted,
+      [&](idx_t local_idx) { return node_type[local_idx] == NodeType::unreached; }, comm);
   num_unreached -= rulers.size();
   kamping::measurements::timer().stop();
 
@@ -153,9 +151,6 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
   // chasing loop
   auto init = [&](auto&& enqueue_locally, auto&& send_to) {
     for (auto const& ruler_local : rulers) {
-      if (config.spawn_hash_unreached) {
-        unreached.erase(ruler_local);
-      }
       auto ruler = dist.get_global_idx(ruler_local, comm.rank());
       auto succ = succ_array[ruler_local];
       auto dist_to_succ = rank_array[ruler_local];
@@ -182,17 +177,20 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
   };
 
   auto spawn_new_ruler = [&](auto&& enqueue_locally, auto&& send_to) {
-    KASSERT(!config.spawn_hash_unreached || num_unreached == unreached.size());
     auto begin = std::chrono::high_resolution_clock::now();
     if (num_unreached == 0) {
+      KASSERT(std::ranges::all_of(
+          node_type, [](NodeType type) { return type != NodeType::unreached; }));
       return;
     }
     std::uniform_int_distribution<std::size_t> distribution(0, succ_array.size() - 1);
     std::size_t ruler_local{};
     if (config.spawn_hash_unreached) {
-      auto it = unreached.begin();
-      ruler_local = *it;
-      unreached.erase(it);
+      next_ruler_it = std::ranges::find_if(
+          next_ruler_it, local_indices_permuted.end(),
+          [&](idx_t local_idx) { return node_type[local_idx] == NodeType::unreached; });
+      KASSERT(next_ruler_it != local_indices_permuted.end());
+      ruler_local = *next_ruler_it;
     } else {
       do {
         ruler_local = distribution(rng);
@@ -243,7 +241,6 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
     KASSERT(node_type[idx_local] == NodeType::unreached);
     node_type[idx_local] = NodeType::reached;
     num_unreached--;
-    unreached.erase(idx_local);
     if (dist.is_local(succ, comm.rank())) {
       enqueue_locally({.target_idx = succ,
                        .ruler = ruler,
