@@ -48,8 +48,8 @@ auto get_message(Envelope<Msg>& envelope) -> auto& {
 
 template <typename Msg>
 struct SourcedEnvelope {
-  int source_rank;
-  int target_rank;
+  std::int32_t source_rank;
+  std::int32_t target_rank;
   Msg msg;
 };
 template <typename Msg>

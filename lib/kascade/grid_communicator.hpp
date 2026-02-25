@@ -18,6 +18,8 @@ public:
 
   [[nodiscard]] auto inter_node_rank(std::size_t global_rank) const -> std::size_t;
   [[nodiscard]] auto intra_node_rank(std::size_t global_rank) const -> std::size_t;
+  [[nodiscard]] auto inter_node_rank_signed(std::size_t global_rank) const -> int;
+  [[nodiscard]] auto intra_node_rank_signed(std::size_t global_rank) const -> int;
 
   [[nodiscard]] auto inter_node_rank() const -> std::size_t;
   [[nodiscard]] auto intra_node_rank() const -> std::size_t;

@@ -77,6 +77,7 @@ auto TopologyAwareGridCommunicator::intra_node_comm() const
     -> kamping::Communicator<> const& {
   return intra_node_comm_;
 }
+
 auto TopologyAwareGridCommunicator::inter_node_rank(std::size_t global_rank) const
     -> std::size_t {
   return global_rank / ranks_per_compute_node_;
@@ -86,6 +87,17 @@ auto TopologyAwareGridCommunicator::intra_node_rank(std::size_t global_rank) con
     -> std::size_t {
   return global_rank % ranks_per_compute_node_;
 }
+
+auto TopologyAwareGridCommunicator::inter_node_rank_signed(std::size_t global_rank) const
+    -> int {
+  return static_cast<int>(inter_node_rank(global_rank));
+}
+
+auto TopologyAwareGridCommunicator::intra_node_rank_signed(std::size_t global_rank) const
+    -> int {
+  return static_cast<int>(intra_node_rank(global_rank));
+}
+
 auto TopologyAwareGridCommunicator::inter_node_rank() const -> std::size_t {
   return inter_node_comm_.rank();
 }

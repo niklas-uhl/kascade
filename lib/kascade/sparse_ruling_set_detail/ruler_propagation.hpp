@@ -19,6 +19,7 @@
 #include "kascade/sparse_ruling_set_detail/ruler_chasing_engine.hpp"
 #include "kascade/sparse_ruling_set_detail/types.hpp"
 #include "kascade/types.hpp"
+#include "request_aggregation_scheme.hpp"
 
 namespace kascade::sparse_ruling_set_detail {
 namespace propagation_mode {
@@ -40,7 +41,7 @@ inline auto ruler_propagation(
     kamping::Communicator<> const& comm,
     std::optional<TopologyAwareGridCommunicator> const& grid_comm,
     propagation_mode::local_aggregation_tag /*tag*/,
-    propagation_mode::pull_tag /* tag */ ) {
+    propagation_mode::pull_tag /* tag */) {
   auto needs_to_request_ruler = [&](idx_t local_idx) {
     // if the msb is set, this node was reached from a leaf, so root and rank are already
     // correct
@@ -141,14 +142,15 @@ inline auto ruler_propagation(
   kamping::measurements::timer().stop();
 }
 
-namespace internal {
-inline auto ruler_propagation(SparseRulingSetConfig const& config,
-                              std::span<idx_t> succ_array,
-                              std::span<rank_t> rank_array,
-                              std::vector<NodeType> const& node_type,
-                              Distribution const& dist,
-                              kamping::Communicator<> const& comm,
-                              propagation_mode::pull_tag /* tag */ = {}) {
+inline auto ruler_propagation(
+    SparseRulingSetConfig const& config,
+    std::span<idx_t> succ_array,
+    std::span<rank_t> rank_array,
+    std::vector<NodeType> const& node_type,
+    Distribution const& dist,
+    kamping::Communicator<> const& comm,
+    std::optional<TopologyAwareGridCommunicator> const& grid_comm,
+    propagation_mode::pull_tag /* tag */ = {}) {
   auto needs_to_request_ruler = [&](idx_t local_idx) {
     // if the msb is set, this node was reached from a leaf, so root and rank are already
     // correct
@@ -179,17 +181,14 @@ inline auto ruler_propagation(SparseRulingSetConfig const& config,
   };
   kamping::measurements::timer().start("collect_requests");
   std::vector<std::pair<int, idx_t>> requests;
-  std::vector<std::uint32_t> writeback_pos;
   std::size_t const max_size_requests = dist.local_indices(comm.rank()).size();
   requests.reserve(max_size_requests);
-  writeback_pos.reserve(max_size_requests);
   for (auto local_idx : dist.local_indices(comm.rank())) {
     if (!needs_to_request_ruler(local_idx)) {
       continue;
     }
     auto ruler = succ_array[local_idx];
     requests.emplace_back(get_succ_owner(local_idx, ruler), ruler);
-    writeback_pos.emplace_back(local_idx);
   }
   kamping::measurements::timer().stop();
 
@@ -199,18 +198,23 @@ inline auto ruler_propagation(SparseRulingSetConfig const& config,
   };
 
   kamping::measurements::timer().start("request_reply");
-  MPIBuffer<idx_t> req_sbuffer;
-  MPIBuffer<idx_t> req_rbuffer;
-  std::vector<ruler_reply> reply_sbuffer;
-  std::vector<ruler_reply> reply_rbuffer;
 
   auto make_reply = [&](const auto& requested_ruler) {
     auto local_idx = dist.get_local_idx(requested_ruler, comm.rank());
     return ruler_reply{.root = succ_array[local_idx],
                        .dist_to_root = rank_array[local_idx]};
   };
-  request_reply_without_remote_aggregation(requests, make_reply, req_sbuffer, req_rbuffer,
-                                           reply_sbuffer, reply_rbuffer, comm);
+
+  // execute the actual request step either using direct or indirect (grid) communication
+  auto [recv_replies, send_displs] = [&]() {
+    if (config.use_grid_communication) {
+      KASSERT(grid_comm.has_value());
+      return request_reply_without_remote_aggregation(
+          requests, make_reply, grid_comm.value(), request_reply_mode::reorder_output);
+    }
+    return request_reply_without_remote_aggregation(requests, make_reply, comm,
+                                                    request_reply_mode::reorder_output);
+  }();
 
   kamping::measurements::timer().stop();
   kamping::measurements::timer().start("postprocessing");
@@ -222,90 +226,11 @@ inline auto ruler_propagation(SparseRulingSetConfig const& config,
       continue;
     }
     auto target = get_succ_owner(local_idx, succ_array[local_idx]);
-    auto pos = req_sbuffer.displs[target]++;
-    succ_array[local_idx] = reply_rbuffer[pos].root;
-    rank_array[local_idx] += reply_rbuffer[pos].dist_to_root;
+    auto pos = send_displs[target]++;
+    succ_array[local_idx] = recv_replies[pos].root;
+    rank_array[local_idx] += recv_replies[pos].dist_to_root;
   }
   kamping::measurements::timer().stop();
-}
-inline auto ruler_propagation_grid(std::span<idx_t> succ_array,
-                                   std::span<rank_t> rank_array,
-                                   std::vector<NodeType> const& node_type,
-                                   Distribution const& dist,
-                                   TopologyAwareGridCommunicator const& grid_comm,
-                                   propagation_mode::pull_tag /* tag */ = {}) {
-  auto needs_to_request_ruler = [&](idx_t local_idx) {
-    // if the msb is set, this node was reached from a leaf, so root and rank are already
-    // correct
-    // rulers and leafs also have the correct result already from the base algorithm
-    return !bits::has_root_flag(succ_array[local_idx]) &&
-           node_type[local_idx] != NodeType::ruler &&
-           node_type[local_idx] != NodeType::leaf;
-  };
-  kamping::measurements::timer().start("collect_requests");
-  struct ruler_request {
-    idx_t ruler;
-    idx_t write_back_pos;
-  };
-  auto const& comm = grid_comm.global_comm();
-  std::vector<std::pair<int, ruler_request>> requests;
-  std::size_t const max_size_requests = dist.local_indices(comm.rank()).size();
-  requests.reserve(max_size_requests);
-  for (auto local_idx : dist.local_indices(comm.rank())) {
-    if (!needs_to_request_ruler(local_idx)) {
-      succ_array[local_idx] = bits::clear_root_flag(succ_array[local_idx]);
-      continue;
-    }
-    auto ruler = succ_array[local_idx];
-    auto owner = dist.get_owner(ruler);
-    requests.emplace_back(owner,
-                          ruler_request{.ruler = ruler, .write_back_pos = local_idx});
-  }
-  kamping::measurements::timer().stop();
-
-  struct ruler_reply {
-    idx_t root;
-    rank_t dist_to_root;
-    idx_t write_back_pos;
-  };
-
-  kamping::measurements::timer().start("request_reply");
-
-  auto make_reply = [&](const auto& request) {
-    auto local_idx = dist.get_local_idx(request.ruler, comm.rank());
-    return ruler_reply{.root = succ_array[local_idx],
-                       .dist_to_root = rank_array[local_idx],
-                       .write_back_pos = request.write_back_pos};
-  };
-
-  auto recv_replies =
-      request_reply_without_remote_aggregation(requests, make_reply, grid_comm);
-
-  kamping::measurements::timer().stop();
-  kamping::measurements::timer().start("postprocessing");
-  for (auto const& [root, dist_to_root, local_idx] : recv_replies) {
-    succ_array[local_idx] = root;
-    rank_array[local_idx] += dist_to_root;
-  }
-  kamping::measurements::timer().stop();
-}
-}  // namespace internal
-inline auto ruler_propagation(
-    SparseRulingSetConfig const& config,
-    std::span<idx_t> succ_array,
-    std::span<rank_t> rank_array,
-    std::vector<NodeType> const& node_type,
-    Distribution const& dist,
-    kamping::Communicator<> const& comm,
-    std::optional<TopologyAwareGridCommunicator> const& grid_comm,
-    propagation_mode::pull_tag /* tag */ = {}) {
-  if (config.use_grid_communication) {
-    internal::ruler_propagation_grid(succ_array, rank_array, node_type, dist,
-                                     grid_comm.value(), propagation_mode::pull);
-  } else {
-    internal::ruler_propagation(config, succ_array, rank_array, node_type, dist, comm,
-                                propagation_mode::pull);
-  }
 }
 
 inline auto ruler_propagation(
@@ -368,7 +293,7 @@ inline auto ruler_propagation(
     ruler_chasing_engine(config, init, work_on_item, dist, comm, ruler_chasing::async);
   }
 }
-  
+
 inline auto ruler_propagation(
     SparseRulingSetConfig const& config,
     std::span<idx_t> succ_array,
