@@ -46,23 +46,23 @@ enum class RulerSelectionStrategy : std::uint8_t {
 enum class RulerPropagationMode : std::uint8_t { pull, push, invalid };
 
 struct BriefkastenConfig {
-  std::size_t local_threshold = 32ULL * 1024;
-  std::size_t poll_skip_threshold = 100;
+  std::size_t local_threshold = 2048;
+  std::size_t poll_skip_threshold = 1000;
 };
 
 struct SparseRulingSetConfig {
-  RulerSelectionStrategy ruler_selection = RulerSelectionStrategy::dehne;
+  RulerSelectionStrategy ruler_selection = RulerSelectionStrategy::sanders;
   Algorithm base_algorithm = Algorithm::PointerDoubling;
   std::any base_algorithm_config;
   RulerPropagationMode ruler_propagation_mode = RulerPropagationMode::pull;
   bool use_aggregation_in_ruler_propagation = false;
-  bool reverse_list_locality_aware = false;
+  bool reverse_list_locality_aware = true;
   double dehne_factor = 1.0;
   double heuristic_factor = 0.01;
   double sanders_factor = 1.0;
   std::size_t round_limit = 100;
   bool cache_owners = false;
-  bool sync = false;
+  bool sync = true;
   bool sync_locality_aware = false;
   bool spawn = false;
   bool no_precompute_rulers = false;

@@ -142,13 +142,16 @@ auto parse_args(std::span<char*> args) -> Config {
       ->group("Sparse Ruling Set");
   app.add_flag("--sparse-ruling-set-cache-owners", config.sparse_ruling_set.cache_owners)
       ->group("Sparse Ruling Set");
-  app.add_flag("--sparse-ruling-set-sync", config.sparse_ruling_set.sync)
+  app.add_flag("--sparse-ruling-set-sync,!--sparse-ruling-set-async",
+               config.sparse_ruling_set.sync)
       ->group("Sparse Ruling Set");
   app.add_flag("--sparse-ruling-set-sync-locality-aware",
                config.sparse_ruling_set.sync_locality_aware)
       ->group("Sparse Ruling Set");
-  app.add_flag("--sparse-ruling-set-reverse-list-locality-aware",
-               config.sparse_ruling_set.reverse_list_locality_aware)
+  app.add_flag(
+         "--sparse-ruling-set-reverse-list-locality-aware,!--sparse-ruling-set-reverse-"
+         "list-no-locality-aware",
+         config.sparse_ruling_set.reverse_list_locality_aware)
       ->group("Sparse Ruling Set");
   app.add_flag("--sparse-ruling-set-spawn", config.sparse_ruling_set.spawn)
       ->group("Sparse Ruling Set");

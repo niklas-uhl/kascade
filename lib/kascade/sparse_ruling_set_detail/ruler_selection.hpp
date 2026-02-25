@@ -41,7 +41,7 @@ auto compute_local_num_rulers(SparseRulingSetConfig const& config,
                                       rel_local_size);
     case RulerSelectionStrategy::limit_rounds: {
       if (!config.spawn) {
-        SPDLOG_LOGGER_WARN(spdlog::get("root"),
+        SPDLOG_LOGGER_WARN(spdlog::get("root"), 
                            "limit-rounds ruler selection strategy is only effective if "
                            "spawn is enabled");
       }
