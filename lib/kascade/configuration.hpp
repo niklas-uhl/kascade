@@ -40,6 +40,7 @@ enum class RulerSelectionStrategy : std::uint8_t {
   dehne,
   heuristic,
   sanders,
+  ultimate,
   limit_rounds,
   invalid
 };
@@ -60,6 +61,7 @@ struct SparseRulingSetConfig {
   double dehne_factor = 1.0;
   double heuristic_factor = 0.01;
   double sanders_factor = 1.0;
+  double ultimate_factor = 0.1;
   std::size_t round_limit = 100;
   bool cache_owners = false;
   bool sync = true;

@@ -36,12 +36,17 @@ auto compute_local_num_rulers(SparseRulingSetConfig const& config,
           config.heuristic_factor *
           static_cast<double>(dist.get_local_size(comm.rank())));
     case RulerSelectionStrategy::sanders:
+      // ln(n) * √n * p
       return static_cast<std::size_t>(config.sanders_factor * std::sqrt(n) *
                                       static_cast<double>(p) / std::log(n) *
                                       rel_local_size);
+    case RulerSelectionStrategy::ultimate:
+      // √n * p
+      return static_cast<std::size_t>(config.ultimate_factor * std::sqrt(n) *
+                                      static_cast<double>(p) * rel_local_size);
     case RulerSelectionStrategy::limit_rounds: {
       if (!config.spawn) {
-        SPDLOG_LOGGER_WARN(spdlog::get("root"), 
+        SPDLOG_LOGGER_WARN(spdlog::get("root"),
                            "limit-rounds ruler selection strategy is only effective if "
                            "spawn is enabled");
       }
@@ -63,7 +68,8 @@ auto pick_rulers(SparseRulingSetConfig const& config,
                  auto& rng,
                  R&& local_indices_permuted,
                  std::predicate<idx_t> auto const& idx_predicate,
-                 kamping::Communicator<> const& comm) -> std::pair<std::vector<idx_t>, std::ranges::iterator_t<R>> {
+                 kamping::Communicator<> const& comm)
+    -> std::pair<std::vector<idx_t>, std::ranges::iterator_t<R>> {
   std::vector<idx_t> rulers(local_num_rulers);
   if (!config.no_precompute_rulers) {
     auto current = std::ranges::begin(local_indices_permuted);
@@ -90,4 +96,3 @@ auto pick_rulers(SparseRulingSetConfig const& config,
 }
 }  // namespace
 }  // namespace kascade::sparse_ruling_set_detail
-
