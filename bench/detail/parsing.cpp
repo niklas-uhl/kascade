@@ -170,6 +170,12 @@ auto parse_args(std::span<char*> args) -> Config {
   app.add_flag("--sparse-ruling-set-use-grid-communication",
                config.sparse_ruling_set.use_grid_communication)
       ->group("Sparse Ruling Set");
+  app.add_flag(
+         "--sparse-ruling-set-ruler-propagation-locality-aware,!--sparse-ruling-set-"
+         "ruler-propagation-no-locality-aware",
+         config.sparse_ruling_set.use_locality_aware_in_ruler_propagation)
+      ->group("Sparse Ruling Set");
+
   app.add_option("--mplr-algorithm", config.mplr.algorithm)->group("MPLR");
   app.add_option("--mplr-rounds", config.mplr.comm_rounds)->group("MPLR");
   app.add_option("--mplr-recursion-levels", config.mplr.recursion_levels)->group("MPLR");

@@ -58,7 +58,8 @@ inline auto ruler_propagation(
       continue;
     }
     auto ruler = succ_array[local_idx];
-    if (dist.is_local(ruler, comm.rank())) {
+    if (config.use_locality_aware_in_ruler_propagation &&
+        dist.is_local(ruler, comm.rank())) {
       continue;
     }
     packed_index packed_ruler{ruler, static_cast<std::uint32_t>(dist.get_owner(ruler))};
@@ -125,7 +126,8 @@ inline auto ruler_propagation(
       continue;
     }
     auto ruler = succ_array[local_idx];
-    if (dist.is_local(ruler, comm.rank())) {
+    if (config.use_locality_aware_in_ruler_propagation &&
+        dist.is_local(ruler, comm.rank())) {
       auto ruler_local = dist.get_local_idx(ruler, comm.rank());
       succ_array[local_idx] = bits::clear_root_flag(succ_array[ruler_local]);
       rank_array[local_idx] = rank_array[ruler_local] + rank_array[local_idx];
@@ -188,6 +190,10 @@ inline auto ruler_propagation(
       continue;
     }
     auto ruler = succ_array[local_idx];
+    if (config.use_locality_aware_in_ruler_propagation &&
+        dist.is_local(ruler, comm.rank())) {
+      continue;
+    }
     requests.emplace_back(get_succ_owner(local_idx, ruler), ruler);
   }
   kamping::measurements::timer().stop();
@@ -223,6 +229,14 @@ inline auto ruler_propagation(
       // this node might have been reached by a leaf, so its msb might be still be set,
       // fix that
       succ_array[local_idx] = bits::clear_root_flag(succ_array[local_idx]);
+      continue;
+    }
+    if (config.use_locality_aware_in_ruler_propagation &&
+        dist.is_local(succ_array[local_idx], comm.rank())) {
+      auto ruler = succ_array[local_idx];
+      auto ruler_local = dist.get_local_idx(ruler, comm.rank());
+      succ_array[local_idx] = bits::clear_root_flag(succ_array[ruler_local]);
+      rank_array[local_idx] = rank_array[ruler_local] + rank_array[local_idx];
       continue;
     }
     auto target = get_succ_owner(local_idx, succ_array[local_idx]);
