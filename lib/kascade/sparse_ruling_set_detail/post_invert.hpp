@@ -39,6 +39,9 @@ auto post_invert(SparseRulingSetConfig const& config,
   for (auto root_local : roots) {
     auto leaf = succ_array[root_local];
     auto root = dist.get_global_idx(root_local, comm.rank());
+    if (leaf == root) { // this a singular node, so we do nothing
+      continue;
+    }
     auto dist_from_root_to_leaf = rank_array[root_local];
     succ_array[root_local] = root;
     rank_array[root_local] = 0;
@@ -77,9 +80,6 @@ auto post_invert(SparseRulingSetConfig const& config,
     }
     auto leaf = succ_array[local_idx];
     if (dist.is_local(leaf, comm.rank())) {
-      // auto leaf_local = dist.get_local_idx(leaf, comm.rank());
-      // succ_array[local_idx] = succ_array[leaf_local];  // points to root
-      // rank_array[local_idx] = rank_array[leaf_local] - rank_array[local_idx];
       continue;
     }
     leafs_to_query.insert(leaf);
