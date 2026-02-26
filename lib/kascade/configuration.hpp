@@ -70,6 +70,7 @@ struct SparseRulingSetConfig {
   bool spawn = false;
   bool no_precompute_rulers = false;
   bool post_invert = false;
+  bool post_invert_detect_leaves = false;
   BriefkastenConfig briefkasten{};
   bool use_grid_communication = false;
 };

@@ -21,7 +21,7 @@ namespace {
 auto post_invert(SparseRulingSetConfig const& config,
                  std::span<idx_t> succ_array,
                  std::span<rank_t> rank_array,
-                 std::vector<NodeType> const& node_type,
+                 std::vector<NodeType>& node_type,
                  Distribution const& dist,
                  kamping::Communicator<> const& comm,
                  std::optional<TopologyAwareGridCommunicator> const& grid_comm) {
@@ -39,7 +39,7 @@ auto post_invert(SparseRulingSetConfig const& config,
   for (auto root_local : roots) {
     auto leaf = succ_array[root_local];
     auto root = dist.get_global_idx(root_local, comm.rank());
-    if (leaf == root) { // this a singular node, so we do nothing
+    if (leaf == root) {  // this a singular node, so we do nothing
       continue;
     }
     auto dist_from_root_to_leaf = rank_array[root_local];
@@ -47,11 +47,12 @@ auto post_invert(SparseRulingSetConfig const& config,
     rank_array[root_local] = 0;
     if (dist.is_local(leaf, comm.rank())) {
       auto leaf_local = dist.get_local_idx(leaf, comm.rank());
-      KASSERT(node_type[leaf_local] == NodeType::leaf);
       KASSERT(succ_array[leaf_local] == leaf);
       KASSERT(rank_array[leaf_local] == 0);
       succ_array[leaf_local] = root;
       rank_array[leaf_local] = dist_from_root_to_leaf;
+      // the leaf might not know yet that it's a leaf, so we set it
+      node_type[leaf_local] = NodeType::leaf;
       continue;
     }
     auto leaf_owner = dist.get_owner(leaf);
@@ -65,11 +66,12 @@ auto post_invert(SparseRulingSetConfig const& config,
   for (auto const& leaf_message : leaf_messages) {
     KASSERT(dist.is_local(leaf_message.leaf, comm.rank()));
     auto leaf_local = dist.get_local_idx(leaf_message.leaf, comm.rank());
-    KASSERT(node_type[leaf_local] == NodeType::leaf);
     KASSERT(succ_array[leaf_local] == leaf_message.leaf);
     KASSERT(rank_array[leaf_local] == 0);
     succ_array[leaf_local] = leaf_message.root;
     rank_array[leaf_local] = leaf_message.dist_from_root_to_leaf;
+    // the leaf might not know yet that it's a leaf, so we set it
+    node_type[leaf_local] = NodeType::leaf;
   }
 
   absl::flat_hash_set<idx_t> leafs_to_query;

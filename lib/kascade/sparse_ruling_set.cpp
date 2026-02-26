@@ -2,10 +2,8 @@
 
 #include <algorithm>
 #include <chrono>
-#include <cmath>
 #include <cstdint>
 #include <functional>
-#include <limits>
 #include <optional>
 #include <random>
 #include <ranges>
@@ -65,7 +63,7 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
   }
   kamping::measurements::timer().stop();
   kamping::measurements::timer().synchronize_and_start("find_leaves");
-  if (config.post_invert) {
+  if (config.post_invert && config.post_invert_detect_leaves) {
     leaves = LeafInfo{succ_array, dist, comm}.leaves() | std::ranges::to<std::vector>();
   }
   kamping::measurements::timer().stop();
@@ -169,11 +167,14 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
         if (config.ruler_propagation_mode == RulerPropagationMode::pull) {
           ruler = bits::set_root_flag(ruler);
         }
-        succ_array[ruler_local] = ruler;
-        rank_array[ruler_local] = 0;
       } else {
         node_type[ruler_local] = NodeType::ruler;
       }
+      // in case this ruler is in the middle of the list, these values will be
+      // overwritten, but in case it is a leaf (and we don't know), these values are
+      // correct
+      succ_array[ruler_local] = ruler;
+      rank_array[ruler_local] = 0;
       if (dist.is_local(succ, comm.rank())) {
         enqueue_locally(
             {.target_idx = succ, .ruler = ruler, .dist_from_ruler = dist_to_succ});
@@ -217,6 +218,11 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
     num_unreached--;
     auto succ = succ_array[ruler_local];
     auto dist_to_succ = rank_array[ruler_local];
+    // in case this ruler is in the middle of the list, these values will be
+    // overwritten, but in case it is a leaf (and we don't know), these values are
+    // correct
+    succ_array[ruler_local] = ruler;
+    rank_array[ruler_local] = 0;
     if (dist.is_local(succ, comm.rank())) {
       enqueue_locally(RulerMessage{
           .target_idx = succ, .ruler = ruler, .dist_from_ruler = dist_to_succ});
