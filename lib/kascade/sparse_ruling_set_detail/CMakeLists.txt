@@ -10,6 +10,7 @@ target_sources(
           ruler_chasing_engine.hpp
           ruler_propagation.hpp
 	  ruler_selection.hpp
+	  post_invert.hpp
           types.hpp
 	  trace.hpp
 	)

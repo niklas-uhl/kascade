@@ -27,6 +27,7 @@
 #include "kascade/pointer_doubling.hpp"
 #include "kascade/successor_utils.hpp"
 #include "kascade/types.hpp"
+#include "sparse_ruling_set_detail/post_invert.hpp"
 #include "sparse_ruling_set_detail/ruler_chasing_engine.hpp"
 #include "sparse_ruling_set_detail/ruler_propagation.hpp"
 #include "sparse_ruling_set_detail/ruler_selection.hpp"
@@ -55,10 +56,18 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
     grid_comm = TopologyAwareGridCommunicator{comm};
   }
   kamping::measurements::timer().stop();
+  std::vector<idx_t> leaves;
   kamping::measurements::timer().synchronize_and_start("invert_list");
-  auto leaves =
-      reverse_list(succ_array, rank_array, succ_array, rank_array, dist, comm, grid_comm,
-                   config.use_grid_communication, config.reverse_list_locality_aware);
+  if (!config.post_invert) {
+    leaves = reverse_list(succ_array, rank_array, succ_array, rank_array, dist, comm,
+                          grid_comm, config.use_grid_communication,
+                          config.reverse_list_locality_aware);
+  }
+  kamping::measurements::timer().stop();
+  kamping::measurements::timer().synchronize_and_start("find_leaves");
+  if (config.post_invert) {
+    leaves = LeafInfo{succ_array, dist, comm}.leaves() | std::ranges::to<std::vector>();
+  }
   kamping::measurements::timer().stop();
 
   kamping::measurements::timer().start("cache_owners");
@@ -301,6 +310,11 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
   kamping::measurements::timer().synchronize_and_start("ruler_propagation");
   ruler_propagation(config, succ_array, rank_array, inital_succ_array, node_type, rulers,
                     dist, comm, grid_comm);
+  kamping::measurements::timer().stop();
+  kamping::measurements::timer().synchronize_and_start("post_invert");
+  if (config.post_invert) {
+    post_invert(config, succ_array, rank_array, node_type, dist, comm, grid_comm);
+  }
   kamping::measurements::timer().stop();
 }
 }  // namespace

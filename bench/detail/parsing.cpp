@@ -161,6 +161,8 @@ auto parse_args(std::span<char*> args) -> Config {
   app.add_flag("--sparse-ruling-set-no-precompute-rulers",
                config.sparse_ruling_set.no_precompute_rulers)
       ->group("Sparse Ruling Set");
+  app.add_flag("--sparse-ruling-set-post-invert", config.sparse_ruling_set.post_invert)
+      ->group("Sparse Ruling Set");
   app.add_option("--sparse-ruling-set-briefkasten-local-threshold",
                  config.sparse_ruling_set.briefkasten.local_threshold)
       ->group("Sparse Ruling Set");

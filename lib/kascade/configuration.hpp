@@ -69,6 +69,7 @@ struct SparseRulingSetConfig {
   bool sync_locality_aware = false;
   bool spawn = false;
   bool no_precompute_rulers = false;
+  bool post_invert = false;
   BriefkastenConfig briefkasten{};
   bool use_grid_communication = false;
 };

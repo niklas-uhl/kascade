@@ -74,13 +74,15 @@ auto pick_rulers(SparseRulingSetConfig const& config,
   if (!config.no_precompute_rulers) {
     auto current = std::ranges::begin(local_indices_permuted);
     std::size_t ruler_idx = 0;
-    for (; current != std::ranges::end(local_indices_permuted); ++current) {
+    for (; current != std::ranges::end(local_indices_permuted) &&
+           ruler_idx < local_num_rulers;
+         ++current) {
       idx_t idx = *current;
       if (idx_predicate(idx)) {
         rulers[ruler_idx++] = idx;
-        if (ruler_idx == local_num_rulers) {
-          break;
-        }
+        // if (ruler_idx == local_num_rulers) {
+        //   break;
+        // }
       }
     }
     rulers.resize(ruler_idx);
