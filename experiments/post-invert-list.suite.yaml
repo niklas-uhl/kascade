@@ -2,7 +2,7 @@ name: post-invert-list
 executable: bench/kascade
 output_path_option_name: "output-file"
 ncores: [64, 128, 256, 512, 1024, 2048]
-time_limit: 4
+time_limit: 2
 threads_per_rank: [1]
 # tasks_per_node: 64
 graphs:
