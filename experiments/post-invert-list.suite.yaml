@@ -12,7 +12,7 @@ graphs:
     extra_args:
       statistics-level: extensive-reduced-output
       input-processing: none
-      verify-level: 0
+      verify-level: 1
       iterations: 5
     scale_weak: True
   - generator: kagen
@@ -22,7 +22,7 @@ graphs:
     extra_args:
       statistics-level: extensive-reduced-output
       input-processing: none
-      verify-level: 0
+      verify-level: 1
       iterations: 5
     scale_weak: True
 config:
