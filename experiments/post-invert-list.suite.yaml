@@ -27,13 +27,13 @@ graphs:
     scale_weak: True
 config:
   - algorithm: SparseRulingSet
-    sparse-ruling-set-ruler-selection: sanders
-    sparse-ruling-set-sanders-factor: [1.0]
+    sparse-ruling-set-ruler-selection: ultimate
+    sparse-ruling-set-ultimate-factor: [0.15]
     sparse-ruling-set-spawn: True
     sparse-ruling-set-sync: True
     sparse-ruling-set-sync-locality-aware: [True]
     sparse-ruling-set-base-algorithm: SparseRulingSet
-    sparse-ruling-set-ruler-propagation-use-aggregation: [True]
+    sparse-ruling-set-ruler-propagation-use-aggregation: [False, True]
     sparse-ruling-set-use-grid-communication: [False, True]
     sparse-ruling-set-reverse-list-locality-aware: [True]
     sparse-ruling-set-post-invert: [False, True]
