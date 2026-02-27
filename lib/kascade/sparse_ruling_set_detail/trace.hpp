@@ -90,6 +90,11 @@ struct RulerTrace {
         {kamping::measurements::GlobalAggregationMode::max,
          kamping::measurements::GlobalAggregationMode::min});
     kamping::measurements::counter().append(
+        "num_unreached", static_cast<std::int64_t>(num_unreached_),
+        {kamping::measurements::GlobalAggregationMode::sum,
+         kamping::measurements::GlobalAggregationMode::max,
+         kamping::measurements::GlobalAggregationMode::min});
+    kamping::measurements::counter().append(
         "total_spawn_time_millis",
         static_cast<std::int64_t>(
             std::chrono::duration_cast<std::chrono::milliseconds>(total_spawn_time_)
@@ -114,5 +119,7 @@ struct RulerTrace {
   void track_ruler_chasing_rounds(std::size_t ruler_chasing_rounds) {
     rounds_ = ruler_chasing_rounds;
   }
+  std::size_t num_unreached_;
+  void track_unreached(std::size_t num_unreached) { num_unreached_ = num_unreached; }
 };
 }  // namespace kascade::sparse_ruling_set_detail

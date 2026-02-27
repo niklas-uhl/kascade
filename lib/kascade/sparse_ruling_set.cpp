@@ -276,6 +276,12 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
     ruler_chasing_engine(config, init, work_on_item, dist, comm, ruler_chasing::async);
   }
   kamping::measurements::timer().stop();
+  if (!config.post_invert_detect_leaves) {
+    trace.track_unreached(num_unreached);
+    auto elements_to_fix = fixup_unreached(config, num_unreached, succ_array, rank_array,
+                                           node_type, dist, comm, grid_comm);
+    rulers.insert_range(rulers.end(), std::move(elements_to_fix));
+  }
   KASSERT(std::ranges::all_of(node_type,
                               [&](NodeType type) {
                                 return type == NodeType::root ||

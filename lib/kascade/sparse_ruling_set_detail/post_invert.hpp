@@ -133,5 +133,77 @@ auto post_invert(SparseRulingSetConfig const& config,
     rank_array[local_idx] = info.dist_to_root - rank_array[local_idx];
   }
 }
+
+auto fixup_unreached(SparseRulingSetConfig const& config,
+                     std::size_t num_unreached,
+                     std::span<idx_t> succ_array,
+                     std::span<rank_t> rank_array,
+                     std::vector<NodeType>& node_type,
+                     Distribution const& dist,
+                     kamping::Communicator<> const& comm,
+                     std::optional<TopologyAwareGridCommunicator> const& grid_comm)
+    -> std::vector<idx_t> {
+  std::vector<idx_t> elements_to_fix;
+  if (num_unreached > 0) {
+    auto unreached =
+        dist.local_indices(comm.rank()) | std::views::filter([&](idx_t local_idx) {
+          return node_type[local_idx] == NodeType::unreached;
+        });
+    elements_to_fix.reserve(num_unreached);
+    elements_to_fix.insert_range(elements_to_fix.end(), unreached);
+    KASSERT(elements_to_fix.size() == num_unreached);
+  }
+  SPDLOG_DEBUG("Fixup {} unreached nodes.", elements_to_fix.size());
+
+  struct message_type {
+    idx_t pred;
+    idx_t succ;
+    rank_t dist_pred_succ;
+  };
+  std::vector<std::pair<int, message_type>> message_buf;
+  message_buf.reserve(elements_to_fix.size());
+  std::vector<message_type> local_message_buf;
+  local_message_buf.reserve(elements_to_fix.size());
+  for (idx_t unreached_local : elements_to_fix) {
+    // all unreached nodes are marked as leafs initially, and get relabeled as ruler once
+    // they receive a message, so we can identify real leafs among the unreached nodes
+    // later
+    node_type[unreached_local] = NodeType::leaf;
+    auto unreached = dist.get_global_idx(unreached_local, comm.rank());
+    auto succ = succ_array[unreached_local];
+    auto dist_to_succ = rank_array[unreached_local];
+    succ_array[unreached_local] = unreached;
+    rank_array[unreached_local] = 0;
+    message_type msg{.pred = unreached, .succ = succ, .dist_pred_succ = dist_to_succ};
+    if (dist.is_local(succ, comm.rank())) {
+      local_message_buf.emplace_back(msg);
+      continue;
+    }
+    auto owner = dist.get_owner(succ);
+    message_buf.emplace_back(owner, msg);
+  }
+  AlltoallDispatcher<message_type> dispatcher(config.use_grid_communication, comm,
+                                              grid_comm);
+  auto recv_buf = dispatcher.alltoallv(message_buf);
+  auto handle_message = [&](message_type const& msg) {
+    KASSERT(dist.is_local(msg.succ, comm.rank()));
+    auto local_idx = dist.get_local_idx(msg.succ, comm.rank());
+    succ_array[local_idx] = msg.pred;
+    rank_array[local_idx] = msg.dist_pred_succ;
+    if (node_type[local_idx] == NodeType::root) {
+      // this happens when a list has not been reached at all, so the root is still
+      // unreached. In this case, we add it to the list of elements to fix, so it gets
+      // handled in the base case.
+      elements_to_fix.push_back(local_idx);
+    }
+    if (node_type[local_idx] == NodeType::leaf) {
+      node_type[local_idx] = NodeType::ruler;
+    }
+  };
+  std::ranges::for_each(local_message_buf, handle_message);
+  std::ranges::for_each(recv_buf, handle_message);
+  return elements_to_fix;
+}
+
 }  // namespace
 }  // namespace kascade::sparse_ruling_set_detail
