@@ -42,6 +42,7 @@ timer_value_paths = Dict(
     "pack_base_case" => ["root", "ranking", "pack_base_case", "max"],
     "unpack_base_case" => ["root", "ranking", "unpack_base_case", "max"],
     "post_invert" => ["root", "ranking", "post_invert", "max"],
+    "fixup_unreached" => ["root", "ranking", "fixup_unreached", "max"],
 )
 
 first_iteration = 1

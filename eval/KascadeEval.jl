@@ -7,14 +7,22 @@ include("LogProcessing.jl")
 
 function cleanup(df)
     function expand_timers(timer_dict)
-        (; (Symbol(key) => Float64(LogProcessing.get_json_path(timer_dict, path)[1])
+        path_to_val(path) = begin
+            val = LogProcessing.get_json_path(timer_dict, path)
+            if val === nothing
+                return missing
+            else
+                return Float64(val[1])
+            end
+        end
+        (; (Symbol(key) => path_to_val(path)
             for (key, path) in Config.timer_value_paths)...)
     end
     if isempty(df)
         return df
     end
     transform!(df, :time => ByRow(expand_timers) => AsTable)
-    allowed_kagen_args = Set(["type", "n", "m", "p", "permute", "gamma"])
+    allowed_kagen_args = Set(["type", "n", "m", "p", "permute", "gamma", "permutation_prob"])
     args_remap = Dict("p" => "prob")
     function expand_graph(kagen_option_string::String)
         function parse_value(val)
@@ -81,6 +89,9 @@ function cleanup(df)
         end
         if kwargs[:prob] !== missing
             result *= ",prob=$(kwargs[:prob])"
+        end
+        if kwargs[:permutation_prob] !== missing
+            result *= ",perm_prob=$(kwargs[:permutation_prob])"
         end
         result *= ")"
         return result

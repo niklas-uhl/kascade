@@ -11,9 +11,8 @@ df0 = vcat(KascadeEval.read.([
     # "./data/supermuc/async-euler_26_02_21/"
     # "./data/supermuc/sparse-ruling-set-two-level-sync_26_02_23/",
     # "./data/supermuc/sparse-ruling-set-two-level-sync-reverse-list-locality-aware_26_02_24/"
-    "./data/supermuc/post-invert-list_26_02_26/"
+    "./data/supermuc/post-invert-list_26_02_27/"
 ])...;cols=:union)
-df0
 
 p = 768 #* 2 #1536 #* 2 * 2
 df = @subset(df0,
@@ -30,20 +29,24 @@ df = @subset(df0,
 
 time_columns = [Symbol(key) for key in keys(Config.timer_value_paths)]
 gdf = groupby(df, Not(time_columns, :iteration))
-phases = [:base_case, :chase_rulers, :invert_list, :ruler_propagation, :pack_base_case, :unpack_base_case, :find_leaves, :post_invert]
+phases = [
+    :base_case,
+    :chase_rulers,
+    :invert_list,
+    :ruler_propagation,
+    :pack_base_case,
+    :unpack_base_case,
+    :find_leaves,
+    :post_invert,
+    :fixup_unreached
+]
 combined = combine(gdf, phases .=> mean, renamecols=false)
 combined_long = stack(combined, phases, variable_name=:phase, value_name=:phase_time)
-config_keys = [:sparse_ruling_set_grid_comm, :sparse_ruling_set_post_invert, :sparse_ruling_set_post_invert_detect_leaves]
-transform!(combined_long, config_keys => ByRow((x,y,z) -> "grid=$(x),post_invert=$(y),detect_leaves=$(z)") => :config)
+config_keys = [:sparse_ruling_set_grid_comm, :sparse_ruling_set_post_invert, :sparse_ruling_set_post_invert_detect_leaves, :sparse_ruling_set_ruler_propagation_use_aggregation]
+transform!(combined_long, config_keys => ByRow((x,y,z,u) -> "grid=$x,post_invert=$y,detect_leaves=$z,ruler_prop_agg=$u") => :config)
 plt = data(combined_long) * mapping(:config,:phase_time,stack=:phase,color=:phase,col=:graph) * visual(BarPlot)
 axis = (;xticklabelrotation=π/3)
-fig = draw(plt;axis)
+figure = (; size=(2000, 1200))
+fig = draw(plt;axis,figure)
 display(fig)
-save("post_invert_permute.png", fig)
-
-
-
-
-
-
-
+save("tmp.pdf", fig)
