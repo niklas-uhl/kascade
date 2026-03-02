@@ -91,17 +91,6 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
     return (*succ_owner)[local_idx];
   };
 
-  kamping::measurements::timer().start("precompute_ruler_permutation");
-  std::vector<idx_t> local_indices_permuted;
-  std::mt19937 rng{static_cast<std::mt19937::result_type>(42 + comm.rank_signed())};
-
-  if (!config.no_precompute_rulers) {
-    local_indices_permuted =
-        dist.local_indices(comm.rank()) | std::ranges::to<std::vector>();
-    std::ranges::shuffle(local_indices_permuted, rng);
-  }
-  kamping::measurements::timer().stop();
-  
   kamping::measurements::timer().start("init_node_type");
   std::vector<NodeType> node_type(succ_array.size(), NodeType::unreached);
   std::size_t num_unreached = 0;
@@ -139,6 +128,20 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
     trace.track_num_locally_contracted(num_masked);
   }
   num_unreached -= num_masked;
+  kamping::measurements::timer().stop();
+
+  kamping::measurements::timer().start("precompute_ruler_permutation");
+  std::vector<idx_t> local_indices_permuted;
+  std::mt19937 rng{static_cast<std::mt19937::result_type>(42 + comm.rank_signed())};
+
+  if (!config.no_precompute_rulers) {
+    local_indices_permuted = dist.local_indices(comm.rank()) |
+                             std::views::filter([&](idx_t local_idx) {
+                               return node_type[local_idx] == NodeType::unreached;
+                             }) |
+                             std::ranges::to<std::vector>();
+    std::ranges::shuffle(local_indices_permuted, rng);
+  }
   kamping::measurements::timer().stop();
 
   kamping::measurements::timer().start("find_rulers");
