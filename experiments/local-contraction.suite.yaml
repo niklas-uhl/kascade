@@ -25,6 +25,17 @@ graphs:
       verify-level: 0
       iterations: 5
     scale_weak: True
+  - generator: kagen
+    type: path
+    N: 20
+    permute: True
+    permutation_prob: 0.01
+    extra_args:
+      statistics-level: extensive-reduced-output
+      input-processing: none
+      verify-level: 0
+      iterations: 5
+    scale_weak: True
 config:
   - algorithm: SparseRulingSet
     sparse-ruling-set-ruler-selection: ultimate
@@ -37,5 +48,5 @@ config:
     sparse-ruling-set-use-grid-communication: [False, True]
     sparse-ruling-set-reverse-list-locality-aware: [True]
     sparse-ruling-set-post-invert: [True]
-    sparse-ruling-set-post-invert-detect-leaves: [True]
+    sparse-ruling-set-post-invert-detect-leaves: [False]
     sparse-ruling-set-use-local-contraction: [False, True]
