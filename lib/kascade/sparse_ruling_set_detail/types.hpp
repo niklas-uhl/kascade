@@ -7,7 +7,7 @@
 
 namespace kascade {
 
-enum class NodeType : std::uint8_t { root, leaf, ruler, unreached, reached };
+enum class NodeType : std::uint8_t { root, leaf, ruler, unreached, reached, masked };
 
 inline auto format_as(NodeType type) -> std::string_view {
   switch (type) {
@@ -21,7 +21,8 @@ inline auto format_as(NodeType type) -> std::string_view {
       return "unreached";
     case NodeType::reached:
       return "reached";
-      break;
+    case NodeType::masked:
+      return "masked";
   }
   std::unreachable();
 }
