@@ -77,7 +77,8 @@ auto post_invert(SparseRulingSetConfig const& config,
   absl::flat_hash_set<idx_t> leafs_to_query;
   for (auto local_idx : dist.local_indices(comm.rank())) {
     if (node_type[local_idx] == NodeType::root ||
-        node_type[local_idx] == NodeType::leaf) {
+        node_type[local_idx] == NodeType::leaf ||
+        node_type[local_idx] == NodeType::masked) {
       continue;
     }
     auto leaf = succ_array[local_idx];
@@ -118,7 +119,8 @@ auto post_invert(SparseRulingSetConfig const& config,
   }
   for (auto local_idx : dist.local_indices(comm.rank())) {
     if (node_type[local_idx] == NodeType::root ||
-        node_type[local_idx] == NodeType::leaf) {
+        node_type[local_idx] == NodeType::leaf ||
+        node_type[local_idx] == NodeType::masked) {
       continue;
     }
     auto leaf = succ_array[local_idx];

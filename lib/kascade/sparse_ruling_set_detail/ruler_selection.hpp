@@ -5,6 +5,7 @@
 #include <ranges>
 #include <utility>
 
+#include <kamping/collectives/allreduce.hpp>
 #include <kamping/communicator.hpp>
 #include <spdlog/spdlog.h>
 
@@ -16,12 +17,18 @@ namespace kascade::sparse_ruling_set_detail {
 namespace {
 auto compute_local_num_rulers(SparseRulingSetConfig const& config,
                               Distribution const& dist,
+                              std::size_t num_masked_nodes,
                               kamping::Communicator<> const& comm) -> std::size_t {
   // NOLINTBEGIN(readability-identifier-length)
   auto n = dist.get_global_size();
+  auto n_local = dist.get_local_size(comm.rank());
+  if (config.use_local_contraction) {
+    n_local = n_local - num_masked_nodes;
+    comm.allreduce(kamping::send_buf(n_local), kamping::recv_buf(n),
+                   kamping::op(std::plus<>{}));
+  }
   auto p = comm.size();
-  auto rel_local_size =
-      static_cast<double>(dist.get_local_size(comm.rank())) / static_cast<double>(n);
+  auto rel_local_size = static_cast<double>(n_local) / static_cast<double>(n);
   // NOLINTEND(readability-identifier-length)
 
   switch (config.ruler_selection) {

@@ -25,6 +25,7 @@
 #include "kascade/pointer_doubling.hpp"
 #include "kascade/successor_utils.hpp"
 #include "kascade/types.hpp"
+#include "sparse_ruling_set_detail/local_contraction.hpp"
 #include "sparse_ruling_set_detail/post_invert.hpp"
 #include "sparse_ruling_set_detail/ruler_chasing_engine.hpp"
 #include "sparse_ruling_set_detail/ruler_propagation.hpp"
@@ -119,15 +120,34 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
     num_unreached--;
   }
   kamping::measurements::timer().stop();
+
+  RulerTrace trace;
+  trace.track_local_num_leaves(num_real_leaves);
+
+  kamping::measurements::timer().start("local_contraction");
+  std::vector<LocalChainInfo> local_chain_info;
+  std::size_t num_masked = 0;
+  if (config.use_local_contraction) {
+    std::tie(local_chain_info, num_masked) =
+        local_contraction(succ_array, rank_array, node_type, dist, comm, trace);
+    SPDLOG_DEBUG(
+        "locally contracted {} nodes in {} chains [{:.2f}%]", num_masked,
+        local_chain_info.size(),
+        100.0 * static_cast<double>(num_masked) / static_cast<double>(succ_array.size()));
+    trace.track_num_locally_contracted(num_masked);
+  }
+  num_unreached -= num_masked;
+  kamping::measurements::timer().stop();
+
   kamping::measurements::timer().start("find_rulers");
 
   std::int64_t local_num_rulers =
       // NOLINTNEXTLINE(*-narrowing-conversions)
-      static_cast<std::int64_t>(compute_local_num_rulers(config, dist, comm)) -
+      static_cast<std::int64_t>(
+          compute_local_num_rulers(config, dist, num_masked, comm)) -
       num_real_leaves;
   local_num_rulers = std::max(local_num_rulers, std::int64_t{0});
-
-  RulerTrace trace{static_cast<size_t>(local_num_rulers), num_real_leaves};
+  trace.track_local_num_rulers(local_num_rulers);
 
   SPDLOG_DEBUG("picking {} rulers", local_num_rulers);
 
@@ -278,7 +298,6 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
   kamping::measurements::timer().stop();
   kamping::measurements::timer().synchronize_and_start("fixup_unreached");
   if (!config.post_invert_detect_leaves) {
-
     trace.track_unreached(num_unreached);
     auto elements_to_fix = fixup_unreached(config, num_unreached, succ_array, rank_array,
                                            node_type, dist, comm, grid_comm);
@@ -286,12 +305,7 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
   }
   kamping::measurements::timer().stop();
   KASSERT(std::ranges::all_of(node_type,
-                              [&](NodeType type) {
-                                return type == NodeType::root ||
-                                       type == NodeType::ruler ||
-                                       type == NodeType::leaf ||
-                                       type == NodeType::reached;
-                              }),
+                              [&](NodeType type) { return type != NodeType::unreached; }),
           "Not all nodes were reached during ruler chasing!");
 
   // resetting the leafs' msb
@@ -326,6 +340,13 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
   ruler_propagation(config, succ_array, rank_array, inital_succ_array, node_type, rulers,
                     dist, comm, grid_comm);
   kamping::measurements::timer().stop();
+
+  kamping::measurements::timer().start("local_uncontraction");
+  if (config.use_local_contraction) {
+    local_uncontraction(local_chain_info, succ_array, rank_array, node_type, dist, comm);
+  }
+  kamping::measurements::timer().stop();
+
   kamping::measurements::timer().synchronize_and_start("post_invert");
   if (config.post_invert) {
     post_invert(config, succ_array, rank_array, node_type, dist, comm, grid_comm);

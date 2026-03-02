@@ -57,6 +57,7 @@ struct SparseRulingSetConfig {
   std::any base_algorithm_config;
   RulerPropagationMode ruler_propagation_mode = RulerPropagationMode::pull;
   bool use_aggregation_in_ruler_propagation = false;
+  bool use_local_contraction = false;
   bool reverse_list_locality_aware = true;
   bool use_locality_aware_in_ruler_propagation = true;
   double dehne_factor = 1.0;

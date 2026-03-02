@@ -48,7 +48,8 @@ inline auto ruler_propagation(
     // rulers and leafs also have the correct result already from the base algorithm
     return !bits::has_root_flag(succ_array[local_idx]) &&
            node_type[local_idx] != NodeType::ruler &&
-           node_type[local_idx] != NodeType::leaf;
+           node_type[local_idx] != NodeType::leaf &&
+           node_type[local_idx] != NodeType::masked;
   };
   kamping::measurements::timer().start("collect_requests");
   std::size_t deduped_requests = 0;
@@ -159,7 +160,8 @@ inline auto ruler_propagation(
     // rulers and leafs also have the correct result already from the base algorithm
     return !bits::has_root_flag(succ_array[local_idx]) &&
            node_type[local_idx] != NodeType::ruler &&
-           node_type[local_idx] != NodeType::leaf;
+           node_type[local_idx] != NodeType::leaf &&
+           node_type[local_idx] != NodeType::masked;
   };
   kamping::measurements::timer().start("cache_owners");
   std::optional<std::vector<std::size_t>> succ_owner;
