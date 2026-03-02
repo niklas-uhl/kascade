@@ -91,9 +91,7 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
     return (*succ_owner)[local_idx];
   };
 
-  kamping::measurements::timer().start("init_node_type");
-  std::vector<NodeType> node_type(succ_array.size(), NodeType::unreached);
-  std::size_t num_unreached = 0;
+  kamping::measurements::timer().start("precompute_ruler_permutation");
   std::vector<idx_t> local_indices_permuted;
   std::mt19937 rng{static_cast<std::mt19937::result_type>(42 + comm.rank_signed())};
 
@@ -102,7 +100,11 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
         dist.local_indices(comm.rank()) | std::ranges::to<std::vector>();
     std::ranges::shuffle(local_indices_permuted, rng);
   }
-
+  kamping::measurements::timer().stop();
+  
+  kamping::measurements::timer().start("init_node_type");
+  std::vector<NodeType> node_type(succ_array.size(), NodeType::unreached);
+  std::size_t num_unreached = 0;
   for (auto local_idx : dist.local_indices(comm.rank())) {
     if (is_root(local_idx, succ_array, dist, comm)) {
       node_type[local_idx] = NodeType::root;
