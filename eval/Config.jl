@@ -23,6 +23,7 @@ value_paths = Dict(
     "sparse_ruling_set_ruler_selection" => ["config", "sparse_ruling_set", "ruler_selection"],
     "sparse_ruling_set_ruler_propagation_mode" => ["config", "sparse_ruling_set", "ruler_propagation_mode"],
     "sparse_ruling_set_ruler_propagation_use_aggregation" => ["config", "sparse_ruling_set", "use_aggregation_in_ruler_propagation"],
+    "sparse_ruling_set_use_local_contraction" => ["config", "sparse_ruling_set", "use_local_contraction"],
     "sparse_ruling_set_reverse_list_locality_aware" => ["config", "sparse_ruling_set", "reverse_list_locality_aware"],
     "sparse_ruling_set_briefkasten_local_threshold" => ["config", "sparse_ruling_set", "briefkasten", "local_threshold"],
     "sparse_ruling_set_briefkasten_poll_skip_threshold" => ["config", "sparse_ruling_set", "briefkasten", "poll_skip_threshold"],
@@ -36,6 +37,9 @@ timer_value_paths = Dict(
     "total_time" => ["root", "ranking", "max"],
     "base_case" => ["root", "ranking", "base_case", "max"], 
     "chase_rulers" => ["root", "ranking", "chase_ruler", "max"],
+    "init_node_type" => ["root", "ranking", "init_node_type", "max"],
+    "precompute_ruler_permutation" => ["root", "ranking", "precompute_ruler_permutation", "max"],
+    "find_rulers" => ["root", "ranking", "find_rulers", "max"],
     "invert_list" => ["root", "ranking", "invert_list", "max"],
     "find_leaves" => ["root", "ranking", "find_leaves", "max"],
     "ruler_propagation" => ["root", "ranking", "ruler_propagation", "max"],
@@ -43,6 +47,8 @@ timer_value_paths = Dict(
     "unpack_base_case" => ["root", "ranking", "unpack_base_case", "max"],
     "post_invert" => ["root", "ranking", "post_invert", "max"],
     "fixup_unreached" => ["root", "ranking", "fixup_unreached", "max"],
+    "local_contraction" => ["root", "ranking", "local_contraction", "max"],
+    "local_uncontraction" => ["root", "ranking", "local_uncontraction", "max"],
 )
 
 first_iteration = 1
