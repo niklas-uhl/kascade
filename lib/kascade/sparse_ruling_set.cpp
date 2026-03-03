@@ -69,28 +69,6 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
   }
   kamping::measurements::timer().stop();
 
-  kamping::measurements::timer().start("cache_owners");
-  std::optional<std::vector<std::size_t>> succ_owner;
-  if (config.cache_owners) {
-    succ_owner.emplace(succ_array.size());
-    for (std::size_t i = 0; i < succ_owner->size(); i++) {
-      auto succ = succ_array[i];
-      if (dist.is_local(succ, comm.rank())) {
-        (*succ_owner)[i] = comm.rank();
-      } else {
-        (*succ_owner)[i] = dist.get_owner(succ);
-      }
-    }
-  }
-  kamping::measurements::timer().stop();
-  auto get_succ_owner = [&](idx_t local_idx, idx_t succ_global) {
-    if (!config.cache_owners) {
-      return dist.get_owner(succ_global);
-    }
-    KASSERT(dist.get_owner(succ_global) == (*succ_owner)[local_idx]);
-    return (*succ_owner)[local_idx];
-  };
-
   kamping::measurements::timer().start("init_node_type");
   std::vector<NodeType> node_type(succ_array.size(), NodeType::unreached);
   std::size_t num_unreached = 0;
@@ -129,6 +107,31 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
   }
   num_unreached -= num_masked;
   kamping::measurements::timer().stop();
+  
+  kamping::measurements::timer().start("cache_owners");
+  std::optional<std::vector<std::size_t>> succ_owner;
+  if (config.cache_owners) {
+    succ_owner.emplace(succ_array.size());
+    for (std::size_t i = 0; i < succ_owner->size(); i++) {
+      if (node_type[i] == NodeType::masked) {
+        continue;
+      }
+      auto succ = succ_array[i];
+      if (dist.is_local(succ, comm.rank())) {
+        (*succ_owner)[i] = comm.rank();
+      } else {
+        (*succ_owner)[i] = dist.get_owner(succ);
+      }
+    }
+  }
+  kamping::measurements::timer().stop();
+  auto get_succ_owner = [&](idx_t local_idx, idx_t succ_global) {
+    if (!config.cache_owners) {
+      return dist.get_owner(succ_global);
+    }
+    KASSERT(dist.get_owner(succ_global) == (*succ_owner)[local_idx]);
+    return (*succ_owner)[local_idx];
+  };
 
   kamping::measurements::timer().start("precompute_ruler_permutation");
   std::vector<idx_t> local_indices_permuted;
