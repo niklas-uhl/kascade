@@ -168,6 +168,9 @@ inline auto ruler_propagation(
   if (config.cache_owners) {
     succ_owner.emplace(succ_array.size());
     for (std::size_t i = 0; i < succ_owner->size(); i++) {
+      if (!needs_to_request_ruler(i)) {
+        continue;
+      }
       auto succ = succ_array[i];
       if (dist.is_local(succ, comm.rank())) {
         (*succ_owner)[i] = comm.rank();
