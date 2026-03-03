@@ -52,6 +52,7 @@ algo_params = [
     :sparse_ruling_set_ruler_propagation_mode,
     :sparse_ruling_set_dehne_factor,
     :sparse_ruling_set_sanders_factor,
+    :sparse_ruling_set_cache_owners,
     :sparse_ruling_set_briefkasten_local_threshold,
     :sparse_ruling_set_briefkasten_poll_skip_threshold,
     :rma_pointer_chasing_sync_mode,
@@ -104,6 +105,9 @@ function to_config_name(;kwargs...)
         if kwargs[:sparse_ruling_set_spawn] == true
             name *= "-spawn"
         end
+        if kwargs[:sparse_ruling_set_cache_owners] == true
+            name *= "-owner-cache"
+        end
         name *= " (ruler_selection=$(kwargs[:sparse_ruling_set_ruler_selection])"
         if kwargs[:sparse_ruling_set_ruler_selection] == "dehne"
             name *= ", dehne_factor=$(kwargs[:sparse_ruling_set_dehne_factor])"
@@ -147,7 +151,7 @@ dirs = [
     # "./data/supermuc/optimize-async-params-2_26_02_22/"
     # "./data/supermuc/optimize-comm-rounds_26_02_22/",
     # "./data/supermuc/optimize-comm-rounds-2_26_02_22/"
-    "./data/supermuc/optimize-ultimate-factor_26_02_26/"
+    "./data/supermuc/optimize-ultimate-factor_26_03_03/"
     # "./data/supermuc/async-euler-large_26_02_22/"
     # "./data/supermuc/sparse-ruling-set-push-propagation_26_02_19/",
 ]

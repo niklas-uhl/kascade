@@ -15,6 +15,7 @@ value_paths = Dict(
     "sparse_ruling_set_no_precompute_rulers" => ["config", "sparse_ruling_set", "no_precompute_rulers"],
     "sparse_ruling_set_post_invert" => ["config", "sparse_ruling_set", "post_invert"],
     "sparse_ruling_set_post_invert_detect_leaves" => ["config", "sparse_ruling_set", "post_invert_detect_leaves"],
+    "sparse_ruling_set_cache_owners" => ["config", "sparse_ruling_set", "cache_owners"],
     "sparse_ruling_set_grid_comm" => ["config", "sparse_ruling_set", "use_grid_communication"],
     "sparse_ruling_set_dehne_factor" => ["config", "sparse_ruling_set", "dehne_factor"],
     "sparse_ruling_set_sanders_factor" => ["config", "sparse_ruling_set", "sanders_factor"],

@@ -3,6 +3,7 @@ using DataFramesMeta
 using Statistics
 using AlgebraOfGraphics
 using CairoMakie
+using CategoricalArrays
 
 include("KascadeEval.jl")
 import .KascadeEval
@@ -11,7 +12,8 @@ df0 = vcat(KascadeEval.read.([
     # "./data/supermuc/async-euler_26_02_21/"
     # "./data/supermuc/sparse-ruling-set-two-level-sync_26_02_23/",
     # "./data/supermuc/sparse-ruling-set-two-level-sync-reverse-list-locality-aware_26_02_24/"
-    "./data/supermuc/local-contraction-filter-perm_26_03_02/"
+    "./data/supermuc/local-contraction-filter-perm_26_03_02/",
+    "./data/supermuc/local-contraction_26_03_03/"
 ])...;cols=:union)
 
 p = 768 #* 2 #1536 #* 2 * 2
@@ -49,8 +51,15 @@ combined = combine(gdf, phases .=> mean, renamecols=false)
 combined_long = stack(combined, phases, variable_name=:phase, value_name=:phase_time)
 config_keys = [:sparse_ruling_set_grid_comm, :sparse_ruling_set_use_local_contraction]
 transform!(combined_long, config_keys => ByRow((x,y) -> "grid=$x,contract=$y") => :config)
+combined_long.graph = categorical(combined_long.graph)
 
-plt = data(combined_long) * mapping(:config,:phase_time,stack=:phase,color=:phase,col=:graph) * visual(BarPlot)
+
+plt = data(combined_long) *
+      mapping(:config,:phase_time,
+          stack=:phase,
+          color=:phase,
+          col=:graph) *
+      visual(BarPlot)
 axis = (;xticklabelrotation=π/3)
 figure = (; size=(2000, 1200))
 
@@ -59,6 +68,7 @@ fig = draw(
     scales(Color = (; palette = :tab20)),  # sampled for as many categories as needed
     axis = (; xticklabelrotation = π/3),
     figure = (; size = (2000, 1200)),
+    facet = (; linkyaxes=false)
 )
 display(fig)
 save("tmp3.pdf", fig)
