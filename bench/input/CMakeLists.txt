@@ -13,7 +13,6 @@ target_link_libraries(
   ${CMAKE_PROJECT_NAME}_input_generation
   PRIVATE ${CMAKE_PROJECT_NAME}_cxx_flags
   PUBLIC kamping::kamping
-         cmake_git_version_tracking
          KaGen::KaGen
          absl::flat_hash_map
          fmt::fmt
