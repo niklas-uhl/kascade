@@ -107,31 +107,6 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
   }
   num_unreached -= num_masked;
   kamping::measurements::timer().stop();
-  
-  kamping::measurements::timer().start("cache_owners");
-  std::optional<std::vector<std::size_t>> succ_owner;
-  if (config.cache_owners) {
-    succ_owner.emplace(succ_array.size());
-    for (std::size_t i = 0; i < succ_owner->size(); i++) {
-      if (node_type[i] == NodeType::masked) {
-        continue;
-      }
-      auto succ = succ_array[i];
-      if (dist.is_local(succ, comm.rank())) {
-        (*succ_owner)[i] = comm.rank();
-      } else {
-        (*succ_owner)[i] = dist.get_owner(succ);
-      }
-    }
-  }
-  kamping::measurements::timer().stop();
-  auto get_succ_owner = [&](idx_t local_idx, idx_t succ_global) {
-    if (!config.cache_owners) {
-      return dist.get_owner(succ_global);
-    }
-    KASSERT(dist.get_owner(succ_global) == (*succ_owner)[local_idx]);
-    return (*succ_owner)[local_idx];
-  };
 
   kamping::measurements::timer().start("precompute_ruler_permutation");
   std::vector<idx_t> local_indices_permuted;
@@ -209,8 +184,7 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
         continue;
       }
       send_to({.target_idx = succ, .ruler = ruler, .dist_from_ruler = dist_to_succ},
-              get_succ_owner(ruler_local, succ));
-      // dist.get_owner(succ));
+              dist.get_owner(succ));
     }
   };
 
@@ -258,8 +232,7 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
     }
     send_to(
         RulerMessage{.target_idx = succ, .ruler = ruler, .dist_from_ruler = dist_to_succ},
-        get_succ_owner(ruler_local, succ));
-    // dist.get_owner(succ));
+        dist.get_owner(succ));
   };
 
   auto work_on_item = [&](RulerMessage const& msg, auto&& enqueue_locally,
@@ -293,8 +266,7 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
     send_to({.target_idx = succ,
              .ruler = ruler,
              .dist_from_ruler = dist_from_ruler + dist_to_succ},
-            get_succ_owner(idx_local, succ));
-    // succ_rank);
+            dist.get_owner(succ));
   };
   if (config.sync) {
     auto rounds = ruler_chasing_engine(config, init, work_on_item, dist, comm, grid_comm,
