@@ -68,5 +68,5 @@ config:
     sparse-ruling-set-post-invert-detect-leaves: [False]
     sparse-ruling-set-base-algorithm: [SparseRulingSet, PointerDoubling]
     sparse-ruling-set-use-grid-communication: [False, True]
-    sparse-ruling-set-cache-owners: [False, True]
+    sparse-ruling-set-cache-owners: [False]
     sparse-ruling-set-use-local-contraction: [True]
