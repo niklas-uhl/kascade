@@ -47,7 +47,7 @@ graphs:
     scale_weak: True
   - generator: kagen
     type: path
-    N: 24
+    N: 23
     permute: True
     extra_args:
       statistics-level: extensive-reduced-output
@@ -58,9 +58,15 @@ graphs:
 config:
   - algorithm: SparseRulingSet
     sparse-ruling-set-ruler-selection: ultimate
-    ultimate-factor: [0.05, 0.1, 0.15, 0.2, 0.25]
+    sparse-ruling-set-ultimate-factor: [0.05, 0.1, 0.15, 0.2, 0.25]
     sparse-ruling-set-spawn: True
     sparse-ruling-set-sync: True
     sparse-ruling-set-sync-locality-aware: True
+    sparse-ruling-set-ruler-propagation-use-aggregation: [False]
+    sparse-ruling-set-reverse-list-locality-aware: [True]
+    sparse-ruling-set-post-invert: [True]
+    sparse-ruling-set-post-invert-detect-leaves: [False]
+    sparse-ruling-set-base-algorithm: [SparseRulingSet, PointerDoubling]
     sparse-ruling-set-use-grid-communication: [False, True]
-    sparse-ruling-set-base-algorithm: [SparseRulingSet]
+    sparse-ruling-set-cache-owners: [False, True]
+    sparse-ruling-set-use-local-contraction: [True]
