@@ -17,6 +17,13 @@ struct Config {
   // std::string hostname = KACC_HOSTNAME;
   // std::string os = KACC_OS;
   // std::string processor = KACC_PROCESSOR;
+  std::string i_mpi_adjust_alltoallv = [] {
+    char* val = std::getenv("I_MPI_ADJUST_ALLTOALLV");
+    if (val == nullptr) {
+      return std::string{};
+    }
+    return std::string{val};
+  }();
   std::string git_tag = std::string(git::CommitSHA1().substr(0, 8)) +
                         (git::AnyUncommittedChanges() ? "-dirty" : "");
   std::string output_path = "stdout";

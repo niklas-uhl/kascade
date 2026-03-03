@@ -130,6 +130,7 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_ONLY_SERIALIZE(Stats, basic_stats, extensive_
 
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Config,
                                    num_ranks,
+                                   i_mpi_adjust_alltoallv,
                                    git_tag,
                                    output_path,
                                    iterations,
