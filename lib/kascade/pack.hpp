@@ -16,6 +16,7 @@
 #include "kascade/grid_communicator.hpp"
 #include "kascade/request_aggregation_scheme.hpp"
 #include "kascade/types.hpp"
+#include "kascade/successor_utils.hpp"
 
 namespace kascade {
 /// @brief Packs the given arrays according to the given distribution and active indices.
@@ -88,14 +89,26 @@ auto pack(std::span<const idx_t> succ_array,
                     bool use_grid_communication = false,
                     std::size_t gather_threshold = 100) {
     auto local_packed_size = std::ranges::size(active_indices);
-    auto unpacked_idx_requests = succ_array_packed.first(local_packed_size) |
-                                 std::views::filter([&](auto succ_packed) {
-                                   return !dist_packed.is_local(succ_packed, comm.rank());
-                                 });
     kamping::measurements::timer().synchronize_and_start("build_request_set");
     absl::flat_hash_set<idx_t> unpacked_idx_requests_dedup;
     std::size_t duplicates = 0;
-    for (auto const& succ_packed : unpacked_idx_requests) {
+    std::vector<std::pair<idx_t, idx_t>> packed_roots_to_unpacked;
+    auto make_reply = [&](idx_t succ_packed) {
+      KASSERT(dist_packed.is_local(succ_packed, comm.rank()));
+      auto succ_packed_idx_local = dist_packed.get_local_idx(succ_packed, comm.rank());
+      auto succ_unpacked_idx_local = idx_local_packed_to_unpacked_[succ_packed_idx_local];
+      auto succ_unpacked =
+          dist_unpacked.get_global_idx(succ_unpacked_idx_local, comm.rank());
+      return std::pair{succ_packed, succ_unpacked};
+    };
+    for (std::size_t idx_local = 0; idx_local < local_packed_size; ++idx_local) {
+      auto succ_packed = succ_array_packed[idx_local];
+      if (is_root(idx_local, succ_array_packed, dist_packed, comm)) {
+        packed_roots_to_unpacked.emplace_back(make_reply(succ_packed));
+      }
+      if (dist_packed.is_local(succ_packed, comm.rank())) {
+        continue;
+      }
       auto [_, inserted] = unpacked_idx_requests_dedup.insert(succ_packed);
       if (!inserted) {
         duplicates++;
@@ -110,37 +123,23 @@ auto pack(std::span<const idx_t> succ_array,
                       return std::pair{dist_packed.get_owner(succ_packed), succ_packed};
                     }) |
                     std::ranges::to<std::vector>();
-    auto make_reply = [&](idx_t succ_packed) {
-      KASSERT(dist_packed.is_local(succ_packed, comm.rank()));
-      auto succ_packed_idx_local = dist_packed.get_local_idx(succ_packed, comm.rank());
-      auto succ_unpacked_idx_local = idx_local_packed_to_unpacked_[succ_packed_idx_local];
-      auto succ_unpacked =
-          dist_unpacked.get_global_idx(succ_unpacked_idx_local, comm.rank());
-      return std::pair{succ_packed, succ_unpacked};
-    };
-    std::vector<int> num_requests;
+
+    std::vector<int> num_roots_to_request;
     if (gather_threshold != 0) {
-      num_requests = comm.allgather(kamping::send_buf(static_cast<int>(requests.size())));
+      num_roots_to_request = comm.allgather(
+          kamping::send_buf(static_cast<int>(packed_roots_to_unpacked.size())));
     }
-    auto total_num_requests =
-        std::reduce(num_requests.begin(), num_requests.end(), std::size_t{0});
+    auto total_num_roots_to_request = std::reduce(
+        num_roots_to_request.begin(), num_roots_to_request.end(), std::size_t{0});
     std::vector<std::pair<idx_t, idx_t>> replies;
     SPDLOG_LOGGER_DEBUG(
         spdlog::get("root"),
-        "[unpack] Total number of requests is {}. Using {} strategy to gather replies.",
-        total_num_requests,
-        total_num_requests < gather_threshold ? "gather" : "request-reply");
-    if (total_num_requests < gather_threshold) {
-      auto all_requests = comm.allgatherv(kamping::send_buf(requests),
-                                          kamping::recv_counts(num_requests));
-      auto local_replies = all_requests | std::views::filter([&](auto const& request) {
-                             return request.first == comm.rank();
-                           }) |
-                           std::views::transform([&](auto const& request) {
-                             return make_reply(request.second);
-                           }) |
-                           std::ranges::to<std::vector>();
-      replies = comm.allgatherv(kamping::send_buf(local_replies));
+        "[unpack] Total number of roots is {}. Using {} strategy to gather replies.",
+        total_num_roots_to_request,
+        total_num_roots_to_request < gather_threshold ? "gather" : "request-reply");
+    if (total_num_roots_to_request < gather_threshold) {
+      replies = comm.allgatherv(kamping::send_buf(std::move(packed_roots_to_unpacked)),
+                                kamping::recv_counts(num_roots_to_request));
     } else {
       if (use_grid_communication) {
         replies =
