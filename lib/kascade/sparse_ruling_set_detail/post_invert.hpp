@@ -1,11 +1,14 @@
 #pragma once
 
+#include <cstddef>
+#include <numeric>
 #include <ranges>
 #include <span>
 #include <vector>
 
 #include <absl/container/flat_hash_set.h>
 #include <kamping/communicator.hpp>
+#include <kamping/collectives/allgather.hpp>
 #include <spdlog/spdlog.h>
 
 #include "kascade/configuration.hpp"
@@ -18,52 +21,32 @@
 
 namespace kascade::sparse_ruling_set_detail {
 namespace {
-auto post_invert(SparseRulingSetConfig const& config,
-                 std::span<idx_t> succ_array,
-                 std::span<rank_t> rank_array,
-                 std::vector<NodeType>& node_type,
-                 Distribution const& dist,
-                 kamping::Communicator<> const& comm,
-                 std::optional<TopologyAwareGridCommunicator> const& grid_comm) {
-  auto roots = dist.local_indices(comm.rank()) | std::views::filter([&](idx_t local_idx) {
-                 return node_type[local_idx] == NodeType::root;
-               });
-  struct LeafMessage {
-    idx_t leaf;
-    idx_t root;
-    rank_t dist_from_root_to_leaf;
-  };
-  AlltoallDispatcher<LeafMessage> dispatcher{config.use_grid_communication, comm,
-                                             grid_comm};
-  std::vector<std::pair<int, LeafMessage>> messages;
-  for (auto root_local : roots) {
-    auto leaf = succ_array[root_local];
-    auto root = dist.get_global_idx(root_local, comm.rank());
-    if (leaf == root) {  // this a singular node, so we do nothing
-      continue;
-    }
-    auto dist_from_root_to_leaf = rank_array[root_local];
-    succ_array[root_local] = root;
-    rank_array[root_local] = 0;
-    if (dist.is_local(leaf, comm.rank())) {
-      auto leaf_local = dist.get_local_idx(leaf, comm.rank());
-      KASSERT(succ_array[leaf_local] == leaf);
-      KASSERT(rank_array[leaf_local] == 0);
-      succ_array[leaf_local] = root;
-      rank_array[leaf_local] = dist_from_root_to_leaf;
-      // the leaf might not know yet that it's a leaf, so we set it
-      node_type[leaf_local] = NodeType::leaf;
-      continue;
-    }
-    auto leaf_owner = dist.get_owner(leaf);
-    messages.emplace_back(leaf_owner,
-                          LeafMessage{.leaf = leaf,
-                                      .root = root,
-                                      .dist_from_root_to_leaf = dist_from_root_to_leaf});
-  }
+struct LeafMessage {
+  idx_t leaf;
+  idx_t root;
+  rank_t dist_from_root_to_leaf;
+};
 
-  auto leaf_messages = dispatcher.alltoallv(messages);
-  for (auto const& leaf_message : leaf_messages) {
+struct LeafReply {
+  idx_t root;
+  rank_t dist_to_root;
+};
+
+auto format_as(LeafReply const& reply) -> std::string {
+  return fmt::format("{{root={}, dist_to_root={}}}", reply.root, reply.dist_to_root);
+}
+
+auto invert_leafs_and_build_leaf_info(
+    SparseRulingSetConfig const& config,
+    std::vector<std::pair<int, LeafMessage>>& messages,
+    std::span<const LeafMessage> local_messages,
+    std::span<idx_t> succ_array,
+    std::span<rank_t> rank_array,
+    std::span<NodeType> node_type,
+    Distribution const& dist,
+    kamping::Communicator<> const& comm,
+    std::optional<TopologyAwareGridCommunicator> const& grid_comm) {
+  auto handle_local_leaf_message = [&](LeafMessage const& leaf_message) {
     KASSERT(dist.is_local(leaf_message.leaf, comm.rank()));
     auto leaf_local = dist.get_local_idx(leaf_message.leaf, comm.rank());
     KASSERT(succ_array[leaf_local] == leaf_message.leaf);
@@ -72,7 +55,42 @@ auto post_invert(SparseRulingSetConfig const& config,
     rank_array[leaf_local] = leaf_message.dist_from_root_to_leaf;
     // the leaf might not know yet that it's a leaf, so we set it
     node_type[leaf_local] = NodeType::leaf;
+  };
+  std::vector<int> num_roots;
+  if (config.root_gather_threshold != 0) {
+    // in case the threshold is 0, we will use alltoall anyway, so we can skip this communication step
+    num_roots = comm.allgather(
+        kamping::send_buf(static_cast<int>(messages.size() + local_messages.size())));
   }
+  auto total_num_roots = std::reduce(num_roots.begin(), num_roots.end(), std::size_t{0});
+  SPDLOG_LOGGER_DEBUG(
+      spdlog::get("root"),
+      "Total number of roots is {}. Using {} strategy to gather leaf messages.",
+      total_num_roots,
+      total_num_roots < config.root_gather_threshold ? "gather" : "alltoall");
+  if (total_num_roots < config.root_gather_threshold) {
+    messages.insert_range(
+        messages.end(),
+        local_messages | std::views::transform([&](LeafMessage const& msg) {
+          return std::pair{comm.rank(), msg};
+        }));
+    auto leaf_messages =
+        comm.allgatherv(kamping::send_buf(messages), kamping::recv_counts(num_roots));
+    absl::flat_hash_map<idx_t, LeafReply> leaf_info;
+    for (auto const& [rank, leaf_message] : leaf_messages) {
+      if (rank == comm.rank_signed()) {
+        handle_local_leaf_message(leaf_message);
+      }
+      leaf_info[leaf_message.leaf] = LeafReply{
+          .root = leaf_message.root, .dist_to_root = leaf_message.dist_from_root_to_leaf};
+    }
+    return leaf_info;
+  }
+  AlltoallDispatcher<LeafMessage> dispatcher{config.use_grid_communication, comm,
+                                             grid_comm};
+  auto leaf_messages = dispatcher.alltoallv(messages);
+  std::ranges::for_each(local_messages, handle_local_leaf_message);
+  std::ranges::for_each(leaf_messages, handle_local_leaf_message);
 
   absl::flat_hash_set<idx_t> leafs_to_query;
   for (auto local_idx : dist.local_indices(comm.rank())) {
@@ -91,10 +109,7 @@ auto post_invert(SparseRulingSetConfig const& config,
                          return std::pair{dist.get_owner(leaf), leaf};
                        }) |
                        std::ranges::to<std::vector>();
-  struct LeafReply {
-    idx_t root;
-    rank_t dist_to_root;
-  };
+
   auto make_reply = [&](idx_t const& requested_leaf) {
     KASSERT(dist.is_local(requested_leaf, comm.rank()));
     auto leaf_local = dist.get_local_idx(requested_leaf, comm.rank());
@@ -117,6 +132,46 @@ auto post_invert(SparseRulingSetConfig const& config,
     auto const& reply = leaf_replies[displs[leaf_owner]++];
     leaf_info[leaf] = reply;
   }
+  return leaf_info;
+}
+
+auto post_invert(SparseRulingSetConfig const& config,
+                 std::span<idx_t> succ_array,
+                 std::span<rank_t> rank_array,
+                 std::vector<NodeType>& node_type,
+                 Distribution const& dist,
+                 kamping::Communicator<> const& comm,
+                 std::optional<TopologyAwareGridCommunicator> const& grid_comm) {
+  auto roots = dist.local_indices(comm.rank()) | std::views::filter([&](idx_t local_idx) {
+                 return node_type[local_idx] == NodeType::root;
+               });
+
+  std::vector<std::pair<int, LeafMessage>> messages;
+  std::vector<LeafMessage> local_messages;
+  for (auto root_local : roots) {
+    auto leaf = succ_array[root_local];
+    auto root = dist.get_global_idx(root_local, comm.rank());
+    if (leaf == root) {  // this a singular node, so we do nothing
+      continue;
+    }
+    auto dist_from_root_to_leaf = rank_array[root_local];
+    succ_array[root_local] = root;
+    rank_array[root_local] = 0;
+    if (dist.is_local(leaf, comm.rank())) {
+      local_messages.emplace_back(LeafMessage{
+          .leaf = leaf, .root = root, .dist_from_root_to_leaf = dist_from_root_to_leaf});
+      continue;
+    }
+    auto leaf_owner = dist.get_owner(leaf);
+    messages.emplace_back(leaf_owner,
+                          LeafMessage{.leaf = leaf,
+                                      .root = root,
+                                      .dist_from_root_to_leaf = dist_from_root_to_leaf});
+  }
+  auto leaf_info =
+      invert_leafs_and_build_leaf_info(config, messages, local_messages, succ_array,
+                                       rank_array, node_type, dist, comm, grid_comm);
+  SPDLOG_TRACE("leaf_info={}", leaf_info);
   for (auto local_idx : dist.local_indices(comm.rank())) {
     if (node_type[local_idx] == NodeType::root ||
         node_type[local_idx] == NodeType::leaf ||
@@ -130,6 +185,7 @@ auto post_invert(SparseRulingSetConfig const& config,
       rank_array[local_idx] = rank_array[leaf_local] - rank_array[local_idx];
       continue;
     }
+    KASSERT(leaf_info.contains(leaf), std::format("Missing leaf info for leaf {}", leaf));
     auto const& info = leaf_info[leaf];
     succ_array[local_idx] = info.root;
     rank_array[local_idx] = info.dist_to_root - rank_array[local_idx];

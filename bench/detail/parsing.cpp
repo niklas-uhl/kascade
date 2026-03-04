@@ -148,6 +148,9 @@ auto parse_args(std::span<char*> args) -> Config {
       ->group("Sparse Ruling Set");
   app.add_flag("--sparse-ruling-set-cache-owners", config.sparse_ruling_set.cache_owners)
       ->group("Sparse Ruling Set");
+  app.add_option("--sparse-ruling-set-root-gather-threshold",
+                 config.sparse_ruling_set.root_gather_threshold)
+      ->group("Sparse Ruling Set");
   app.add_flag("--sparse-ruling-set-sync,!--sparse-ruling-set-async",
                config.sparse_ruling_set.sync)
       ->group("Sparse Ruling Set");

@@ -66,6 +66,7 @@ struct SparseRulingSetConfig {
   double ultimate_factor = 0.1;
   std::size_t round_limit = 100;
   bool cache_owners = false;
+  std::size_t root_gather_threshold = 100;
   bool sync = true;
   bool sync_locality_aware = false;
   bool spawn = false;
