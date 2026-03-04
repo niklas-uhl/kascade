@@ -27,6 +27,8 @@ auto ruler_chasing_engine(SparseRulingSetConfig const& config,
                      ruler_chasing::async_tag /* tag */) {
   briefkasten::Config briefkasten_config;
   briefkasten_config.local_threshold_bytes = config.briefkasten.local_threshold;
+  briefkasten_config.max_num_send_buffers = 2 * comm.size();
+  briefkasten_config.out_buffer_capacity = comm.size();
   auto queue = briefkasten::BufferedMessageQueueBuilder<RulerMessage>(
                    briefkasten_config, comm.mpi_communicator())
                    .build();
@@ -58,10 +60,7 @@ auto ruler_chasing_engine(SparseRulingSetConfig const& config,
                      Distribution const& /* dist */,
                      kamping::Communicator<> const& comm,
                      std::optional<TopologyAwareGridCommunicator> const& grid_comm,
-                     ruler_chasing::sync_tag /* tag */) -> std::size_t {
-  auto queue =
-      briefkasten::BufferedMessageQueueBuilder<RulerMessage>(comm.mpi_communicator())
-          .build();
+                          ruler_chasing::sync_tag /* tag */) -> std::size_t {
   std::vector<RulerMessage> local_work;
   std::vector<std::pair<int, RulerMessage>> messages;
 
