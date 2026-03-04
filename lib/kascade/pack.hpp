@@ -1,10 +1,12 @@
 #pragma once
 
+#include <cstddef>
 #include <ranges>
 #include <span>
 
 #include <absl/container/flat_hash_map.h>
 #include <absl/container/flat_hash_set.h>
+#include <kamping/collectives/allgather.hpp>
 #include <kamping/communicator.hpp>
 #include <kamping/measurements/timer.hpp>
 #include <kamping/types/unsafe/utility.hpp>
@@ -83,7 +85,8 @@ auto pack(std::span<const idx_t> succ_array,
                     IndexRange auto const& active_indices,
                     kamping::Communicator<> const& comm,
                     std::optional<TopologyAwareGridCommunicator> const& grid_comm,
-                    bool use_grid_communication = false) {
+                    bool use_grid_communication = false,
+                    std::size_t gather_threshold = 100) {
     auto local_packed_size = std::ranges::size(active_indices);
     auto unpacked_idx_requests = succ_array_packed.first(local_packed_size) |
                                  std::views::filter([&](auto succ_packed) {
@@ -107,35 +110,44 @@ auto pack(std::span<const idx_t> succ_array,
                       return std::pair{dist_packed.get_owner(succ_packed), succ_packed};
                     }) |
                     std::ranges::to<std::vector>();
+    auto make_reply = [&](idx_t succ_packed) {
+      KASSERT(dist_packed.is_local(succ_packed, comm.rank()));
+      auto succ_packed_idx_local = dist_packed.get_local_idx(succ_packed, comm.rank());
+      auto succ_unpacked_idx_local = idx_local_packed_to_unpacked_[succ_packed_idx_local];
+      auto succ_unpacked =
+          dist_unpacked.get_global_idx(succ_unpacked_idx_local, comm.rank());
+      return std::pair{succ_packed, succ_unpacked};
+    };
+    std::vector<int> num_requests;
+    if (gather_threshold != 0) {
+      num_requests = comm.allgather(kamping::send_buf(static_cast<int>(requests.size())));
+    }
+    auto total_num_requests =
+        std::reduce(num_requests.begin(), num_requests.end(), std::size_t{0});
     std::vector<std::pair<idx_t, idx_t>> replies;
-    if (use_grid_communication) {
-      replies = request_reply_without_remote_aggregation(
-          requests,
-          [&](idx_t succ_packed) {
-            KASSERT(dist_packed.is_local(succ_packed, comm.rank()));
-            auto succ_packed_idx_local =
-                dist_packed.get_local_idx(succ_packed, comm.rank());
-            auto succ_unpacked_idx_local =
-                idx_local_packed_to_unpacked_[succ_packed_idx_local];
-            auto succ_unpacked =
-                dist_unpacked.get_global_idx(succ_unpacked_idx_local, comm.rank());
-            return std::pair{succ_packed, succ_unpacked};
-          },
-          *grid_comm);
+    SPDLOG_LOGGER_DEBUG(
+        spdlog::get("root"),
+        "[unpack] Total number of requests is {}. Using {} strategy to gather replies.",
+        total_num_requests,
+        total_num_requests < gather_threshold ? "gather" : "request-reply");
+    if (total_num_requests < gather_threshold) {
+      auto all_requests = comm.allgatherv(kamping::send_buf(requests),
+                                          kamping::recv_counts(num_requests));
+      auto local_replies = all_requests | std::views::filter([&](auto const& request) {
+                             return request.first == comm.rank();
+                           }) |
+                           std::views::transform([&](auto const& request) {
+                             return make_reply(request.second);
+                           }) |
+                           std::ranges::to<std::vector>();
+      replies = comm.allgatherv(kamping::send_buf(local_replies));
     } else {
-      replies = request_reply_without_remote_aggregation(
-          requests,
-          [&](idx_t succ_packed) {
-            KASSERT(dist_packed.is_local(succ_packed, comm.rank()));
-            auto succ_packed_idx_local =
-                dist_packed.get_local_idx(succ_packed, comm.rank());
-            auto succ_unpacked_idx_local =
-                idx_local_packed_to_unpacked_[succ_packed_idx_local];
-            auto succ_unpacked =
-                dist_unpacked.get_global_idx(succ_unpacked_idx_local, comm.rank());
-            return std::pair{succ_packed, succ_unpacked};
-          },
-          comm);
+      if (use_grid_communication) {
+        replies =
+            request_reply_without_remote_aggregation(requests, make_reply, *grid_comm);
+      } else {
+        replies = request_reply_without_remote_aggregation(requests, make_reply, comm);
+      }
     }
     kamping::measurements::timer().stop();
     kamping::measurements::timer().synchronize_and_start("build_unpack_map");

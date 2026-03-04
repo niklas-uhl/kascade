@@ -65,7 +65,7 @@ auto invert_leafs_and_build_leaf_info(
   auto total_num_roots = std::reduce(num_roots.begin(), num_roots.end(), std::size_t{0});
   SPDLOG_LOGGER_DEBUG(
       spdlog::get("root"),
-      "Total number of roots is {}. Using {} strategy to gather leaf messages.",
+      "[post_invert] Total number of roots is {}. Using {} strategy to gather leaf messages.",
       total_num_roots,
       total_num_roots < config.root_gather_threshold ? "gather" : "alltoall");
   if (total_num_roots < config.root_gather_threshold) {

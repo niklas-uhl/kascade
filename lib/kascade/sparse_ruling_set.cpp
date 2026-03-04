@@ -309,7 +309,7 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
 
     kamping::measurements::timer().start("unpack_base_case");
     unpack(succ_array_base, rank_array_base, dist_base, succ_array, rank_array, dist,
-           rulers, comm, grid_comm, config.use_grid_communication);
+           rulers, comm, grid_comm, config.use_grid_communication, config.root_gather_threshold);
     kamping::measurements::timer().stop();
   }
 
