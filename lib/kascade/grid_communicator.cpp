@@ -15,6 +15,14 @@ constexpr auto ceil_div(T num, T den) -> T {
 
 namespace kascade {
 
+auto compute_grid_dimensions(std::size_t comm_size)
+    -> std::pair<std::size_t, std::size_t> {
+  std::array<int, 2> dims{0, 0};
+  MPI_Dims_create(static_cast<int>(comm_size), 2, dims.data());
+  return std::make_pair(static_cast<std::size_t>(dims[0]),
+                        static_cast<std::size_t>(dims[1]));
+}
+
 // assumes consecutive world ranks per compute node
 TopologyAwareGridCommunicator::TopologyAwareGridCommunicator(
     kamping::Communicator<> const& global_comm)
@@ -81,6 +89,18 @@ auto TopologyAwareGridCommunicator::intra_node_comm() const
 auto TopologyAwareGridCommunicator::inter_node_rank(std::size_t global_rank) const
     -> std::size_t {
   return global_rank / ranks_per_compute_node_;
+}
+
+auto TopologyAwareGridCommunicator::global_rank(std::size_t intra_node_rank,
+                                                std::size_t inter_node_rank) const
+    -> std::size_t {
+  return intra_node_rank + (inter_node_rank * ranks_per_compute_node_);
+}
+
+auto TopologyAwareGridCommunicator::global_rank_signed(std::size_t intra_node_rank,
+                                                       std::size_t inter_node_rank) const
+    -> int {
+  return static_cast<int>(global_rank(intra_node_rank, inter_node_rank));
 }
 
 auto TopologyAwareGridCommunicator::intra_node_rank(std::size_t global_rank) const

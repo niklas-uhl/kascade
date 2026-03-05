@@ -320,6 +320,7 @@ auto request_reply_without_remote_aggregation(
 
     // do packing explicit, otherwise third pass over requests for displs would be
     // required
+    kamping::measurements::timer().start("prepare-inter-send-requests");
     std::vector<std::pair<int, SourcedEnvelope<Request>>> packed_env;
     packed_env.reserve(requests.size());
     for (const auto& request_env : requests) {
@@ -334,10 +335,13 @@ auto request_reply_without_remote_aggregation(
     }
     auto [send_buf_inter, send_counts_inter, send_displs_inter] =
         prepare_send_buf(packed_env, grid_comm.inter_node_comm().size());
-
-    return grid_comm.inter_node_comm().alltoallv(kmp::send_buf(send_buf_inter),
-                                                 kmp::send_counts(send_counts_inter),
-                                                 kmp::send_displs(send_displs_inter));
+    kamping::measurements::timer().stop();
+    kamping::measurements::timer().start("inter-send-requests");
+    auto res = grid_comm.inter_node_comm().alltoallv(kmp::send_buf(send_buf_inter),
+                                                     kmp::send_counts(send_counts_inter),
+                                                     kmp::send_displs(send_displs_inter));
+    kamping::measurements::timer().stop();
+    return res;
   }();
   std::exclusive_scan(global_send_displs.begin(), global_send_displs.end(),
                       global_send_displs.begin(), 0);
@@ -346,6 +350,7 @@ auto request_reply_without_remote_aggregation(
     //*************************
     // intra-node-comm exchange
     //*************************
+    kamping::measurements::timer().start("prepare-intra-send-requests");
     auto intra_node_comm_targets =
         recv_buf_inter | std::views::transform([&grid_comm](auto const& envelope) {
           return static_cast<int>(grid_comm.intra_node_rank(get_target_rank(envelope)));
@@ -356,12 +361,17 @@ auto request_reply_without_remote_aggregation(
                          grid_comm.intra_node_comm().size());
     recv_buf_inter.clear();
     recv_buf_inter.shrink_to_fit();
+    kamping::measurements::timer().stop();
 
-    return grid_comm.intra_node_comm().alltoallv(
+    kamping::measurements::timer().start("intra-send-requests");
+    auto res = grid_comm.intra_node_comm().alltoallv(
         kmp::send_buf(send_buf_intra), kmp::send_counts(send_counts_intra),
         kmp::send_displs(send_displs_intra), kmp::recv_counts_out());
+    kamping::measurements::timer().stop();
+    return res;
   }();
 
+  kamping::measurements::timer().start("make-replies");
   auto replies_intra = recv_buf_intra | std::views::transform([&](auto const& request) {
                          return SourcedEnvelope<Reply>{
                              .source_rank = grid_comm.global_comm().rank_signed(),
@@ -369,14 +379,18 @@ auto request_reply_without_remote_aggregation(
                              .msg = make_reply(get_message(request))};
                        }) |
                        std::ranges::to<std::vector>();
+  kamping::measurements::timer().stop();
 
   //*************************
   // Communicate Replies back to origin
   //*************************
 
+  kamping::measurements::timer().start("intra-send-replies");
   auto recv_replies_intra = grid_comm.intra_node_comm().alltoallv(
       kmp::send_buf(replies_intra), kmp::send_counts(recv_counts_intra));
+  kamping::measurements::timer().stop();
 
+  kamping::measurements::timer().start("prepare-inter-send-replies");
   auto reply_targets_inter =
       recv_replies_intra | std::views::transform([&](auto const& envelope) {
         return static_cast<int>(grid_comm.inter_node_rank(get_target_rank(envelope)));
@@ -391,10 +405,14 @@ auto request_reply_without_remote_aggregation(
   reply_targets_inter.shrink_to_fit();
   recv_replies_intra.clear();
   recv_replies_intra.shrink_to_fit();
+  kamping::measurements::timer().stop();
 
+  kamping::measurements::timer().start("inter-send-replies");
   auto recv_replies_inter = grid_comm.inter_node_comm().alltoallv(
       kmp::send_buf(send_buf_replies_inter), kmp::send_counts(send_counts_replies_inter));
+  kamping::measurements::timer().stop();
 
+  kamping::measurements::timer().start("reorder-elements");
   KASSERT(recv_replies_inter.size() == requests.size());
   auto write_back_indices = global_send_displs;
   std::vector<Reply> reordered_replies(recv_replies_inter.size());
@@ -405,6 +423,151 @@ auto request_reply_without_remote_aggregation(
     auto insert_pos = static_cast<std::size_t>(write_back_indices[initial_target]++);
     reordered_replies[insert_pos] = get_message(recv_replies_inter[i]);
   }
+  kamping::measurements::timer().stop();
+  return std::pair(std::move(reordered_replies), std::move(global_send_displs));
+}
+
+inline auto expand(std::span<int> counts) -> std::vector<int> {
+  int size = std::accumulate(counts.begin(), counts.end(), 0);
+  std::vector<int> out(size);
+  std::int64_t pos = 0;
+  for (size_t i = 0; i < counts.size(); ++i) {
+    std::ranges::fill(out.begin() + pos, out.begin() + pos + counts[i],
+                      static_cast<int>(i));
+    pos += counts[i];
+  }
+  return out;
+}
+
+template <EnvelopedMsgRange Requests, typename MakeReplyFn>
+auto request_reply_local_first_without_remote_aggregation(
+    Requests const& requests,
+    MakeReplyFn const& make_reply,
+    TopologyAwareGridCommunicator const& grid_comm,
+    request_reply_mode::reorder_output_tag /*tag*/) {
+  namespace kmp = kamping::params;
+  using Request = MsgTypeOf<std::ranges::range_value_t<Requests>>;
+  using Reply = std::remove_cvref_t<std::invoke_result_t<MakeReplyFn, Request>>;
+
+  std::vector<int> global_send_displs(grid_comm.global_comm().size(), 0);
+  auto [recv_buf_intra, recv_counts_intra] = [&]() {
+    //*************************
+    // intra-node-comm exchange
+    //*************************
+
+    // do packing explicit, otherwise third pass over requests for displs would be
+    // required
+    kamping::measurements::timer().start("prepare-intra-send-requests");
+    std::vector<std::pair<int, SourcedEnvelope<Request>>> packed_env;
+    packed_env.reserve(requests.size());
+    for (const auto& request_env : requests) {
+      int global_target = get_target_rank(request_env);
+      int intra_node_target =
+          grid_comm.intra_node_rank_signed(get_target_rank(request_env));
+      packed_env.emplace_back(
+          intra_node_target,
+          SourcedEnvelope<Request>{static_cast<int>(grid_comm.intra_node_rank()),
+                                   global_target, get_message(request_env)});
+      ++global_send_displs[static_cast<std::size_t>(global_target)];
+    }
+    auto [send_buf_intra, send_counts_intra, send_displs_intra] =
+        prepare_send_buf(packed_env, grid_comm.intra_node_comm().size());
+    kamping::measurements::timer().stop();
+    kamping::measurements::timer().start("inter-send-requests");
+    auto res = grid_comm.intra_node_comm().alltoallv(
+        kmp::send_buf(send_buf_intra), kmp::send_counts(send_counts_intra),
+        kmp::send_displs(send_displs_intra), kmp::recv_counts_out());
+    kamping::measurements::timer().stop();
+    return res;
+  }();
+  std::exclusive_scan(global_send_displs.begin(), global_send_displs.end(),
+                      global_send_displs.begin(), 0);
+
+  std::vector<int> permuted_request_origin_intra_rank;
+  auto [recv_buf_inter, recv_counts_inter] = [&]() {
+    //*************************
+    // inter-node-comm exchange
+    //*************************
+    kamping::measurements::timer().start("prepare-inter-send-requests");
+    auto inter_node_comm_targets =
+        recv_buf_intra | std::views::transform([&grid_comm](auto const& envelope) {
+          return static_cast<int>(grid_comm.inter_node_rank(get_target_rank(envelope)));
+        });
+
+    auto [send_buf_inter, request_origin_, send_counts_inter, send_displs_inter] =
+        prepare_send_buf(
+            std::views::zip(inter_node_comm_targets, recv_buf_intra),
+            [&](const auto env) { return get_source_rank(get_message(env)); },
+            grid_comm.inter_node_comm().size());
+    permuted_request_origin_intra_rank = std::move(request_origin_);
+    auto unpacked_send_buf_inter = send_buf_inter |
+                                   std::views::transform([](auto const& envelope) {
+                                     return get_message(envelope);
+                                   }) |
+                                   std::ranges::to<std::vector>();
+    kamping::measurements::timer().stop();
+
+    kamping::measurements::timer().start("inter-send-requests");
+    auto res = grid_comm.inter_node_comm().alltoallv(
+        kmp::send_buf(unpacked_send_buf_inter), kmp::send_counts(send_counts_inter),
+        kmp::send_displs(send_displs_inter), kmp::recv_counts_out());
+    kamping::measurements::timer().stop();
+    return res;
+  }();
+
+  kamping::measurements::timer().start("make-replies");
+  auto replies_inter =
+      recv_buf_inter |
+      std::views::transform([&](auto const& request) { return make_reply(request); }) |
+      std::ranges::to<std::vector>();
+  kamping::measurements::timer().stop();
+
+  //*************************
+  // Communicate Replies back to origin
+  //*************************
+
+  kamping::measurements::timer().start("inter-send-replies");
+  auto [recv_replies_inter, recv_counts_replies_inter] =
+      grid_comm.inter_node_comm().alltoallv(kmp::send_buf(replies_inter),
+                                            kmp::send_counts(recv_counts_inter),
+                                            kmp::recv_counts_out());
+  kamping::measurements::timer().stop();
+
+  kamping::measurements::timer().start("prepare-inter-send-replies");
+  auto reply_sources = expand(recv_counts_replies_inter);
+  std::ranges::transform(reply_sources, reply_sources.begin(), [&](auto inter_node_rank) {
+    return grid_comm.global_rank(grid_comm.intra_node_rank(), inter_node_rank);
+  });
+  std::vector<Envelope<Reply>> enveloped_replies;
+  enveloped_replies.reserve(recv_replies_inter.size());
+  for (std::size_t i = 0; i < recv_replies_inter.size(); ++i) {
+    enveloped_replies.emplace_back(static_cast<int>(reply_sources[i]),
+                                   recv_replies_inter[i]);
+  }
+
+  auto [send_buf_replies_intra, send_counts_replies_intra, send_displs_replies_intra] =
+      prepare_send_buf(
+          std::views::zip(permuted_request_origin_intra_rank, enveloped_replies),
+          grid_comm.intra_node_comm().size());
+  kamping::measurements::timer().stop();
+
+  kamping::measurements::timer().start("intra-send-replies");
+  auto recv_replies_intra = grid_comm.intra_node_comm().alltoallv(
+      kmp::send_buf(send_buf_replies_intra), kmp::send_counts(send_counts_replies_intra));
+  kamping::measurements::timer().stop();
+
+  kamping::measurements::timer().start("reorder-elements");
+  KASSERT(recv_replies_intra.size() == requests.size());
+  auto write_back_indices = global_send_displs;
+  std::vector<Reply> reordered_replies(recv_replies_intra.size());
+  for (std::size_t i = 0; i < recv_replies_intra.size(); ++i) {
+    auto initial_target = get_target_rank(recv_replies_intra[i]);
+    KASSERT(0 <= initial_target &&
+            initial_target < grid_comm.global_comm().size_signed());
+    auto insert_pos = static_cast<std::size_t>(write_back_indices[initial_target]++);
+    reordered_replies[insert_pos] = get_message(recv_replies_intra[i]);
+  }
+  kamping::measurements::timer().stop();
   return std::pair(std::move(reordered_replies), std::move(global_send_displs));
 }
 

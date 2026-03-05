@@ -55,9 +55,20 @@ NLOHMANN_JSON_SERIALIZE_ENUM(RMASyncMode,
                               {RMASyncMode::fenced, "fenced"},
                               {RMASyncMode::passive_target, "passive_target"}});
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(RMAPointerChasingConfig, sync_mode, batch_size);
+
+NLOHMANN_JSON_SERIALIZE_ENUM(GridCommunicatorMode,
+                             {{GridCommunicatorMode::invalid, nullptr},
+                              {GridCommunicatorMode::none, "none"},
+                              {GridCommunicatorMode::topology_aware, "topology-aware"},
+                              {GridCommunicatorMode::balanced, "balanced"}})
+
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(PointerDoublingConfig,
                                    use_local_preprocessing,
+                                   grid_communicator_mode,
+                                   use_local_first_request_scheme,
+                                   cache_succ_owners,
                                    aggregation_level);
+
 NLOHMANN_JSON_SERIALIZE_ENUM(RulerSelectionStrategy,
                              {{RulerSelectionStrategy::invalid, nullptr},
                               {RulerSelectionStrategy::dehne, "dehne"},

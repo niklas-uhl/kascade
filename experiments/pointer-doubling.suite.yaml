@@ -2,7 +2,7 @@ name: pointer-doubling
 executable: bench/kascade
 output_path_option_name: "output-file"
 ncores: [64, 128, 256, 512, 1024, 2048]
-time_limit: 2
+time_limit: 4
 threads_per_rank: [1]
 # tasks_per_node: 64
 graphs:
@@ -13,7 +13,7 @@ graphs:
       statistics-level: extensive-reduced-output
       input-processing: none
       verify-level: 0
-      iterations: 5
+      iterations: 3
     scale_weak: True
   - generator: kagen
     type: path
@@ -23,60 +23,32 @@ graphs:
       statistics-level: extensive-reduced-output
       input-processing: none
       verify-level: 0
-      iterations: 5
+      iterations: 3
     scale_weak: True
   - generator: kagen
     type: path
     N: 20
-    p: 0.99
-    extra_args:
-      statistics-level: extensive-reduced-output
-      input-processing: none
-      verify-level: 0
-      iterations: 5
-    scale_weak: True
-  - generator: kagen
-    type: path
-    N: 20
-    p: 0.99
     permute: True
+    permutation_prob: 0.01
     extra_args:
       statistics-level: extensive-reduced-output
       input-processing: none
       verify-level: 0
-      iterations: 5
+      iterations: 3
     scale_weak: True
   - generator: kagen
-    type: gnm-undirected
+    type: path
     N: 20
-    M: 24
+    permute: True
+    permutation_prob: 0.1
     extra_args:
       statistics-level: extensive-reduced-output
-      input-processing: bfs
+      input-processing: none
       verify-level: 0
-      iterations: 5
-    scale_weak: True
-  - generator: kagen
-    type: rmat
-    N: 20
-    M: 24
-    extra_args:
-      statistics-level: extensive-reduced-output
-      input-processing: bfs
-      verify-level: 0
-      iterations: 5
-    scale_weak: True
-  - generator: kagen
-    type: rgg2d
-    N: 20
-    M: 24
-    extra_args:
-      statistics-level: extensive-reduced-output
-      input-processing: bfs
-      verify-level: 0
-      iterations: 5
+      iterations: 3
     scale_weak: True
 config:
   - algorithm: PointerDoubling
     pointer-doubling-use-local-preprocessing: [False, True]
-    pointer-doubling-aggregation-level: [none, all]
+    pointer-doubling-use-grid-communication: [False, True]
+    pointer-doubling-aggregation-level: [none, local]

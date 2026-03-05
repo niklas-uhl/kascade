@@ -5,6 +5,8 @@
 
 namespace kascade {
 
+std::pair<std::size_t, std::size_t> compute_grid_dimensions(std::size_t comm_size);
+
 class TopologyAwareGridCommunicator {
 public:
   using GlobalCommunicator = kamping::Communicator<>;
@@ -16,6 +18,10 @@ public:
   [[nodiscard]] auto inter_node_comm() const -> kamping::Communicator<> const&;
   [[nodiscard]] auto intra_node_comm() const -> kamping::Communicator<> const&;
 
+  [[nodiscard]] auto global_rank(std::size_t intra_node_rank,
+                                 std::size_t inter_node_rank) const -> std::size_t;
+  [[nodiscard]] auto global_rank_signed(std::size_t intra_node_rank,
+                                        std::size_t inter_node_rank) const -> int;
   [[nodiscard]] auto inter_node_rank(std::size_t global_rank) const -> std::size_t;
   [[nodiscard]] auto intra_node_rank(std::size_t global_rank) const -> std::size_t;
   [[nodiscard]] auto inter_node_rank_signed(std::size_t global_rank) const -> int;

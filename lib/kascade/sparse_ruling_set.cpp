@@ -376,7 +376,9 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
             nested_config.sparse_ruling_set_rounds) {
           nested_config.base_algorithm = kascade::Algorithm::PointerDoubling;
           PointerDoublingConfig pointer_doubling_config;
-          pointer_doubling_config.use_grid_communication = config.use_grid_communication;
+          pointer_doubling_config.grid_communicator_mode =
+              config.use_grid_communication ? GridCommunicatorMode::topology_aware
+                                            : GridCommunicatorMode::none;
           nested_config.base_algorithm_config = pointer_doubling_config;
         }
         sparse_ruling_set(nested_config, args...);

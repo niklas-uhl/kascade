@@ -62,6 +62,40 @@ struct MPIBuffer {
   std::vector<int> displs;
 };
 
+template <EnvelopedMsgRange R, typename T, typename MakeAttachedDataFn>
+void prepare_send_buf_inplace(
+    R&& messages,
+    std::vector<MsgTypeOf<std::ranges::range_value_t<R>>>& send_buf,
+    std::vector<int>& send_counts,
+    std::vector<int>& send_displs,
+    std::vector<T>& attached_data,
+    MakeAttachedDataFn const& make_attached_entry,
+    std::size_t comm_size) {
+  send_counts.clear();
+  send_displs.clear();
+  send_counts.resize(comm_size, 0);
+  send_displs.resize(comm_size);
+  kamping::measurements::timer().start("compute_send_counts");
+  for (auto&& msg : messages) {
+    int target_rank = get_target_rank(msg);
+    KASSERT(0 <= target_rank && target_rank < static_cast<int>(comm_size));
+    ++send_counts[target_rank];
+  }
+  kamping::measurements::timer().stop();
+  std::exclusive_scan(send_counts.begin(), send_counts.end(), send_displs.begin(), 0);
+  send_buf.resize(send_displs.back() + send_counts.back());
+  attached_data.resize(send_buf.size());
+  kamping::measurements::timer().start("fill_send_buf");
+  for (auto&& msg : messages) {
+    int target_rank = get_target_rank(msg);
+    int pos = send_displs[target_rank]++;
+    send_buf[static_cast<std::size_t>(pos)] = get_message(msg);
+    attached_data[static_cast<std::size_t>(pos)] = make_attached_entry(msg);
+  }
+  kamping::measurements::timer().stop();
+  std::exclusive_scan(send_counts.begin(), send_counts.end(), send_displs.begin(), 0);
+}
+
 template <EnvelopedMsgRange R>
 void prepare_send_buf_inplace(
     R&& messages,
@@ -108,8 +142,28 @@ auto prepare_send_buf(R&& messages, std::size_t comm_size) {
   std::vector<int> send_displs;
   send_displs.reserve(comm_size);
   std::vector<Msg> send_buf;
-  prepare_send_buf_inplace(std::forward<R>(messages), send_buf, send_counts, send_displs, comm_size);
+  prepare_send_buf_inplace(std::forward<R>(messages), send_buf, send_counts, send_displs,
+                           comm_size);
   return std::make_tuple(std::move(send_buf), std::move(send_counts),
                          std::move(send_displs));
+}
+
+template <EnvelopedMsgRange R, typename MakeAttachedDataFn>
+auto prepare_send_buf(R&& messages,
+                      MakeAttachedDataFn const& make_attached_entry,
+                      std::size_t comm_size) {
+  using Msg = MsgTypeOf<std::ranges::range_value_t<R>>;
+  using T = std::remove_cvref_t<std::invoke_result_t<
+      MakeAttachedDataFn, std::ranges::range_value_t<std::remove_cvref_t<R>>>>;
+  std::vector<int> send_counts;
+  send_counts.reserve(comm_size);
+  std::vector<int> send_displs;
+  send_displs.reserve(comm_size);
+  std::vector<Msg> send_buf;
+  std::vector<T> attached_data;
+  prepare_send_buf_inplace(std::forward<R>(messages), send_buf, send_counts, send_displs,
+                           attached_data, make_attached_entry, comm_size);
+  return std::make_tuple(std::move(send_buf), std::move(attached_data),
+                         std::move(send_counts), std::move(send_displs));
 }
 }  // namespace kascade

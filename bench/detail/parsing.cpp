@@ -35,6 +35,12 @@ auto lexical_cast(const std::string& input, RMASyncMode& sync_mode) -> bool {
   sync_mode = input_json.template get<kascade::RMASyncMode>();
   return sync_mode != kascade::RMASyncMode::invalid;
 }
+
+auto lexical_cast(const std::string& input, GridCommunicatorMode& grid_mode) -> bool {
+  nlohmann::json input_json = input;
+  grid_mode = input_json.template get<kascade::GridCommunicatorMode>();
+  return grid_mode != kascade::GridCommunicatorMode::invalid;
+}
 auto lexical_cast(const std::string& input,
                   RulerSelectionStrategy& ruler_selection_strategy) -> bool {
   nlohmann::json input_json = input;
@@ -110,11 +116,21 @@ auto parse_args(std::span<char*> args) -> Config {
   app.add_flag("--pointer-doubling-use-local-preprocessing",
                config.pointer_doubling.use_local_preprocessing)
       ->group("Pointer Doubling");
+  app.add_flag(
+         "--pointer-doubling-use-succ-owner-caching,!--pointer-doubling-use-no-succ-"
+         "owner-caching",
+         config.pointer_doubling.cache_succ_owners)
+      ->group("Pointer Doubling");
+  app.add_flag(
+         "--pointer-doubling-use-local-first-request-scheme,!--pointer-doubling-use-"
+         "remote-first-request-scheme",
+         config.pointer_doubling.use_local_first_request_scheme)
+      ->group("Pointer Doubling");
   app.add_option("--pointer-doubling-aggregation-level",
                  config.pointer_doubling.aggregation_level)
       ->group("Pointer Doubling");
-  app.add_flag("--pointer-doubling-use-grid-communication",
-               config.pointer_doubling.use_grid_communication)
+  app.add_option("--pointer-doubling-grid-communicator-mode",
+                 config.pointer_doubling.grid_communicator_mode)
       ->group("Pointer Doubling");
 
   app.add_option("--sparse-ruling-set-base-algorithm",
