@@ -52,7 +52,7 @@ config:
     sparse-ruling-set-ruler-selection: ultimate
     sparse-ruling-set-ultimate-factor: [0.15]
     sparse-ruling-set-spawn: True
-    sparse-ruling-set-sync: [True, False]
+    sparse-ruling-set-async: [True, False]
     sparse-ruling-set-sync-locality-aware: [True]
     sparse-ruling-set-base-algorithm: SparseRulingSet
     sparse-ruling-set-ruler-propagation-use-aggregation: [False]
