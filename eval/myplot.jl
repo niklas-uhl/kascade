@@ -7,34 +7,6 @@ using CairoMakie
 include("KascadeEval.jl")
 import .KascadeEval
 
-# dirs = [
-#     # "./data/i10/sparse-ruling-set_26_02_12/",
-#     # "./data/i10/sparse-ruling-set-spawn-factor_26_02_12/",
-#     # "./data/horeka/pointer-doubling_26_02_06/",
-#     # "./data/horeka/gather-chase_26_02_06/",
-#     # "./data/supermuc/sync-sparse-ruling-set_26_02_09/",
-#     # "./data/supermuc/sparse-ruling-set_26_02_09/",
-#     # "./data/supermuc/sparse-ruling-set-spawn-factor_26_02_10/",
-#     # "./data/supermuc/tree-ruling-set_26_02_12/",
-#     # "./data/supermuc/eulertour-sparse-ruling-set_26_02_12/",
-#     # "./data/i10/tree-ruling-set_26_02_12/",
-#     # "./data/supermuc/sync-sparse-ruling-set_26_02_09/",
-#     # "./data/supermuc/sync-sparse-ruling-set-locality-aware_26_02_12/",
-#     # "./data/supermuc/async-sparse-ruling-set_26_02_12/",
-#     # "./data/supermuc/sparse-ruling-set_26_02_09/",
-#     # "./data/supermuc/sparse-ruling-set-spawn-factor_26_02_10/",
-#     # "./data/supermuc/rma-pointer-doubling_26_02_16/"
-#     # "./data/supermuc/sparse-ruling-set-spawn-sanders_26_02_16/",
-#     # "./data/supermuc/sparse-ruling-set-spawn-sanders-others_26_02_16/",
-#     # "./data/supermuc/sparse-ruling-set-spawn-sanders-briefkasten-tuning_26_02_16/",
-#     # "./data/supermuc/sparse-ruling-set-spawn-sanders-owner-cache_26_02_16/",
-#     # "./data/supermuc/sparse-ruling-set-two-level_26_02_19/",
-#     # "./data/supermuc/sparse-ruling-set-grid-a2a_26_02_19/",
-#     # "./data/horeka/sparse-ruling-set-two-level_26_02_18/",
-#     # "./data/horeka/sparse-ruling-set-spawn-sanders-bla_26_02_18/"
-#     # "./data/supermuc/sparse-ruling-set-spawn_26_02_09/",
-# ]
-
 # -------------------------
 # Data loading & transform
 # -------------------------
@@ -49,10 +21,12 @@ algo_params = [
     :sparse_ruling_set_grid_comm,
     :sparse_ruling_set_spawn,
     :sparse_ruling_set_ruler_selection,
+    :sparse_ruling_set_round_limit,
     :sparse_ruling_set_ruler_propagation_mode,
+    :sparse_ruling_set_ruler_propagation_use_aggregation,
     :sparse_ruling_set_dehne_factor,
+    :sparse_ruling_set_ultimate_factor,
     :sparse_ruling_set_sanders_factor,
-    :sparse_ruling_set_cache_owners,
     :sparse_ruling_set_briefkasten_local_threshold,
     :sparse_ruling_set_briefkasten_poll_skip_threshold,
     :rma_pointer_chasing_sync_mode,
@@ -96,27 +70,31 @@ function to_config_name(;kwargs...)
             if kwargs[:sparse_ruling_set_sync_locality_aware] == true
                 name *= "-locality-aware"
             end
-            if kwargs[:sparse_ruling_set_grid_comm] == true
-                name *= "-grid-comm"
-            end
         else
             name *= "-async"
+        end
+        if kwargs[:sparse_ruling_set_grid_comm] == true
+            name *= "-grid-comm"
         end
         if kwargs[:sparse_ruling_set_spawn] == true
             name *= "-spawn"
         end
-        if kwargs[:sparse_ruling_set_cache_owners] == true
-            name *= "-owner-cache"
-        end
         name *= " (ruler_selection=$(kwargs[:sparse_ruling_set_ruler_selection])"
         if kwargs[:sparse_ruling_set_ruler_selection] == "dehne"
             name *= ", dehne_factor=$(kwargs[:sparse_ruling_set_dehne_factor])"
-        # elseif kwargs[:sparse_ruling_set_ruler_selection] == "sanders"
-        #     name *= ", sander_factor=$(kwargs[:sparse_ruling_set_sanders_factor])"
+        elseif kwargs[:sparse_ruling_set_ruler_selection] == "sanders"
+            name *= ", sanders_factor=$(kwargs[:sparse_ruling_set_sanders_factor])"
+        elseif kwargs[:sparse_ruling_set_ruler_selection] == "limit-rounds"
+            name *= ", round_limit=$(kwargs[:sparse_ruling_set_round_limit])"
+        elseif kwargs[:sparse_ruling_set_ruler_selection] == "ultimate"
+            name *= ", round_limit=$(kwargs[:sparse_ruling_set_ultimate_factor])"
         end
         name *= ")"
         if kwargs[:sparse_ruling_set_ruler_propagation_mode] != "pull"
             name *= " (ruler_propagation_mode=$(kwargs[:sparse_ruling_set_ruler_propagation_mode]))"
+        end
+        if kwargs[:sparse_ruling_set_ruler_propagation_use_aggregation] == true
+            name *= " (ruler_prop_agg)"
         end
         if async
             name *= " $(format_briefkasten_params(kwargs[:sparse_ruling_set_briefkasten_local_threshold], kwargs[:sparse_ruling_set_briefkasten_poll_skip_threshold]))"
@@ -136,36 +114,35 @@ end
 # Plotting
 # -------------------------
 
-
-axis = (; xscale=log2)
+axis = (; xscale=log2,
+        # limits=(nothing,(0,nothing)),
+        # yscale=log10
+)
 facet = (; linkyaxes=:none)
-figure = (; size=(2000, 1200))
+figure = (; size=(2000, 1000))
 
 dirs = [
-    # "./data/supermuc/sparse-ruling-set-grid-a2a_26_02_19/",
-    # "./data/supermuc/sparse-ruling-set-two-level_26_02_19/"
-    # "./data/supermuc/async-tuning_26_02_21/"
-    # "./data/supermuc/async-euler_26_02_21/",
-    # "./data/supermuc/async-euler_26_02_22/",
-    # "./data/supermuc/optimize-async-params_26_02_22/",
-    # "./data/supermuc/optimize-async-params-2_26_02_22/"
-    # "./data/supermuc/optimize-comm-rounds_26_02_22/",
-    # "./data/supermuc/optimize-comm-rounds-2_26_02_22/"
-    "./data/supermuc/optimize-ultimate-factor_26_03_03/"
-    # "./data/supermuc/async-euler-large_26_02_22/"
-    # "./data/supermuc/sparse-ruling-set-push-propagation_26_02_19/",
+    # "./data/supermuc/sync-vs-async_26_03_05/",
+    # "./data/supermuc/async-no-spawn_26_03_05/",
+    "./data/supermuc/sync-optimized-grid-pointer-doubling_26_03_05/"
+    # "./data/supermuc/async-no-spawn-more-rulers_26_03_05/"
+    # "./data/supermuc/sync-optimized_26_03_05/"
 ]
-# x_param = :sparse_ruling_set_sanders_factor
-x_param = :sparse_ruling_set_ultimate_factor
+x_param = :p
 plt = mapping(
     x_param,
     :total_time_mean,
     color=:config,
-    marker=:config,
-    # linestyle=:sparse_ruling_set_spawn,
+    layout=:graph,
+    marker=:config
+    # col=:graph
+    # marker=:config,
+    # col=:sparse_ruling_set_grid_comm,
     # layout=:graph,
-    col=:graph,
-    row=:p
+    # row=:graph
+    # linestyle=:sparse_ruling_set_ruler_selection
+    # col=:graph,
+    # row=:p
 ) * visual(ScatterLines)
 err = mapping(
     x_param,
@@ -174,28 +151,41 @@ err = mapping(
     :total_time_min,
     :total_time_max,
     color=:config,
-    col=:graph,
-    row=:p
+    # col=:sparse_ruling_set_grid_comm,
+    layout=:graph
+    # col=:graph,
+    # row=:p
 ) * visual(Rangebars;whiskerwidth=10)
 
 df = vcat(KascadeEval.read.(dirs)...;cols=:union)
-filtered_df = df
-# filtered_df = @subset(df, :sparse_ruling_set_spawn .== false)
-tasks_per_node = foldl(gcd, unique(df.p))
+# @subset!(df, :sparse_ruling_set_sync .== true)
 
-transform!(filtered_df, AsTable(algo_params) => ByRow(t -> to_config_name(;t...)) => :config)
+transform!(df, AsTable(algo_params) => ByRow(t -> to_config_name(;t...)) => :config)
 
-grouped = @by filtered_df [:p, :config, :graph, x_param] begin
+additional_group_keys = [] #:sparse_ruling_set_ruler_selection, :sparse_ruling_set_grid_comm]
+
+grouped = @by df [:p, :config, :graph, additional_group_keys...] begin
     :total_time_mean = mean(:total_time)
     :total_time_min = minimum(:total_time)
     :total_time_max = maximum(:total_time)
 end
-sort!(grouped, x_param)
-# @subset!(grouped, :total_time_mean .<= 13)
+grouped.graph = categorical(grouped.graph)
+grouped.p ./= 48
 
 
-figuregrid = draw((plt + err) * data(grouped);
-    # axis,
-    facet, figure)
+figuregrid = draw((plt + err) * data(grouped);axis,facet, figure)
 display(figuregrid)
 save("tmp.pdf", figuregrid)
+# save("async-on-euler.pdf", figuregrid)
+# save("sync-sparse-ruling-set-locality-aware_2026_02_12.pdf", figuregrid)
+# save("sparse-ruling-set-base-algorithm_2026_02_19.pdf", figuregrid)
+
+
+
+
+
+
+
+
+
+
