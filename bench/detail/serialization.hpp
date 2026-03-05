@@ -74,6 +74,7 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(BriefkastenConfig,
                                    poll_skip_threshold);
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(SparseRulingSetConfig,
                                    base_algorithm,
+                                   sparse_ruling_set_rounds,
                                    ruler_selection,
                                    ruler_propagation_mode,
                                    use_aggregation_in_ruler_propagation,

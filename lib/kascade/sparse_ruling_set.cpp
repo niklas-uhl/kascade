@@ -370,14 +370,15 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
       break;
     case Algorithm::SparseRulingSet:
       base_algorithm = [&](auto&&... args) {
-        auto nested_config =
-            std::any_cast<SparseRulingSetConfig>(config.base_algorithm_config);
-        // avoid infinite recursion by setting the base algorithm of the nested config to
-        // a non-recursive one
-        nested_config.base_algorithm = kascade::Algorithm::PointerDoubling;
-        PointerDoublingConfig pointer_doubling_config;
-        pointer_doubling_config.use_grid_communication = config.use_grid_communication;
-        nested_config.base_algorithm_config = pointer_doubling_config;
+        auto nested_config = config;
+        nested_config.current_sparse_ruling_set_round++;
+        if (nested_config.current_sparse_ruling_set_round >=
+            nested_config.sparse_ruling_set_rounds) {
+          nested_config.base_algorithm = kascade::Algorithm::PointerDoubling;
+          PointerDoublingConfig pointer_doubling_config;
+          pointer_doubling_config.use_grid_communication = config.use_grid_communication;
+          nested_config.base_algorithm_config = pointer_doubling_config;
+        }
         sparse_ruling_set(nested_config, args...);
       };
       break;

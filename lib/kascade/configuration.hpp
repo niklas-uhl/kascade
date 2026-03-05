@@ -55,6 +55,8 @@ struct SparseRulingSetConfig {
   RulerSelectionStrategy ruler_selection = RulerSelectionStrategy::sanders;
   Algorithm base_algorithm = Algorithm::PointerDoubling;
   std::any base_algorithm_config;
+  std::size_t current_sparse_ruling_set_round = 1;
+  std::size_t sparse_ruling_set_rounds = 2;
   RulerPropagationMode ruler_propagation_mode = RulerPropagationMode::pull;
   bool use_aggregation_in_ruler_propagation = false;
   bool use_local_contraction = false;

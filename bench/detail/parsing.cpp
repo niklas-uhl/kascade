@@ -8,6 +8,7 @@
 
 #include "./benchmark_config.hpp"
 #include "./serialization.hpp"  // IWYU pragma: keep
+#include "CLI/CLI.hpp"
 #include "kascade/configuration.hpp"
 
 auto lexical_cast(const std::string& input, StatsLevel& stats_level) -> bool {
@@ -118,6 +119,10 @@ auto parse_args(std::span<char*> args) -> Config {
 
   app.add_option("--sparse-ruling-set-base-algorithm",
                  config.sparse_ruling_set.base_algorithm)
+      ->group("Sparse Ruling Set");
+  app.add_option("--sparse-ruling-set-sparse-ruling-set-rounds",
+                 config.sparse_ruling_set.sparse_ruling_set_rounds)
+      ->check(CLI::Range(2, 5))
       ->group("Sparse Ruling Set");
   app.add_option("--sparse-ruling-set-ruler-selection",
                  config.sparse_ruling_set.ruler_selection)
