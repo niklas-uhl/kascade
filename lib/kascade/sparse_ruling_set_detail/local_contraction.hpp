@@ -71,7 +71,7 @@ auto local_contraction(std::span<idx_t> succ_array,
     rank_array[local_chain_start] = chain_length;
     trace.track_local_contraction(chain_length);
   }
-  return std::pair{local_chain_info, num_masked};
+  return std::pair{std::move(local_chain_info), num_masked};
 }
 
 auto local_uncontraction(std::vector<LocalChainInfo> const& local_chain_info,
