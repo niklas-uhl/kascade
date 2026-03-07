@@ -58,13 +58,13 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(RMAPointerChasingConfig, sync_mode, batch_siz
 
 NLOHMANN_JSON_SERIALIZE_ENUM(GridCommunicatorMode,
                              {{GridCommunicatorMode::invalid, nullptr},
-                              {GridCommunicatorMode::none, "none"},
                               {GridCommunicatorMode::topology_aware, "topology-aware"},
                               {GridCommunicatorMode::balanced, "balanced"}})
 
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(PointerDoublingConfig,
                                    use_local_preprocessing,
                                    grid_communicator_mode,
+                                   use_grid_communication,
                                    use_local_first_request_scheme,
                                    cache_succ_owners,
                                    aggregation_level,

@@ -413,25 +413,9 @@ auto is_finished(std::size_t unfinished_elems, kamping::Communicator<> const& co
   return global_unfinished_elems == 0U;
 }
 
-auto use_grid_communication(GridCommunicatorMode mode) -> bool {
-  switch (mode) {
-    case GridCommunicatorMode::none:
-      return false;
-    case GridCommunicatorMode::balanced:
-    case GridCommunicatorMode::topology_aware:
-      return true;
-    case GridCommunicatorMode::invalid:
-      throw std::runtime_error("invalid parameter for grid communicator mode");
-      return false;
-  };
-  return false;
-}
-
 auto make_grid_comm(kamping::Communicator<> const& comm, GridCommunicatorMode mode)
     -> std::optional<TopologyAwareGridCommunicator> {
   switch (mode) {
-    case GridCommunicatorMode::none:
-      return std::nullopt;
     case GridCommunicatorMode::balanced: {
       auto [first_dim, second_dim] = compute_grid_dimensions(comm.size());
       if (first_dim < second_dim) {
@@ -443,17 +427,17 @@ auto make_grid_comm(kamping::Communicator<> const& comm, GridCommunicatorMode mo
       return TopologyAwareGridCommunicator{comm};
     case GridCommunicatorMode::invalid: {
       throw std::runtime_error("invalid parameter for grid communicator mode");
-      return std::nullopt;
     }
   };
   return std::nullopt;
 }
 
 auto make_grid_comm(kamping::Communicator<> const& comm,
+                    bool use_grid_communication,
                     AggregationLevel level,
                     GridCommunicatorMode grid_mode)
     -> std::optional<TopologyAwareGridCommunicator> {
-  if (use_grid_communication(grid_mode)) {
+  if (use_grid_communication) {
     return make_grid_comm(comm, grid_mode);
   }
   switch (level) {
@@ -462,7 +446,7 @@ auto make_grid_comm(kamping::Communicator<> const& comm,
     case kascade::AggregationLevel::local:
       return std::nullopt;
     case kascade::AggregationLevel::all:
-      KASSERT(grid_mode != GridCommunicatorMode::none);
+      KASSERT(grid_mode != GridCommunicatorMode::invalid);
       return make_grid_comm(comm, grid_mode);
   }
   return std::nullopt;
@@ -500,14 +484,14 @@ auto select_doubling_strategy(
       throw std::runtime_error("invalid aggregation level");
       return nullptr;
     case kascade::AggregationLevel::none: {
-      if (!use_grid_communication(config.grid_communicator_mode)) {
-        return std::make_unique<DoublingWithoutAggregation>(config, comm, grid_comm);
+      if (config.use_grid_communication) {
+        return std::make_unique<GridDoublingWithoutAggregation>(config, comm, grid_comm);
       }
-      return std::make_unique<GridDoublingWithoutAggregation>(config, comm, grid_comm);
+      return std::make_unique<DoublingWithoutAggregation>(config, comm, grid_comm);
     }
     case kascade::AggregationLevel::local:
       return std::make_unique<DoublingWithAggregation>(
-          config, comm, grid_comm, use_grid_communication(config.grid_communicator_mode),
+          config, comm, grid_comm, config.use_grid_communication,
           false);
     case kascade::AggregationLevel::all:
       return std::make_unique<DoublingWithAggregation>(config, comm, grid_comm, true,
@@ -649,7 +633,8 @@ void pointer_doubling_generic(PointerDoublingConfig config,
   std::span<idx_t> active_vertices = active_vertices_storage;
   kamping::measurements::timer().synchronize_and_start("create_grid_comm");
   std::optional<TopologyAwareGridCommunicator> grid_comm =
-      make_grid_comm(comm, config.aggregation_level, config.grid_communicator_mode);
+      make_grid_comm(comm, config.use_grid_communication, config.aggregation_level,
+                     config.grid_communicator_mode);
   std::size_t intra_comm_size = 1;
   if (grid_comm.has_value()) {
     intra_comm_size = grid_comm->ranks_per_compute_node();

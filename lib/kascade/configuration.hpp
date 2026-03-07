@@ -31,17 +31,17 @@ struct RMAPointerChasingConfig {
 };
 
 enum class GridCommunicatorMode : std::uint8_t {
-  none,
   topology_aware,
   balanced,
   invalid
 };
 
 struct PointerDoublingConfig {
-  bool use_local_preprocessing = false;
-  GridCommunicatorMode grid_communicator_mode = GridCommunicatorMode::none;
-  bool use_local_first_request_scheme = false;
-  bool cache_succ_owners = false;
+  bool use_local_preprocessing = true;
+  GridCommunicatorMode grid_communicator_mode = GridCommunicatorMode::topology_aware;
+  bool use_grid_communication = false;
+  bool use_local_first_request_scheme = true;
+  bool cache_succ_owners = true;
   AggregationLevel aggregation_level = AggregationLevel::none;
   double fallback_allgather_size_ratio = 0.0;
 };

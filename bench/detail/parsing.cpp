@@ -113,8 +113,10 @@ auto parse_args(std::span<char*> args) -> Config {
         }
         config.rma_pointer_chasing.batch_size = parsed;
       });
-  app.add_flag("--pointer-doubling-use-local-preprocessing",
-               config.pointer_doubling.use_local_preprocessing)
+  app.add_flag(
+         "--pointer-doubling-use-local-preprocessing,!--pointer-doubling-use-no-local-"
+         "preprocessing",
+         config.pointer_doubling.use_local_preprocessing)
       ->group("Pointer Doubling");
   app.add_flag(
          "--pointer-doubling-use-succ-owner-caching,!--pointer-doubling-use-no-succ-"
@@ -122,19 +124,41 @@ auto parse_args(std::span<char*> args) -> Config {
          config.pointer_doubling.cache_succ_owners)
       ->group("Pointer Doubling");
   app.add_flag(
-         "--pointer-doubling-use-local-first-request-scheme,!--pointer-doubling-use-"
-         "remote-first-request-scheme",
+         "--pointer-doubling-use-local-first-request-scheme,!--pointer-doubling-use-no-"
+         "local-first-request-scheme",
          config.pointer_doubling.use_local_first_request_scheme)
       ->group("Pointer Doubling");
   app.add_option("--pointer-doubling-aggregation-level",
                  config.pointer_doubling.aggregation_level)
       ->group("Pointer Doubling");
-  app.add_option("--pointer-doubling-grid-communicator-mode",
-                 config.pointer_doubling.grid_communicator_mode)
-      ->group("Pointer Doubling");
   app.add_option("--pointer-doubling-fallback-allgather-size-ratio",
                  config.pointer_doubling.fallback_allgather_size_ratio)
       ->group("Pointer Doubling");
+  auto* opt_pointer_doubling_use_grid =
+      app.add_flag("--pointer-doubling-use-grid-communication",
+                   config.pointer_doubling.use_grid_communication)
+          ->group("Pointer Doubling");
+  auto* opt_pointer_doubling_grid_mode =
+      app.add_option_function<std::string>(
+             "--pointer-doubling-grid-communicator-mode",
+             [&](const std::string& str) {
+               if (!lexical_cast(str, config.pointer_doubling.grid_communicator_mode)) {
+                 throw CLI::ValidationError("--pointer-doubling-grid-communicator-mode",
+                                            str + " is not a valid communicator mode!");
+               }
+               switch (config.pointer_doubling.grid_communicator_mode) {
+                 case kascade::GridCommunicatorMode::topology_aware:
+                 case kascade::GridCommunicatorMode::balanced:
+                   config.pointer_doubling.use_grid_communication = true;
+                   break;
+                 default:
+                   break;
+               }
+             })
+          ->group("Pointer Doubling");
+
+  opt_pointer_doubling_use_grid->excludes(opt_pointer_doubling_grid_mode);
+  opt_pointer_doubling_grid_mode->excludes(opt_pointer_doubling_use_grid);
 
   app.add_option("--sparse-ruling-set-base-algorithm",
                  config.sparse_ruling_set.base_algorithm)
