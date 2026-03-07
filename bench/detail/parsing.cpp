@@ -165,6 +165,9 @@ auto parse_args(std::span<char*> args) -> Config {
   app.add_option("--sparse-ruling-set-ultimate-factor",
                  config.sparse_ruling_set.ultimate_factor)
       ->group("Sparse Ruling Set");
+  app.add_option("--sparse-ruling-set-ultimate-sanders-factor",
+                 config.sparse_ruling_set.ultimate_sanders_factor)
+      ->group("Sparse Ruling Set");
   app.add_option("--sparse-ruling-set-round-limit", config.sparse_ruling_set.round_limit)
       ->group("Sparse Ruling Set");
   app.add_flag("--sparse-ruling-set-cache-owners", config.sparse_ruling_set.cache_owners)

@@ -55,7 +55,7 @@ auto compute_local_num_rulers(SparseRulingSetConfig const& config,
     case RulerSelectionStrategy::ultimate_sanders:
       // $r^*=\Th{\sqrt{\frac{\alpha np^{1+1/d}}{\beta\log p }}}$
       {
-        auto r = config.ultimate_factor *  // NOLINT(readability-identifier-length)
+        auto r = config.ultimate_sanders_factor *  // NOLINT(readability-identifier-length)
                  (std::sqrt(static_cast<double>(n) *
                             pow(p, 1 + (1.0 / static_cast<double>(d)))) /
                   std::log2(p));

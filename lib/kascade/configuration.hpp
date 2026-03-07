@@ -76,6 +76,7 @@ struct SparseRulingSetConfig {
   double heuristic_factor = 0.01;
   double sanders_factor = 1.0;
   double ultimate_factor = 0.1;
+  double ultimate_sanders_factor = 2.0;
   std::size_t round_limit = 100;
   bool cache_owners = false;
   std::size_t root_gather_threshold = 100;
