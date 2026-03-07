@@ -141,7 +141,6 @@ auto parse_args(std::span<char*> args) -> Config {
       ->group("Sparse Ruling Set");
   app.add_option("--sparse-ruling-set-sparse-ruling-set-rounds",
                  config.sparse_ruling_set.sparse_ruling_set_rounds)
-      ->check(CLI::Range(2, 5))
       ->group("Sparse Ruling Set");
   app.add_option("--sparse-ruling-set-ruler-selection",
                  config.sparse_ruling_set.ruler_selection)

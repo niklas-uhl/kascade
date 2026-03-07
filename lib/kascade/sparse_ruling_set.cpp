@@ -347,8 +347,15 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
   switch (config.base_algorithm) {
     case Algorithm::PointerDoubling:
       base_algorithm = [&](auto&&... args) {
-        pointer_doubling(
-            std::any_cast<PointerDoublingConfig>(config.base_algorithm_config), args...);
+        auto pointer_doubling_config =
+            std::any_cast<PointerDoublingConfig>(config.base_algorithm_config);
+        if (config.use_grid_communication) {
+          // when sparse ruling set uses grid communication, we should also use it for the
+          // base algorithm
+          pointer_doubling_config.grid_communicator_mode =
+              GridCommunicatorMode::topology_aware;
+        }
+        pointer_doubling(pointer_doubling_config, args...);
       };
       break;
     case Algorithm::GatherChase:
@@ -368,25 +375,25 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
             args...);
       };
       break;
-    case Algorithm::SparseRulingSet:
-      base_algorithm = [&](auto&&... args) {
-        auto nested_config = config;
-        nested_config.current_sparse_ruling_set_round++;
-        if (nested_config.current_sparse_ruling_set_round >=
-            nested_config.sparse_ruling_set_rounds) {
-          nested_config.base_algorithm = kascade::Algorithm::PointerDoubling;
-          PointerDoublingConfig pointer_doubling_config;
-          pointer_doubling_config.grid_communicator_mode =
-              config.use_grid_communication ? GridCommunicatorMode::topology_aware
-                                            : GridCommunicatorMode::none;
-          nested_config.base_algorithm_config = pointer_doubling_config;
-        }
-        sparse_ruling_set(nested_config, args...);
-      };
-      break;
     default:
       throw std::runtime_error("Invalid base algorithm selected for sparse ruling set");
   }
-  sparse_ruling_set(config, succ_array, rank_array, dist, base_algorithm, comm);
+  if (config.sparse_ruling_set_rounds == 0) {
+    // directly call the base algorithm without any sparse ruling set rounds
+    base_algorithm(succ_array, rank_array, dist, comm);
+    return;
+  }
+  BaseAlgorithm recursion;
+  if (config.current_sparse_ruling_set_round + 1 >= config.sparse_ruling_set_rounds) {
+    // next call is the final level -> use base algorithm
+    recursion = base_algorithm;
+  } else {
+    recursion = [&](auto&&... args) {
+      auto nested_config = config;
+      nested_config.current_sparse_ruling_set_round++;
+      sparse_ruling_set(nested_config, args...);
+    };
+  }
+  sparse_ruling_set(config, succ_array, rank_array, dist, recursion, comm);
 }
 }  // namespace kascade

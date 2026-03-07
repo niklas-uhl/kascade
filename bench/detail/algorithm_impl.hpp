@@ -112,8 +112,12 @@ public:
       case kascade::Algorithm::RMAPointerDoubling:
         config_.sparse_ruling_set.base_algorithm_config = config_.rma_pointer_chasing;
         break;
-      case kascade::Algorithm::SparseRulingSet:
-        config_.sparse_ruling_set.base_algorithm_config = config_.sparse_ruling_set;
+    case kascade::Algorithm::SparseRulingSet:
+      // this base algorithm is here for legacy reasons
+      config_.sparse_ruling_set.sparse_ruling_set_rounds =
+            std::max(std::size_t{2}, config_.sparse_ruling_set.sparse_ruling_set_rounds);
+        config_.sparse_ruling_set.base_algorithm = kascade::Algorithm::PointerDoubling;
+        config_.sparse_ruling_set.base_algorithm_config = config_.pointer_doubling;
         break;
       default:
         throw std::runtime_error("Invalid base algorithm selected for sparse ruling set");
