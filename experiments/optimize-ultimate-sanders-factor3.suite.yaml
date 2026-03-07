@@ -1,0 +1,72 @@
+name: optimize-ultimate-sanders-factor3
+executable: bench/kascade
+output_path_option_name: "output-file"
+ncores: [64, 128, 256, 512, 1024, 2048]
+time_limit: 1
+threads_per_rank: [1]
+# tasks_per_node: 64
+graphs:
+  - generator: kagen
+    type: path
+    N: 20
+    extra_args:
+      statistics-level: extensive-reduced-output
+      input-processing: none
+      verify-level: 0
+      iterations: 5
+    scale_weak: True
+  - generator: kagen
+    type: path
+    N: 20
+    permute: True
+    extra_args:
+      statistics-level: extensive-reduced-output
+      input-processing: none
+      verify-level: 0
+      iterations: 5
+    scale_weak: True
+  - generator: kagen
+    type: path
+    N: 16
+    permute: True
+    extra_args:
+      statistics-level: extensive-reduced-output
+      input-processing: none
+      verify-level: 0
+      iterations: 5
+    scale_weak: True
+  - generator: kagen
+    type: path
+    N: 22
+    permute: True
+    extra_args:
+      statistics-level: extensive-reduced-output
+      input-processing: none
+      verify-level: 0
+      iterations: 5
+    scale_weak: True
+  # - generator: kagen
+  #   type: path
+  #   N: 23
+  #   permute: True
+  #   extra_args:
+  #     statistics-level: extensive-reduced-output
+  #     input-processing: none
+  #     verify-level: 0
+  #     iterations: 5
+  #   scale_weak: True      
+config:
+  - algorithm: SparseRulingSet
+    sparse-ruling-set-ruler-selection: ultimate-sanders
+    sparse-ruling-set-ultimate-factor: [1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0]
+    sparse-ruling-set-spawn: True
+    sparse-ruling-set-sync: True
+    sparse-ruling-set-sync-locality-aware: True
+    sparse-ruling-set-ruler-propagation-use-aggregation: [False]
+    sparse-ruling-set-reverse-list-locality-aware: [True]
+    sparse-ruling-set-post-invert: [True]
+    sparse-ruling-set-post-invert-detect-leaves: [False]
+    sparse-ruling-set-base-algorithm: [SparseRulingSet]
+    sparse-ruling-set-use-grid-communication: [False, True]
+    sparse-ruling-set-cache-owners: [False]
+    sparse-ruling-set-use-local-contraction: [True]
