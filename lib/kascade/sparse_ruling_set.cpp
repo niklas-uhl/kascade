@@ -352,8 +352,7 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
         if (config.use_grid_communication) {
           // when sparse ruling set uses grid communication, we should also use it for the
           // base algorithm
-          pointer_doubling_config.grid_communicator_mode =
-              GridCommunicatorMode::topology_aware;
+          pointer_doubling_config.use_grid_communication = true;
         }
         pointer_doubling(pointer_doubling_config, args...);
       };

@@ -491,8 +491,7 @@ auto select_doubling_strategy(
     }
     case kascade::AggregationLevel::local:
       return std::make_unique<DoublingWithAggregation>(
-          config, comm, grid_comm, config.use_grid_communication,
-          false);
+          config, comm, grid_comm, config.use_grid_communication, false);
     case kascade::AggregationLevel::all:
       return std::make_unique<DoublingWithAggregation>(config, comm, grid_comm, true,
                                                        true);
