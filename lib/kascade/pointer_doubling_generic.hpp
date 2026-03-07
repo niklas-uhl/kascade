@@ -608,6 +608,18 @@ void pointer_doubling_generic(PointerDoublingConfig config,
                               Distribution const& dist,
                               R const& active_local_indices,
                               kamping::Communicator<> const& comm) {
+  if (dist.get_global_size() <
+      static_cast<std::size_t>(config.fallback_allgather_size_ratio *
+                               static_cast<double>(comm.size()))) {
+    SPDLOG_LOGGER_DEBUG(spdlog::get("root"),
+                        "global size smaller than {}*p, falling back to allgather",
+                        config.fallback_allgather_size_ratio);
+    kamping::measurements::timer().synchronize_and_start("rank_on_root_fallback");
+    rank_on_root(succ_array, rank_array, dist, comm);
+    kamping::measurements::timer().stop();
+    return;
+  }
+
   std::vector<bool> is_active(succ_array.size(), true);
   std::vector<LocalChainInfo> local_chain_info;
   std::size_t num_masked = 0;

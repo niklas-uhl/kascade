@@ -43,6 +43,7 @@ struct PointerDoublingConfig {
   bool use_local_first_request_scheme = false;
   bool cache_succ_owners = false;
   AggregationLevel aggregation_level = AggregationLevel::none;
+  double fallback_allgather_size_ratio = 0.0;
 };
 
 enum class RulerSelectionStrategy : std::uint8_t {

@@ -132,6 +132,9 @@ auto parse_args(std::span<char*> args) -> Config {
   app.add_option("--pointer-doubling-grid-communicator-mode",
                  config.pointer_doubling.grid_communicator_mode)
       ->group("Pointer Doubling");
+  app.add_option("--pointer-doubling-fallback-allgather-size-ratio",
+                 config.pointer_doubling.fallback_allgather_size_ratio)
+      ->group("Pointer Doubling");
 
   app.add_option("--sparse-ruling-set-base-algorithm",
                  config.sparse_ruling_set.base_algorithm)

@@ -67,7 +67,8 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(PointerDoublingConfig,
                                    grid_communicator_mode,
                                    use_local_first_request_scheme,
                                    cache_succ_owners,
-                                   aggregation_level);
+                                   aggregation_level,
+                                   fallback_allgather_size_ratio);
 
 NLOHMANN_JSON_SERIALIZE_ENUM(RulerSelectionStrategy,
                              {{RulerSelectionStrategy::invalid, nullptr},
