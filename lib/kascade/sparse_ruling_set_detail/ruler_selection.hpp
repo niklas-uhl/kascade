@@ -22,6 +22,7 @@ auto compute_local_num_rulers(SparseRulingSetConfig const& config,
   // NOLINTBEGIN(readability-identifier-length)
   auto n = dist.get_global_size();
   auto n_local = dist.get_local_size(comm.rank());
+  auto d = config.use_grid_communication ? 2 : 1;
   if (config.use_local_contraction) {
     n_local = n_local - num_masked_nodes;
     comm.allreduce(kamping::send_buf(n_local), kamping::recv_buf(n),
@@ -51,6 +52,15 @@ auto compute_local_num_rulers(SparseRulingSetConfig const& config,
       // √n * p
       return static_cast<std::size_t>(config.ultimate_factor * std::sqrt(n) *
                                       static_cast<double>(p) * rel_local_size);
+    case RulerSelectionStrategy::ultimate_sanders:
+      // $r^*=\Th{\sqrt{\frac{\alpha np^{1+1/d}}{\beta\log p }}}$
+      {
+        auto r = config.ultimate_factor *  // NOLINT(readability-identifier-length)
+                 (std::sqrt(static_cast<double>(n) *
+                            pow(p, 1 + (1.0 / static_cast<double>(d)))) /
+                  std::log2(p));
+        return static_cast<std::size_t>(r * rel_local_size);
+      }
     case RulerSelectionStrategy::limit_rounds: {
       if (!config.spawn) {
         SPDLOG_LOGGER_WARN(spdlog::get("root"),

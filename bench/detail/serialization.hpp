@@ -64,6 +64,8 @@ NLOHMANN_JSON_SERIALIZE_ENUM(RulerSelectionStrategy,
                               {RulerSelectionStrategy::heuristic, "heuristic"},
                               {RulerSelectionStrategy::sanders, "sanders"},
                               {RulerSelectionStrategy::ultimate, "ultimate"},
+                              {RulerSelectionStrategy::ultimate_sanders,
+                               "ultimate-sanders"},
                               {RulerSelectionStrategy::limit_rounds, "limit-rounds"}});
 NLOHMANN_JSON_SERIALIZE_ENUM(RulerPropagationMode,
                              {{RulerPropagationMode::invalid, nullptr},

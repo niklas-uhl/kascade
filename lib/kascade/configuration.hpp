@@ -41,6 +41,7 @@ enum class RulerSelectionStrategy : std::uint8_t {
   heuristic,
   sanders,
   ultimate,
+  ultimate_sanders,
   limit_rounds,
   invalid
 };
