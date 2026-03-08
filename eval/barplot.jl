@@ -3,11 +3,6 @@ using DataFramesMeta
 using Statistics
 using AlgebraOfGraphics
 using CairoMakie
-using CategoricalArraysusing DataFrames
-using DataFramesMeta
-using Statistics
-using AlgebraOfGraphics
-using CairoMakie
 using CategoricalArrays
 
 include("KascadeEval.jl")
