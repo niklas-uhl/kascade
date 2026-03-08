@@ -19,8 +19,16 @@ auto compute_grid_dimensions(std::size_t comm_size)
     -> std::pair<std::size_t, std::size_t> {
   std::array<int, 2> dims{0, 0};
   MPI_Dims_create(static_cast<int>(comm_size), 2, dims.data());
+  if (dims[0] < dims[1]) {
+    std::swap(dims[0], dims[1]);
+  }
   return std::make_pair(static_cast<std::size_t>(dims[0]),
                         static_cast<std::size_t>(dims[1]));
+}
+
+auto get_ranks_per_node(kamping::Communicator<> const& comm) -> std::size_t {
+  TopologyAwareGridCommunicator grid_comm{comm};
+  return grid_comm.ranks_per_compute_node();
 }
 
 // assumes consecutive world ranks per compute node

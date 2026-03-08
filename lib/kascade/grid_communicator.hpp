@@ -5,7 +5,8 @@
 
 namespace kascade {
 
-std::pair<std::size_t, std::size_t> compute_grid_dimensions(std::size_t comm_size);
+auto compute_grid_dimensions(std::size_t comm_size) -> std::pair<std::size_t, std::size_t>;
+auto get_ranks_per_node(kamping::Communicator<> const& comm) -> std::size_t;
 
 class TopologyAwareGridCommunicator {
 public:

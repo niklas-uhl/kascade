@@ -413,45 +413,6 @@ auto is_finished(std::size_t unfinished_elems, kamping::Communicator<> const& co
   return global_unfinished_elems == 0U;
 }
 
-auto make_grid_comm(kamping::Communicator<> const& comm, GridCommunicatorMode mode)
-    -> std::optional<TopologyAwareGridCommunicator> {
-  switch (mode) {
-    case GridCommunicatorMode::balanced: {
-      auto [first_dim, second_dim] = compute_grid_dimensions(comm.size());
-      if (first_dim < second_dim) {
-        std::swap(first_dim, second_dim);
-      }
-      return TopologyAwareGridCommunicator{comm, first_dim};
-    }
-    case GridCommunicatorMode::topology_aware:
-      return TopologyAwareGridCommunicator{comm};
-    case GridCommunicatorMode::invalid: {
-      throw std::runtime_error("invalid parameter for grid communicator mode");
-    }
-  };
-  return std::nullopt;
-}
-
-auto make_grid_comm(kamping::Communicator<> const& comm,
-                    bool use_grid_communication,
-                    AggregationLevel level,
-                    GridCommunicatorMode grid_mode)
-    -> std::optional<TopologyAwareGridCommunicator> {
-  if (use_grid_communication) {
-    return make_grid_comm(comm, grid_mode);
-  }
-  switch (level) {
-    case kascade::AggregationLevel::invalid:
-    case kascade::AggregationLevel::none:
-    case kascade::AggregationLevel::local:
-      return std::nullopt;
-    case kascade::AggregationLevel::all:
-      KASSERT(grid_mode != GridCommunicatorMode::invalid);
-      return make_grid_comm(comm, grid_mode);
-  }
-  return std::nullopt;
-}
-
 auto initialize_active_vertices(std::span<idx_t> succ_array,
                                 std::span<rank_t> rank_array,
                                 Distribution const& dist,
@@ -585,12 +546,20 @@ auto local_uncontraction(std::vector<LocalChainInfo> const& local_chain_info,
 }  // namespace
 
 template <typename R>
-void pointer_doubling_generic(PointerDoublingConfig config,
-                              std::span<idx_t> succ_array,
-                              std::span<rank_t> rank_array,
-                              Distribution const& dist,
-                              R const& active_local_indices,
-                              kamping::Communicator<> const& comm) {
+void pointer_doubling_generic(
+    PointerDoublingConfig config,
+    std::span<idx_t> succ_array,
+    std::span<rank_t> rank_array,
+    Distribution const& dist,
+    R const& active_local_indices,
+    std::optional<TopologyAwareGridCommunicator> const& grid_comm,
+    kamping::Communicator<> const& comm) {
+  KASSERT(
+      config.aggregation_level != AggregationLevel::all || config.use_grid_communication,
+      "Complete aggregation requires grid communication");
+  KASSERT(!config.use_grid_communication || grid_comm.has_value(),
+          "Grid Communication requires a valid grid communicator");
+
   if (dist.get_global_size() <
       static_cast<std::size_t>(config.fallback_allgather_size_ratio *
                                static_cast<double>(comm.size()))) {
@@ -630,19 +599,6 @@ void pointer_doubling_generic(PointerDoublingConfig config,
     }
   }
   std::span<idx_t> active_vertices = active_vertices_storage;
-  kamping::measurements::timer().synchronize_and_start("create_grid_comm");
-  std::optional<TopologyAwareGridCommunicator> grid_comm =
-      make_grid_comm(comm, config.use_grid_communication, config.aggregation_level,
-                     config.grid_communicator_mode);
-  std::size_t intra_comm_size = 1;
-  if (grid_comm.has_value()) {
-    intra_comm_size = grid_comm->ranks_per_compute_node();
-  }
-  kamping::measurements::counter().append(
-      "intra-comm-size", static_cast<std::int64_t>(intra_comm_size),
-      {kamping::measurements::GlobalAggregationMode::min,
-       kamping::measurements::GlobalAggregationMode::max});
-  kamping::measurements::timer().stop_and_append();
   auto doubling_strategy = select_doubling_strategy(config, comm, grid_comm);
 
   while (!is_finished(active_vertices.size(), comm)) {

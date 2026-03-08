@@ -4,6 +4,7 @@
 
 #include <kamping/communicator.hpp>
 
+#include "grid_communicator.hpp"
 #include "kascade/configuration.hpp"
 #include "kascade/distribution.hpp"
 #include "kascade/types.hpp"
@@ -18,7 +19,8 @@ void pointer_doubling(PointerDoublingConfig config,
                       std::span<idx_t> succ_array,
                       std::span<rank_t> rank_array,
                       Distribution const& dist,
-                      kamping::Communicator<> const& comm);
+                      kamping::Communicator<> const& comm,
+                      std::optional<TopologyAwareGridCommunicator> const& grid_comm);
 
 /// @param[inout] succ_array Array of successor indices; upon completion contains root
 /// indices.

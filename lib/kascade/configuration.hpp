@@ -88,6 +88,7 @@ struct SparseRulingSetConfig {
   bool post_invert = false;
   bool post_invert_detect_leaves = false;
   BriefkastenConfig briefkasten{};
+  GridCommunicatorMode grid_communicator_mode = GridCommunicatorMode::topology_aware;
   bool use_grid_communication = false;
 };
 
@@ -95,5 +96,7 @@ struct EulerTourConfig {
   Algorithm algorithm;
   bool use_high_degree_handling = false;
   std::any algo_config;
+  GridCommunicatorMode grid_communicator_mode = GridCommunicatorMode::topology_aware;
+  bool use_grid_communication = false;
 };
 }  // namespace kascade

@@ -279,9 +279,11 @@ void map_euler_tour_back(EulerTour const& euler_tour,
 }  // namespace
 
 namespace {
-void rank_via_euler_tour_select_algorithm(EulerTourConfig const& config,
-                                          EulerTour& euler_tour,
-                                          kamping::Communicator<> const& comm) {
+void rank_via_euler_tour_select_algorithm(
+    EulerTourConfig const& config,
+    EulerTour& euler_tour,
+    kamping::Communicator<> const& comm,
+    std::optional<TopologyAwareGridCommunicator> const& grid_comm) {
   switch (config.algorithm) {
     case Algorithm::GatherChase: {
       rank_on_root(euler_tour.succ_array, euler_tour.rank_array, euler_tour.distribution,
@@ -291,7 +293,7 @@ void rank_via_euler_tour_select_algorithm(EulerTourConfig const& config,
     case Algorithm::PointerDoubling: {
       kascade::pointer_doubling(std::any_cast<PointerDoublingConfig>(config.algo_config),
                                 euler_tour.succ_array, euler_tour.rank_array,
-                                euler_tour.distribution, comm);
+                                euler_tour.distribution, comm, grid_comm);
       break;
     }
     case Algorithm::AsyncPointerDoubling: {
@@ -303,7 +305,7 @@ void rank_via_euler_tour_select_algorithm(EulerTourConfig const& config,
     case Algorithm::SparseRulingSet: {
       kascade::sparse_ruling_set(std::any_cast<SparseRulingSetConfig>(config.algo_config),
                                  euler_tour.succ_array, euler_tour.rank_array,
-                                 euler_tour.distribution, comm);
+                                 euler_tour.distribution, comm, grid_comm);
       break;
     }
     case Algorithm::RMAPointerDoubling: {
@@ -336,7 +338,8 @@ void rank_via_euler_tour(EulerTourConfig const& config,
                          std::span<idx_t> succ_array,
                          std::span<rank_t> rank_array,
                          Distribution const& dist,
-                         kamping::Communicator<> const& comm) {
+                         kamping::Communicator<> const& comm,
+                         std::optional<TopologyAwareGridCommunicator> const& grid_comm) {
   SPDLOG_LOGGER_TRACE(spdlog::get("gather"), "size {}\nsucc_array {}\nrank_array {}",
                       succ_array.size(), succ_array, rank_array);
   auto [num_proxy_vertices, parent_array, tree] = select_tree_construction(
@@ -356,7 +359,7 @@ void rank_via_euler_tour(EulerTourConfig const& config,
   SPDLOG_LOGGER_TRACE(
       spdlog::get("root"), "traced {}",
       trace_successor_list(euler_tour.succ_array, euler_tour.rank_array, comm));
-  rank_via_euler_tour_select_algorithm(config, euler_tour, comm);
+  rank_via_euler_tour_select_algorithm(config, euler_tour, comm, grid_comm);
   SPDLOG_LOGGER_TRACE(
       spdlog::get("gather"), "ranked size {}  succ_array {}\nrank_array {}",
       euler_tour.succ_array.size(), euler_tour.succ_array, euler_tour.rank_array);

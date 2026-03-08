@@ -4,11 +4,15 @@
 
 #include "kascade/pointer_doubling_generic.hpp"
 
-void kascade::pointer_doubling(kascade::PointerDoublingConfig config,
-                               std::span<idx_t> succ_array,
-                               std::span<rank_t> rank_array,
-                               Distribution const& dist,
-                               kamping::Communicator<> const& comm) {
+void kascade::pointer_doubling(
+    kascade::PointerDoublingConfig config,
+    std::span<idx_t> succ_array,
+    std::span<rank_t> rank_array,
+    Distribution const& dist,
+    kamping::Communicator<> const& comm,
+    std::optional<TopologyAwareGridCommunicator> const& grid_comm
+) {
   auto all_local_indices = std::views::iota(idx_t{0}, idx_t{succ_array.size()});
-  pointer_doubling_generic(config, succ_array, rank_array, dist, all_local_indices, comm);
+  pointer_doubling_generic(config, succ_array, rank_array, dist, all_local_indices,
+                           grid_comm, comm);
 }

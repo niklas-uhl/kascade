@@ -138,22 +138,31 @@ auto parse_args(std::span<char*> args) -> Config {
       app.add_flag("--pointer-doubling-use-grid-communication",
                    config.pointer_doubling.use_grid_communication)
           ->group("Pointer Doubling");
+
+  // due to legacy reasons the communicator mode option has some side-effects ...
+  auto handle_grid_communicator_mode_option =
+      [](std::string const& str, std::string const& name,
+         kascade::GridCommunicatorMode& mode, bool& grid_comm_flag) {
+        if (!lexical_cast(str, mode)) {
+          throw CLI::ValidationError(name, str + " is not a valid communicator mode!");
+        }
+        switch (mode) {
+          case kascade::GridCommunicatorMode::topology_aware:
+          case kascade::GridCommunicatorMode::balanced:
+            grid_comm_flag = true;
+            break;
+          default:
+            break;
+        }
+      };
   auto* opt_pointer_doubling_grid_mode =
       app.add_option_function<std::string>(
              "--pointer-doubling-grid-communicator-mode",
              [&](const std::string& str) {
-               if (!lexical_cast(str, config.pointer_doubling.grid_communicator_mode)) {
-                 throw CLI::ValidationError("--pointer-doubling-grid-communicator-mode",
-                                            str + " is not a valid communicator mode!");
-               }
-               switch (config.pointer_doubling.grid_communicator_mode) {
-                 case kascade::GridCommunicatorMode::topology_aware:
-                 case kascade::GridCommunicatorMode::balanced:
-                   config.pointer_doubling.use_grid_communication = true;
-                   break;
-                 default:
-                   break;
-               }
+               handle_grid_communicator_mode_option(
+                   str, "--pointer-doubling-grid-communicator-mode",
+                   config.pointer_doubling.grid_communicator_mode,
+                   config.pointer_doubling.use_grid_communication);
              })
           ->group("Pointer Doubling");
 
@@ -228,14 +237,28 @@ auto parse_args(std::span<char*> args) -> Config {
   app.add_option("--sparse-ruling-set-briefkasten-poll-skip-threshold",
                  config.sparse_ruling_set.briefkasten.poll_skip_threshold)
       ->group("Sparse Ruling Set");
-  app.add_flag("--sparse-ruling-set-use-grid-communication",
-               config.sparse_ruling_set.use_grid_communication)
-      ->group("Sparse Ruling Set");
+  auto* opt_sparse_ruling_set_use_grid =
+      app.add_flag("--sparse-ruling-set-use-grid-communication",
+                   config.sparse_ruling_set.use_grid_communication)
+          ->group("Sparse Ruling Set");
+  auto* opt_sparse_ruling_set_grid_mode =
+      app.add_option_function<std::string>(
+             "--sparse-ruling-set-grid-communicator-mode",
+             [&](const std::string& str) {
+               handle_grid_communicator_mode_option(
+                   str, "--sparse-ruling-set-grid-communicator-mode",
+                   config.sparse_ruling_set.grid_communicator_mode,
+                   config.sparse_ruling_set.use_grid_communication);
+             })
+          ->group("Sparse Ruling Set");
   app.add_flag(
          "--sparse-ruling-set-ruler-propagation-locality-aware,!--sparse-ruling-set-"
          "ruler-propagation-no-locality-aware",
          config.sparse_ruling_set.use_locality_aware_in_ruler_propagation)
       ->group("Sparse Ruling Set");
+
+  opt_sparse_ruling_set_use_grid->excludes(opt_sparse_ruling_set_grid_mode);
+  opt_sparse_ruling_set_grid_mode->excludes(opt_sparse_ruling_set_use_grid);
 
   app.add_option("--mplr-algorithm", config.mplr.algorithm)->group("MPLR");
   app.add_option("--mplr-rounds", config.mplr.comm_rounds)->group("MPLR");
@@ -245,6 +268,21 @@ auto parse_args(std::span<char*> args) -> Config {
   app.add_option("--eulertour-algorithm", config.euler_tour.algorithm);
   app.add_flag("--eulertour-use-high-degree-handling",
                config.euler_tour.use_high_degree_handling);
+  auto* opt_euler_tour_use_grid = app.add_flag("--eulertour-use-grid-communication",
+                                               config.euler_tour.use_grid_communication)
+                                      ->group("Eulertour");
+  auto* opt_euler_tour_set_grid_mode =
+      app.add_option_function<std::string>(
+             "--eulertour-grid-communicator-mode",
+             [&](const std::string& str) {
+               handle_grid_communicator_mode_option(
+                   str, "--eulertour-grid-communicator-mode",
+                   config.euler_tour.grid_communicator_mode,
+                   config.euler_tour.use_grid_communication);
+             })
+          ->group("Eulertour");
+  opt_euler_tour_use_grid->excludes(opt_euler_tour_set_grid_mode);
+  opt_euler_tour_set_grid_mode->excludes(opt_euler_tour_use_grid);
 
   try {
     app.parse(static_cast<int>(args.size()), args.data());
@@ -252,5 +290,12 @@ auto parse_args(std::span<char*> args) -> Config {
     int errcode = app.exit(e);
     std::exit(errcode);
   };
+
+  // Cannot do this within option parsing? Aggregation level and grid_communication should
+  // not be mutually exclusive
+  if (config.pointer_doubling.aggregation_level == kascade::AggregationLevel::all) {
+    config.pointer_doubling.use_grid_communication = true;
+  }
+
   return config;
 }

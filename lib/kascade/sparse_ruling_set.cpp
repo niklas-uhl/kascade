@@ -47,14 +47,9 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
                        std::span<rank_t> rank_array,
                        Distribution const& dist,
                        BaseAlgorithm const& base_algorithm,
-                       kamping::Communicator<> const& comm) {
+                       kamping::Communicator<> const& comm,
+                       std::optional<TopologyAwareGridCommunicator> const& grid_comm) {
   KASSERT(is_list(succ_array, dist, comm), assert::with_communication);
-  kamping::measurements::timer().start("init_grid_comm");
-  std::optional<TopologyAwareGridCommunicator> grid_comm;
-  if (config.use_grid_communication) {
-    grid_comm = TopologyAwareGridCommunicator{comm};
-  }
-  kamping::measurements::timer().stop();
   std::vector<idx_t> leaves;
   kamping::measurements::timer().synchronize_and_start("invert_list");
   if (!config.post_invert) {
@@ -341,7 +336,8 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
                        std::span<idx_t> succ_array,
                        std::span<rank_t> rank_array,
                        Distribution const& dist,
-                       kamping::Communicator<> const& comm) {
+                       kamping::Communicator<> const& comm,
+                       std::optional<TopologyAwareGridCommunicator> const& grid_comm) {
   using namespace sparse_ruling_set_detail;
   BaseAlgorithm base_algorithm;
   switch (config.base_algorithm) {
@@ -354,7 +350,7 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
           // base algorithm
           pointer_doubling_config.use_grid_communication = true;
         }
-        pointer_doubling(pointer_doubling_config, args...);
+        pointer_doubling(pointer_doubling_config, args..., grid_comm);
       };
       break;
     case Algorithm::GatherChase:
@@ -390,9 +386,9 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
     recursion = [&](auto&&... args) {
       auto nested_config = config;
       nested_config.current_sparse_ruling_set_round++;
-      sparse_ruling_set(nested_config, args...);
+      sparse_ruling_set(nested_config, args..., grid_comm);
     };
   }
-  sparse_ruling_set(config, succ_array, rank_array, dist, recursion, comm);
+  sparse_ruling_set(config, succ_array, rank_array, dist, recursion, comm, grid_comm);
 }
 }  // namespace kascade

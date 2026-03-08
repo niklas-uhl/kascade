@@ -32,7 +32,7 @@ auto main(int argc, char* argv[]) -> int {
     }
     auto rebalanced_input_distribution =
         kascade::input::get_input_distribution_stats(succ, comm);
-
+    std::size_t ranks_per_compute_node = kascade::get_ranks_per_node(comm);
     comm.barrier();
 
     // reference implementation
@@ -59,7 +59,7 @@ auto main(int argc, char* argv[]) -> int {
     for (std::size_t i = 0; i < config.iterations; i++) {
       comm.barrier();
       spdlog::stopwatch stopwatch;
-      auto algo = get_algorithm(config, comm);
+      auto algo = get_algorithm(config, comm, ranks_per_compute_node);
       kamping::measurements::timer().synchronize_and_start("ingest_graph");
       algo->ingest(succ);
       kamping::measurements::timer().stop_and_append();

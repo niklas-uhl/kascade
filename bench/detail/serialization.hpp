@@ -110,8 +110,13 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(SparseRulingSetConfig,
                                    post_invert,
                                    post_invert_detect_leaves,
                                    briefkasten,
+                                   grid_communicator_mode,
                                    use_grid_communication);
-NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(EulerTourConfig, algorithm, use_high_degree_handling);
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(EulerTourConfig,
+                                   algorithm,
+                                   use_high_degree_handling,
+                                   grid_communicator_mode,
+                                   use_grid_communication);
 }  // namespace kascade
 
 namespace mplr {

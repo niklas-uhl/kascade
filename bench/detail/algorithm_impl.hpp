@@ -2,6 +2,8 @@
 #include <utility>
 
 #include <kamping/communicator.hpp>
+#include <kamping/measurements/counter.hpp>
+#include <kamping/measurements/timer.hpp>
 
 #include "./algorithm.hpp"
 #include "detail/benchmark_config.hpp"
@@ -13,9 +15,47 @@
 #include "kascade/sparse_ruling_set.hpp"
 #include "kascade/types.hpp"
 
+namespace {
+auto make_grid_comm(kamping::Communicator<> const& comm,
+                    kascade::GridCommunicatorMode mode,
+                    std::size_t cores_per_compute_node)
+    -> std::optional<kascade::TopologyAwareGridCommunicator> {
+  using namespace kascade;
+  switch (mode) {
+    case GridCommunicatorMode::balanced: {
+      auto [first_dim, second_dim] = compute_grid_dimensions(comm.size());
+      return TopologyAwareGridCommunicator{comm, first_dim};
+    }
+    case GridCommunicatorMode::topology_aware:
+      return TopologyAwareGridCommunicator{comm, cores_per_compute_node};
+    case GridCommunicatorMode::invalid: {
+      throw std::runtime_error("invalid parameter for grid communicator mode");
+    }
+  };
+  return std::nullopt;
+}
+}  // namespace
+
 class AlgorithmBase : public AbstractAlgorithm {
 public:
   AlgorithmBase(kamping::Communicator<> const& comm) : comm_(&comm) {}
+  AlgorithmBase(kamping::Communicator<> const& comm,
+                bool use_grid_communication,
+                kascade::GridCommunicatorMode mode,
+                std::size_t cores_per_compute_node)
+      : comm_(&comm) {
+    if (use_grid_communication) {
+      kamping::measurements::timer().synchronize_and_start("make_grid_comm");
+      grid_comm_ = make_grid_comm(comm, mode, cores_per_compute_node);
+      kamping::measurements::timer().stop();
+
+      kamping::measurements::counter().append(
+          "intra-comm-size",
+          static_cast<std::int64_t>(grid_comm_->intra_node_comm().size()),
+          {kamping::measurements::GlobalAggregationMode::min,
+           kamping::measurements::GlobalAggregationMode::max});
+    }
+  }
   void ingest(std::span<const kascade::idx_t> succ_array) override {
     succ_array_ = succ_array;
     rank_array_.resize(succ_array_.size());
@@ -34,6 +74,7 @@ protected:
   std::vector<kascade::rank_t> rank_array_;
   std::vector<kascade::idx_t> root_array_;
   kamping::Communicator<> const* comm_;
+  std::optional<kascade::TopologyAwareGridCommunicator> grid_comm_;
   // NOLINTEND(*-non-private-member-variables-in-classes)
 };
 
@@ -50,12 +91,17 @@ public:
 class PointerDoubling : public AlgorithmBase {
 public:
   PointerDoubling(kascade::PointerDoublingConfig const& config,
-                  kamping::Communicator<> const& comm)
-      : AlgorithmBase(comm), config_{config} {}
+                  kamping::Communicator<> const& comm, std::size_t ranks_per_compute_node)
+      : AlgorithmBase(comm,
+                      config.use_grid_communication,
+                      config.grid_communicator_mode,
+                      ranks_per_compute_node),
+        config_{config} {}
   void run() override {
     auto dist =
         kascade::set_initial_ranking_state(succ_array_, root_array_, rank_array_, *comm_);
-    kascade::pointer_doubling(config_, root_array_, rank_array_, dist, *comm_);
+    kascade::pointer_doubling(config_, root_array_, rank_array_, dist, *comm_,
+                              grid_comm_);
   }
 
 private:
@@ -94,8 +140,12 @@ private:
 
 class SparseRulingSet : public AlgorithmBase {
 public:
-  explicit SparseRulingSet(Config config, kamping::Communicator<> const& comm)
-      : AlgorithmBase(comm), config_(std::move(config)) {}
+  explicit SparseRulingSet(Config config, kamping::Communicator<> const& comm, std::size_t ranks_per_compute_node)
+      : AlgorithmBase(comm,
+                      config.sparse_ruling_set.use_grid_communication,
+                      config.sparse_ruling_set.grid_communicator_mode,
+                      ranks_per_compute_node),
+        config_(std::move(config)) {}
   void run() override {
     auto dist =
         kascade::set_initial_ranking_state(succ_array_, root_array_, rank_array_, *comm_);
@@ -112,9 +162,9 @@ public:
       case kascade::Algorithm::RMAPointerDoubling:
         config_.sparse_ruling_set.base_algorithm_config = config_.rma_pointer_chasing;
         break;
-    case kascade::Algorithm::SparseRulingSet:
-      // this base algorithm is here for legacy reasons
-      config_.sparse_ruling_set.sparse_ruling_set_rounds =
+      case kascade::Algorithm::SparseRulingSet:
+        // this base algorithm is here for legacy reasons
+        config_.sparse_ruling_set.sparse_ruling_set_rounds =
             std::max(std::size_t{2}, config_.sparse_ruling_set.sparse_ruling_set_rounds);
         config_.sparse_ruling_set.base_algorithm = kascade::Algorithm::PointerDoubling;
         config_.sparse_ruling_set.base_algorithm_config = config_.pointer_doubling;
@@ -123,7 +173,7 @@ public:
         throw std::runtime_error("Invalid base algorithm selected for sparse ruling set");
     }
     kascade::sparse_ruling_set(config_.sparse_ruling_set, root_array_, rank_array_, dist,
-                               *comm_);
+                               *comm_, grid_comm_);
   }
 
 private:
@@ -132,8 +182,12 @@ private:
 
 class EulerTour : public AlgorithmBase {
 public:
-  explicit EulerTour(Config config, kamping::Communicator<> const& comm)
-      : AlgorithmBase(comm), config_(std::move(config)) {}
+  explicit EulerTour(Config config, kamping::Communicator<> const& comm, std::size_t ranks_per_compute_node)
+      : AlgorithmBase(comm,
+                      config.euler_tour.use_grid_communication,
+                      config.euler_tour.grid_communicator_mode,
+                      ranks_per_compute_node),
+        config_(std::move(config)) {}
   void run() override {
     auto dist =
         kascade::set_initial_ranking_state(succ_array_, root_array_, rank_array_, *comm_);
@@ -164,7 +218,7 @@ public:
         break;
     }
     kascade::rank_via_euler_tour(config_.euler_tour, root_array_, rank_array_, dist,
-                                 *comm_);
+                                 *comm_, grid_comm_);
   }
 
 private:

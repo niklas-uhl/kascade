@@ -5,6 +5,7 @@
 
 #include "configuration.hpp"
 #include "distribution.hpp"
+#include "grid_communicator.hpp"
 #include "kascade/graph/graph.hpp"
 #include "kascade/types.hpp"
 namespace kascade {
@@ -22,10 +23,13 @@ void rank_via_euler_tour(EulerTourConfig const& config,
                          std::span<idx_t> succ_array,
                          std::span<rank_t> rank_array,
                          Distribution const& dist,
-                         kamping::Communicator<> const& comm);
+                         kamping::Communicator<> const& comm,
+                         std::optional<TopologyAwareGridCommunicator> const& grid_comm);
 
 auto format_as(std::pair<EulerTour const&, kamping::Communicator<> const&> obj)
     -> std::string;
 
-auto compute_euler_tour(std::span<idx_t> parent_array, kamping::Communicator<> const& comm, bool use_high_degree_handling) -> std::vector<idx_t>;
+auto compute_euler_tour(std::span<idx_t> parent_array,
+                        kamping::Communicator<> const& comm,
+                        bool use_high_degree_handling) -> std::vector<idx_t>;
 }  // namespace kascade
