@@ -6,6 +6,8 @@
 #include <fmt/ranges.h>
 #include <kamping/collectives/allreduce.hpp>
 #include <kamping/collectives/alltoall.hpp>
+#include <kamping/collectives/gather.hpp>
+#include <kamping/collectives/scatter.hpp>
 #include <kamping/communicator.hpp>
 #include <kamping/measurements/counter.hpp>
 #include <kamping/measurements/timer.hpp>
@@ -486,16 +488,12 @@ auto local_contraction(std::span<idx_t> succ_array,
   std::size_t num_masked = 0;
   for (idx_t local_chain_start : local_chain_starts) {
     auto current_node = succ_array[local_chain_start];
-    auto is_root = [&](idx_t idx) {
-      idx_t global_idx = dist.get_global_idx(idx, comm.rank());
-      return succ_array[idx] == global_idx;
-    };
     auto is_end_of_local_chain = [&](idx_t idx) {
       if (!dist.is_local(idx, comm.rank())) {
         return true;
       }
       auto idx_local = dist.get_local_idx(idx, comm.rank());
-      return is_root(idx_local);
+      return is_root(idx_local, succ_array, dist, comm);
     };
     rank_t chain_length = rank_array[local_chain_start];
     while (!is_end_of_local_chain(current_node)) {
@@ -526,13 +524,14 @@ auto local_uncontraction(std::vector<LocalChainInfo> const& local_chain_info,
       return true;
     }
     auto idx_local = dist.get_local_idx(idx, comm.rank());
-    return bits::has_root_flag(succ_array[idx_local]);
+    return is_root(idx_local, succ_array, dist, comm);
   };
   for (auto const& [local_chain_start, next, dist_to_next] : local_chain_info) {
     auto current_node = next;
     auto current_dist = rank_array[local_chain_start] - dist_to_next;
     while (!is_end_of_local_chain(current_node)) {
       auto current_node_local = dist.get_local_idx(current_node, comm.rank());
+      KASSERT(current_node_local < succ_array.size());
       auto next_node = succ_array[current_node_local];
       auto next_dist = rank_array[current_node_local];
       succ_array[current_node_local] = succ_array[local_chain_start];
@@ -543,6 +542,67 @@ auto local_uncontraction(std::vector<LocalChainInfo> const& local_chain_info,
   }
 }
 
+template <typename R>
+void gather_rank_with_packing(std::span<idx_t> succ_array,
+                              std::span<rank_t> rank_array,
+                              R const& active_local_indices,
+                              Distribution const& dist,
+                              kamping::Communicator<> const& comm) {
+  namespace kmp = kamping::params;
+  struct packed {
+    idx_t succ;
+    rank_t rank;
+    idx_t org_idx;
+  };
+
+  kamping::measurements::timer().synchronize_and_start("gather_data");
+  std::vector<packed> packed_data;
+  packed_data.reserve(std::ranges::size(active_local_indices));
+  for (auto idx : active_local_indices) {
+    packed_data.emplace_back(succ_array[idx], rank_array[idx],
+                             dist.get_global_idx(idx, comm.rank()));
+  }
+  auto [recv_packed_data, recv_counts] =
+      comm.gatherv(kmp::send_buf(packed_data), kmp::recv_counts_out());
+  kamping::measurements::timer().stop();
+  std::vector<idx_t> packed_succ_array;
+  std::vector<rank_t> packed_rank_array;
+  kamping::measurements::timer().start("local_ranking");
+  if (comm.is_root()) {
+    packed_succ_array.reserve(recv_packed_data.size());
+    packed_rank_array.reserve(recv_packed_data.size());
+    absl::flat_hash_map<idx_t, idx_t> unpacked_to_packed(recv_packed_data.size());
+    for (std::size_t i = 0; i < recv_packed_data.size(); ++i) {
+      unpacked_to_packed.emplace(recv_packed_data[i].org_idx, i);
+    }
+    for (const auto& [succ, rank, org_idx] : recv_packed_data) {
+      packed_rank_array.emplace_back(rank);
+      auto it = unpacked_to_packed.find(succ);
+      KASSERT(it != unpacked_to_packed.end());
+      packed_succ_array.emplace_back(it->second);
+    }
+    local_pointer_chasing(packed_succ_array, packed_rank_array);
+    for (auto& idx : packed_succ_array) {
+      KASSERT(idx < recv_packed_data.size());
+      idx = recv_packed_data[idx].org_idx;
+    }
+  }
+  kamping::measurements::timer().stop();
+
+  kamping::measurements::timer().synchronize_and_start("write_back");
+  packed_succ_array =
+      comm.scatterv(kmp::send_buf(packed_succ_array), kmp::send_counts(recv_counts));
+  packed_rank_array =
+      comm.scatterv(kmp::send_buf(packed_rank_array), kmp::send_counts(recv_counts));
+
+  std::size_t cur_packed_idx = 0;
+  for (auto idx : active_local_indices) {
+    succ_array[idx] = packed_succ_array[cur_packed_idx];
+    rank_array[idx] = packed_rank_array[cur_packed_idx];
+    cur_packed_idx++;
+  }
+  kamping::measurements::timer().stop();
+}
 }  // namespace
 
 template <typename R>
@@ -554,6 +614,7 @@ void pointer_doubling_generic(
     R const& active_local_indices,
     std::optional<TopologyAwareGridCommunicator> const& grid_comm,
     kamping::Communicator<> const& comm) {
+  namespace kmp = kamping::params;
   KASSERT(
       config.aggregation_level != AggregationLevel::all || config.use_grid_communication,
       "Complete aggregation requires grid communication");
@@ -588,40 +649,53 @@ void pointer_doubling_generic(
   }
   kamping::measurements::timer().synchronize_and_start("pointer_doubling_alltoall");
 
-  auto active_vertices_storage =
-      initialize_active_vertices(succ_array, rank_array, dist, is_active, comm);
-  std::optional<std::vector<int>> succ_owner_array;
-  if (config.cache_succ_owners) {
-    succ_owner_array.emplace();
-    succ_owner_array->reserve(succ_array.size());
-    for (const auto succ : succ_array) {
-      succ_owner_array->push_back(dist.get_owner_signed(bits::clear_root_flag(succ)));
-    }
-  }
-  std::span<idx_t> active_vertices = active_vertices_storage;
-  auto doubling_strategy = select_doubling_strategy(config, comm, grid_comm);
-
-  while (!is_finished(active_vertices.size(), comm)) {
-    kamping::measurements::timer().synchronize_and_start("pointer_doubling_step");
+  std::size_t num_remaining_vertices = succ_array.size() - num_masked;
+  auto const total_num_remaining_vertices = comm.allreduce_single(
+      kmp::send_buf(num_remaining_vertices), kmp::op(std::plus<>{}));
+  if (total_num_remaining_vertices <
+      static_cast<std::size_t>(config.fallback_allgather_size_ratio *
+                               static_cast<double>(comm.size()))) {
+    auto active_vertices =
+        std::views::iota(std::uint32_t{0}, static_cast<std::uint32_t>(is_active.size())) |
+        std::views::filter([&](std::uint32_t idx) { return is_active[idx]; }) |
+        std::ranges::to<std::vector>();
+    gather_rank_with_packing(succ_array, rank_array, active_vertices, dist, comm);
+  } else {
+    auto active_vertices_storage =
+        initialize_active_vertices(succ_array, rank_array, dist, is_active, comm);
+    std::optional<std::vector<int>> succ_owner_array;
     if (config.cache_succ_owners) {
-      KASSERT(succ_owner_array.has_value());
-      active_vertices = doubling_strategy->execute_doubling_step(
-          rank_array, succ_array, active_vertices, succ_owner_array.value(), dist);
-    } else {
-      active_vertices = doubling_strategy->execute_doubling_step(rank_array, succ_array,
-                                                                 active_vertices, dist);
+      succ_owner_array.emplace();
+      succ_owner_array->reserve(succ_array.size());
+      for (const auto succ : succ_array) {
+        succ_owner_array->push_back(dist.get_owner_signed(bits::clear_root_flag(succ)));
+      }
     }
-    kamping::measurements::timer().stop_and_append();
+    std::span<idx_t> active_vertices = active_vertices_storage;
+    auto doubling_strategy = select_doubling_strategy(config, comm, grid_comm);
+
+    while (!is_finished(active_vertices.size(), comm)) {
+      kamping::measurements::timer().synchronize_and_start("pointer_doubling_step");
+      if (config.cache_succ_owners) {
+        KASSERT(succ_owner_array.has_value());
+        active_vertices = doubling_strategy->execute_doubling_step(
+            rank_array, succ_array, active_vertices, succ_owner_array.value(), dist);
+      } else {
+        active_vertices = doubling_strategy->execute_doubling_step(rank_array, succ_array,
+                                                                   active_vertices, dist);
+      }
+      kamping::measurements::timer().stop_and_append();
+    }
+    //  clear result
+    for (std::size_t local_idx : active_local_indices) {
+      succ_array[local_idx] = bits::clear_root_flag(succ_array[local_idx]);
+    }
   }
 
   kamping::measurements::timer().start("local_uncontraction");
   local_uncontraction(local_chain_info, succ_array, rank_array, dist, comm);
   kamping::measurements::timer().stop();
 
-  //  clear result
-  for (std::size_t local_idx : active_local_indices) {
-    succ_array[local_idx] = bits::clear_root_flag(succ_array[local_idx]);
-  }
   kamping::measurements::timer().stop();
 }
 }  // namespace kascade
