@@ -1,0 +1,83 @@
+name: sparse-ruling-set-eulertour3
+executable: bench/kascade
+output_path_option_name: "output-file"
+ncores: [64, 128, 256, 512, 1024, 2048]
+time_limit: 4
+threads_per_rank: [1]
+# tasks_per_node: 64
+graphs:
+  - generator: kagen
+    type: gnm-undirected
+    N: 19
+    M: 22
+    extra_args:
+      statistics-level: extensive-reduced-output
+      input-processing: eulertour
+      verify-level: 0
+      iterations: 4
+    scale_weak: True
+  - generator: kagen
+    type: rgg2d
+    N: 19
+    M: 22
+    extra_args:
+      statistics-level: extensive-reduced-output
+      input-processing: eulertour
+      verify-level: 0
+      iterations: 4
+    scale_weak: True
+  - generator: kagen
+    permute: True
+    type: rhg
+    N: 19
+    M: 22
+    gamma: 2.8
+    extra_args:
+      statistics-level: extensive-reduced-output
+      input-processing: eulertour
+      verify-level: 0
+      iterations: 4
+    scale_weak: True
+  - generator: kagen
+    permute: True
+    type: rmat
+    N: 19
+    M: 23
+    extra_args:
+      statistics-level: extensive-reduced-output
+      input-processing: eulertour
+      verify-level: 0
+      iterations: 4
+    scale_weak: True
+
+config:
+  - algorithm: SparseRulingSet
+    sparse-ruling-set-ruler-selection: ultimate-sanders
+    sparse-ruling-set-ultimate-sanders-factor: [2.0]
+    sparse-ruling-set-spawn: True
+    sparse-ruling-set-sync: True
+    sparse-ruling-set-sync-locality-aware: True
+    sparse-ruling-set-ruler-propagation-use-aggregation: [False]
+    sparse-ruling-set-reverse-list-locality-aware: [True]
+    sparse-ruling-set-post-invert: [True]
+    sparse-ruling-set-post-invert-detect-leaves: [False]
+    sparse-ruling-set-base-algorithm: [SparseRulingSet]
+    sparse-ruling-set-use-grid-communication: [False]
+    sparse-ruling-set-cache-owners: [True]
+    sparse-ruling-set-use-local-contraction: [True]
+    pointer-doubling-fallback-allgather-size-ratio: [3] 
+  - algorithm: SparseRulingSet
+    sparse-ruling-set-ruler-selection: ultimate-sanders
+    sparse-ruling-set-ultimate-sanders-factor: [2.0]
+    sparse-ruling-set-spawn: True
+    sparse-ruling-set-sync: True
+    sparse-ruling-set-sync-locality-aware: True
+    sparse-ruling-set-ruler-propagation-use-aggregation: [False]
+    sparse-ruling-set-reverse-list-locality-aware: [True]
+    sparse-ruling-set-post-invert: [True]
+    sparse-ruling-set-post-invert-detect-leaves: [False]
+    sparse-ruling-set-base-algorithm: [SparseRulingSet]
+    sparse-ruling-set-grid-communicator-mode: [topology-aware, balanced]
+    sparse-ruling-set-cache-owners: [True]
+    sparse-ruling-set-use-local-contraction: [True]
+    pointer-doubling-fallback-allgather-size-ratio: [3]
