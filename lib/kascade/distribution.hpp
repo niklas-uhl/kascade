@@ -16,11 +16,12 @@ namespace kascade {
 class Distribution {
 public:
   Distribution(std::size_t local_size, kamping::Communicator<> const& comm)
-      : offset_(comm.size() + 1) {
+      : offset_(comm.size() + 1), local_size_{local_size} {
     namespace kmp = kamping::params;
     offset_[comm.rank()] = local_size;
     comm.allgather(kmp::send_recv_buf(std::span{offset_}.subspan(0, comm.size())));
     std::exclusive_scan(offset_.begin(), offset_.end(), offset_.begin(), std::size_t{0});
+    uniform_local_size_ = is_size_uniform();
   }
 
   template <std::ranges::forward_range Range>
@@ -30,9 +31,15 @@ public:
       : offset_(offsets.begin(), offsets.end()) {
     KASSERT(offset_.size() == comm.size() + 1, "Offsets size must be comm.size() + 1");
     KASSERT(std::ranges::is_sorted(offset_), "Offsets must be monotonically increasing");
+    local_size_ = offset_[comm.rank() + 1] - offset_[comm.rank()];
+    uniform_local_size_ = is_size_uniform();
   }
 
   [[nodiscard]] auto get_owner(idx_t idx) const -> std::size_t {
+    KASSERT(idx < get_global_size());
+    if (uniform_local_size_) {
+      return idx / local_size_;
+    }
     auto it = std::ranges::upper_bound(offset_, static_cast<std::size_t>(idx));
     KASSERT(it != offset_.begin() && it != offset_.end(), "Index out of bounds");
     return static_cast<std::size_t>(std::distance(offset_.begin(), it)) - 1;
@@ -88,7 +95,21 @@ public:
   }
 
 private:
+  [[nodiscard]] auto is_size_uniform() const -> bool {
+    if (!offset_.empty()) {
+      for (std::size_t r = 0; r + 1 < offset_.size(); ++r) {
+        if (offset_[r + 1] - offset_[r] != local_size_) {
+          return false;
+        }
+      }
+    }
+    return true;
+  }
+
+private:
   std::vector<std::size_t> offset_;
+  std::size_t local_size_;
+  bool uniform_local_size_;
 };
 
 class PartitionedDistribution {
