@@ -259,6 +259,11 @@ auto parse_args(std::span<char*> args) -> Config {
 
   opt_sparse_ruling_set_use_grid->excludes(opt_sparse_ruling_set_grid_mode);
   opt_sparse_ruling_set_grid_mode->excludes(opt_sparse_ruling_set_use_grid);
+  app.add_flag(
+         "--sparse-ruling-set-use-local-first-request-scheme,!--sparse-ruling-set-use-no-"
+         "local-first-request-scheme",
+         config.sparse_ruling_set.use_local_first_request_scheme)
+      ->group("Sparse Ruling Set");
 
   app.add_option("--mplr-algorithm", config.mplr.algorithm)->group("MPLR");
   app.add_option("--mplr-rounds", config.mplr.comm_rounds)->group("MPLR");

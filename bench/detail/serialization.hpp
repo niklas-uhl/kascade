@@ -111,7 +111,8 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(SparseRulingSetConfig,
                                    post_invert_detect_leaves,
                                    briefkasten,
                                    grid_communicator_mode,
-                                   use_grid_communication);
+                                   use_grid_communication,
+                                   use_local_first_request_scheme);
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(EulerTourConfig,
                                    algorithm,
                                    use_high_degree_handling,
