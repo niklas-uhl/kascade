@@ -220,6 +220,10 @@ inline auto ruler_propagation(
   auto [recv_replies, send_displs] = [&]() {
     if (config.use_grid_communication) {
       KASSERT(grid_comm.has_value());
+      if (config.use_local_first_request_scheme) {
+        return request_reply_local_first_without_remote_aggregation(
+            requests, make_reply, grid_comm.value(), request_reply_mode::reorder_output);
+      }
       return request_reply_without_remote_aggregation(
           requests, make_reply, grid_comm.value(), request_reply_mode::reorder_output);
     }
