@@ -70,6 +70,7 @@ display(figuregrid)
 
 # write CSV data that we can ingest in PGFPlots
 function write_plot_data(df; output_path="./", output_prefix="")
+    mkpath(output_path)
     df_out = grouped
     df_out.graph_id = levelcode.(df_out.graph)
     df_out.config_id = levelcode.(df_out.config)
