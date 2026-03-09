@@ -59,4 +59,3 @@ figuregrid = draw((plt + err) * data(grouped);
 display(figuregrid)
 # save("tmp.pdf", figuregrid)
 
-
