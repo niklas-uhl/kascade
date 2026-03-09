@@ -131,6 +131,10 @@ function format_sparse_ruling_set(;kwargs...)
     if locality_aware && sync
         push!(parts, "-locality-aware")
     end
+    local_contraction = get(kwargs, :sparse_ruling_set_use_local_contraction, false)
+    if local_contraction
+        push!(parts, "-local-contraction")
+    end
     spawn = get(kwargs, :sparse_ruling_set_spawn, false)
     if spawn
         push!(parts, "-spawn")
