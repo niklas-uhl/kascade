@@ -27,14 +27,19 @@ err = mapping(
 
 dirs = [
     "./data/supermuc/sparse-ruling-set-indirection-no-intel-tuning_26_03_08/",
+    "./data/supermuc/sparse-ruling-set-indirection-intel-plum_26_03_08/",
+    "./data/supermuc/sparse-ruling-set-indirection-intel-isend_26_03_08/",
 ]
 df = vcat(KascadeEval.read.(dirs)...;cols=:union)
+filtered = @subset(df,
+    # filter conditions
+)
 
-transform!(df, AsTable(:) => ByRow(t -> Config.to_config_name(;t...)) => :config)
+transform!(filtered, AsTable(:) => ByRow(t -> Config.to_config_name(;t...)) => :config)
 
 additional_group_keys = []
 
-grouped = @by df [:p, :config, :graph, additional_group_keys...] begin
+grouped = @by filtered [:p, :config, :graph, additional_group_keys...] begin
     :total_time_mean = mean(:total_time)
     :total_time_min = minimum(:total_time)
     :total_time_max = maximum(:total_time)
