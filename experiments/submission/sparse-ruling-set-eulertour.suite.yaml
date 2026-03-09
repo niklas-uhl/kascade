@@ -1,4 +1,4 @@
-name: sparse-ruling-set-eulertour3
+name: sparse-ruling-set-eulertour
 executable: bench/kascade
 output_path_option_name: "output-file"
 ncores: [64, 128, 256, 512, 1024, 2048]
