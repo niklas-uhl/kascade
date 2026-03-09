@@ -66,4 +66,82 @@ timer_value_paths = Dict(
 
 first_iteration = 1
 
+function format_briefkasten_params(local_threshold, poll_skip_threshold)
+    if local_threshold == nothing || poll_skip_threshold == nothing
+        return ""
+    else
+        return "(Δ=$(local_threshold), ρ=$(poll_skip_threshold))"
+    end
+end
+function to_config_name(;kwargs...)
+    algorithm = kwargs[:algorithm]
+    name = "$(algorithm)"
+    if algorithm == "EulerTour"
+        name *=  "-$(kwargs[:eulertour_algorithm])"
+        algorithm = kwargs[:eulertour_algorithm] # fallback to the actual algorithm for further naming
+    end
+    if algorithm == "AsyncPointerDoubling" && kwargs[:async_caching]
+        name *= "+cache"
+    end
+    if algorithm == "PointerDoubling"
+        if kwargs[:pointer_doubling_use_local_preprocessing]
+            name *= "+preprocessing"
+        end
+        name *= " agg=$(kwargs[:pointer_doubling_aggregation_level])"
+    end
+    if algorithm == "SparseRulingSet"
+        name *= "-$(kwargs[:sparse_ruling_set_base_algorithm])"
+        rounds = kwargs[:sparse_ruling_set_sparse_ruling_set_rounds]
+        if kwargs[:sparse_ruling_set_base_algorithm] == "SparseRulingSet" && rounds .!= nothing && rounds .>= 3
+            name *= "-$rounds-level"
+        end
+        # elseif kwargs[:sparse_ruling_set_base_algorithm] == nothing
+        #     name *= "-old"
+        # end
+        async = !kwargs[:sparse_ruling_set_sync]
+        if !async
+            name *= "-sync"
+            if kwargs[:sparse_ruling_set_sync_locality_aware] == true
+                name *= "-locality-aware"
+            end
+        else
+            name *= "-async"
+        end
+        if kwargs[:sparse_ruling_set_grid_comm] == true
+            name *= "-grid-comm"
+        end
+        if kwargs[:sparse_ruling_set_spawn] == true
+            name *= "-spawn"
+        end
+        name *= " (ruler_selection=$(kwargs[:sparse_ruling_set_ruler_selection])"
+        if kwargs[:sparse_ruling_set_ruler_selection] == "dehne"
+            name *= ", dehne_factor=$(kwargs[:sparse_ruling_set_dehne_factor])"
+        elseif kwargs[:sparse_ruling_set_ruler_selection] == "sanders"
+            name *= ", sanders_factor=$(kwargs[:sparse_ruling_set_sanders_factor])"
+        elseif kwargs[:sparse_ruling_set_ruler_selection] == "limit-rounds"
+            name *= ", round_limit=$(kwargs[:sparse_ruling_set_round_limit])"
+        elseif kwargs[:sparse_ruling_set_ruler_selection] == "ultimate"
+            name *= ", round_limit=$(kwargs[:sparse_ruling_set_ultimate_factor])"
+        end
+        name *= ")"
+        if kwargs[:sparse_ruling_set_ruler_propagation_mode] != "pull"
+            name *= " (ruler_propagation_mode=$(kwargs[:sparse_ruling_set_ruler_propagation_mode]))"
+        end
+        if kwargs[:sparse_ruling_set_ruler_propagation_use_aggregation] == true
+            name *= " (ruler_prop_agg)"
+        end
+        if async
+            name *= " $(format_briefkasten_params(kwargs[:sparse_ruling_set_briefkasten_local_threshold], kwargs[:sparse_ruling_set_briefkasten_poll_skip_threshold]))"
+        end
+    end
+    if algorithm == "RMAPointerDoubling"
+        name *= " (sync_mode=$(kwargs[:rma_pointer_chasing_sync_mode])"
+        if kwargs[:rma_pointer_chasing_sync_mode] == "passive_target"
+            name *= ", batch_size=$(kwargs[:rma_pointer_chasing_batch_size])"
+        end
+        name *= ")"
+    end
+    return name
+end
+
 end

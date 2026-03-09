@@ -6,76 +6,47 @@ using CairoMakie
 
 include("KascadeEval.jl")
 import .KascadeEval
+include("Config.jl")
+import .Config
+
+plt = mapping(
+    :p,
+    :total_time_mean,
+    color=:config,
+    layout=:graph,
+    marker=:config
+) * visual(ScatterLines)
+err = mapping(
+    :p,
+    :total_time_min,
+    :total_time_max,
+    color=:config,
+    layout=:graph
+) * visual(Rangebars;whiskerwidth=10)
 
 dirs = [
-    "./data/horeka/pointer-doubling_26_01_30/",
-    "./data/horeka/async-pointer-doubling_26_01_30/"
+    "./data/supermuc/sparse-ruling-set-indirection-no-intel-tuning_26_03_08/",
 ]
+df = vcat(KascadeEval.read.(dirs)...;cols=:union)
 
-# -------------------------
-# Data loading & transform
-# -------------------------
-algo_params = [
-    :algorithm,
-    :async_caching,
-    :pointer_doubling_aggregation_level,
-    :pointer_doubling_use_local_preprocessing,
-    :sparse_ruling_set_sync,
-    :sparse_ruling_set_spawn,
-    :sparse_ruling_set_dehne_factor,
-    :eulertour_algorithm,
-    :commit
-]
-function to_config_name(;kwargs...)
-    algorithm = kwargs[:algorithm]
-    name = "$(algorithm)"
-    if algorithm == "EulerTour"
-        name *=  "-$(kwargs[:eulertour_algorithm])"
-        algorithm = kwargs[:eulertour_algorithm] # fallback to the actual algorithm for further naming
-    end
-    if algorithm == "AsyncPointerDoubling" && kwargs[:async_caching]
-        name *= "+cache"
-    end
-    if algorithm == "PointerDoubling"
-        if kwargs[:pointer_doubling_use_local_preprocessing]
-            name *= "+preprocessing"
-        end
-        name *= " agg=$(kwargs[:pointer_doubling_aggregation_level])"
-    end
-    if algorithm == "SparseRulingSet"
-        if kwargs[:sparse_ruling_set_sync] == true
-            name *= "-sync"
-        else
-            name *= "-async"
-        end
-        if kwargs[:sparse_ruling_set_spawn] == true
-            name *= "-spawn"
-        end
-        name *= " (ruler_factor=$(kwargs[:sparse_ruling_set_dehne_factor]))"
-    end
-    return name
-end
+transform!(df, AsTable(:) => ByRow(t -> Config.to_config_name(;t...)) => :config)
 
-df = vcat(KascadeEval.read.(dirs)...)
-transform!(df, AsTable(algo_params) => ByRow(t -> to_config_name(;t...)) => :config)
+additional_group_keys = []
 
-grouped = @by df [:p, :config, :graph] begin
+grouped = @by df [:p, :config, :graph, additional_group_keys...] begin
     :total_time_mean = mean(:total_time)
+    :total_time_min = minimum(:total_time)
+    :total_time_max = maximum(:total_time)
 end
 
-# -------------------------
-# Plotting
-# -------------------------
+grouped.p ./= 48
 
-plt = data(grouped) *
-      mapping(:p, :total_time_mean,
-          color=:config,
-          marker=:config,
-          layout=:graph) * 
-      visual(ScatterLines)
 
-axis = (; xscale=log2)
-facet = (; linkyaxes=:minimal)
-figure = (; size=(1000, 1200))
-figuregrid = draw(plt; axis, facet, figure)
+figuregrid = draw((plt + err) * data(grouped);
+    axis=(; xscale=log2),
+    facet=(;linkyaxes=:none),
+    figure=(; size=(2000, 1000)))
 display(figuregrid)
+# save("tmp.pdf", figuregrid)
+
+

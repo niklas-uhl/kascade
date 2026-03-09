@@ -1,6 +1,8 @@
 module KascadeEval
 
 using DataFramesMeta
+using CategoricalArrays
+
 
 include("Config.jl")
 include("LogProcessing.jl")
@@ -97,6 +99,7 @@ function cleanup(df)
         return result
     end
     transform!(df, AsTable(:) => ByRow(t -> to_graph_string(;t...)) => :graph)
+    df.graph = CategoricalArrays.categorical(df.graph)
     return select!(df, Not([:kagen_option_string, :time]))
 end
 
