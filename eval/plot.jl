@@ -1,8 +1,9 @@
 using DataFrames
 using DataFramesMeta
 using Statistics
-using AlgebraOfGraphics
 using CairoMakie
+using AlgebraOfGraphics
+using LaTeXStrings
 
 include("KascadeEval.jl")
 import .KascadeEval
@@ -10,14 +11,14 @@ include("Config.jl")
 import .Config
 
 plt = mapping(
-    :p,
+    :p_transformed,
     :total_time_mean,
     color=:config,
     layout=:graph,
     marker=:config
 ) * visual(ScatterLines)
 err = mapping(
-    :p,
+    :p_transformed,
     :total_time_min,
     :total_time_max,
     color=:config,
@@ -39,12 +40,21 @@ grouped = @by df [:p, :config, :graph, additional_group_keys...] begin
     :total_time_max = maximum(:total_time)
 end
 
-grouped.p ./= 48
+grouped.p_transformed = ceil.(Int, log2.(grouped.p ./ 48))
+
+ks = 0:maximum(grouped.p_transformed)
+xtick_positions = ks
+xtick_labels = [L"48 \times 2^{%$k} = %$(48 * 2^k)" for k in ks]
 
 
 figuregrid = draw((plt + err) * data(grouped);
-    axis=(; xscale=log2),
-    facet=(;linkyaxes=:none),
+    axis=(;
+          xticks = (xtick_positions, xtick_labels),
+          xticklabelrotation = π/4,
+          xlabel = "# cores",
+          ylabel = "Total time /s"
+    ),
+    facet=(; linkyaxes=:none),
     figure=(; size=(2000, 1000)))
 display(figuregrid)
 # save("tmp.pdf", figuregrid)
