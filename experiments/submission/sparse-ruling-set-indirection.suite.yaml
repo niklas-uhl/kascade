@@ -1,8 +1,8 @@
-name: sparse-ruling-set-indirection
+name: sparse-ruling-set-indirection-verify
 executable: bench/kascade
 output_path_option_name: "output-file"
 ncores: [64, 128, 256, 512, 1024, 2048]
-time_limit: 4
+time_limit: 2
 threads_per_rank: [1]
 # tasks_per_node: 64
 graphs:
@@ -13,7 +13,7 @@ graphs:
       statistics-level: extensive-reduced-output
       input-processing: none
       verify-level: 0
-      iterations: 4
+      iterations: 5
     scale_weak: True
   - generator: kagen
     type: path
@@ -23,7 +23,7 @@ graphs:
       statistics-level: extensive-reduced-output
       input-processing: none
       verify-level: 0
-      iterations: 4
+      iterations: 5
     scale_weak: True
   - generator: kagen
     type: path
@@ -34,7 +34,7 @@ graphs:
       statistics-level: extensive-reduced-output
       input-processing: none
       verify-level: 0
-      iterations: 3
+      iterations: 5
     scale_weak: True
   - generator: kagen
     type: path
@@ -44,7 +44,7 @@ graphs:
       statistics-level: extensive-reduced-output
       input-processing: none
       verify-level: 0
-      iterations: 4
+      iterations: 5
     scale_weak: True
   - generator: kagen
     type: path
@@ -54,7 +54,7 @@ graphs:
       statistics-level: extensive-reduced-output
       input-processing: none
       verify-level: 0
-      iterations: 4
+      iterations: 5
     scale_weak: True
 config:
   - algorithm: SparseRulingSet
@@ -87,3 +87,4 @@ config:
     sparse-ruling-set-cache-owners: [True]
     sparse-ruling-set-use-local-contraction: [True]
     pointer-doubling-fallback-allgather-size-ratio: [3]
+    sparse-ruling-set-use-local-first-request-scheme: True

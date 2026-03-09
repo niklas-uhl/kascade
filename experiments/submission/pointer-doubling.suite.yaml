@@ -49,6 +49,13 @@ graphs:
     scale_weak: True
 config:
   - algorithm: PointerDoubling
-    pointer-doubling-use-local-preprocessing: [False, True]
-    pointer-doubling-use-grid-communication: [False, True]
-    pointer-doubling-aggregation-level: [none, local]
+    pointer-doubling-use-no-local-preprocessing: [False, True]
+    pointer-doubling-use-grid-communication: [False]
+    pointer-doubling-aggregation-level: [none]
+    pointer-doubling-fallback-allgather-size-ratio: [3]
+  - algorithm: PointerDoubling
+    pointer-doubling-use-no-local-preprocessing: [False, True]
+    pointer-doubling-grid-communication-mode: [topology-aware, balanced]
+    pointer-doubling-aggregation-level: [none]
+    pointer-doubling-fallback-allgather-size-ratio: [3]
+
