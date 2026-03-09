@@ -37,7 +37,7 @@ public:
 
   [[nodiscard]] auto get_owner(idx_t idx) const -> std::size_t {
     KASSERT(idx < get_global_size());
-    if (uniform_local_size_) {
+    if (uniform_local_size_ && local_size_ > 0) {
       return idx / local_size_;
     }
     auto it = std::ranges::upper_bound(offset_, static_cast<std::size_t>(idx));
