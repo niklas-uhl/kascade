@@ -2,11 +2,11 @@
 
 #include <type_traits>
 
-#include <kamping/measurements/timer.hpp>
+#include <fmt/ranges.h>
 #include <kamping/collectives/alltoall.hpp>
+#include <kamping/measurements/timer.hpp>
 #include <kamping/mpi_datatype.hpp>
 #include <spdlog/spdlog.h>
-#include <fmt/ranges.h>
 
 #include "kascade/alltoall_utils.hpp"
 #include "kascade/grid_communicator.hpp"
@@ -86,45 +86,45 @@ auto grid_alltoallv(R&& messages, TopologyAwareGridCommunicator const& grid_comm
                       return Envelope<msg_t>{.target_rank = get_target_rank(envelope),
                                              .msg = get_message(envelope)};
                     });
-  auto inter_node_comm_targets =
-      messages | std::views::transform([&grid_comm](auto const& envelope) {
-        return static_cast<int>(grid_comm.inter_node_rank(get_target_rank(envelope)));
-      });
-
-  auto [send_buf_inter, send_counts_inter, send_displs_inter] =
-      prepare_send_buf(std::views::zip(inter_node_comm_targets, packed_env),
-                       grid_comm.inter_node_comm().size());
-
-  SPDLOG_LOGGER_TRACE(spdlog::get("gather"), "counts {}, displs {}, size {}",
-                      send_counts_inter, send_displs_inter,
-                      grid_comm.inter_node_comm().size());
-
-  auto recv_buf_inter = grid_comm.inter_node_comm().alltoallv(
-      kmp::send_buf(send_buf_inter), kmp::send_counts(send_counts_inter),
-      kmp::send_displs(send_displs_inter));
-
-  //*************************
-  // intra-node-comm exchange
-  //*************************
-  auto unpacked_messages =
-      recv_buf_inter |
-      std::views::transform([](auto const& envelope) { return get_message(envelope); });
-
   auto intra_node_comm_targets =
-      recv_buf_inter | std::views::transform([&grid_comm](auto const& envelope) {
+      messages | std::views::transform([&grid_comm](auto const& envelope) {
         return static_cast<int>(grid_comm.intra_node_rank(get_target_rank(envelope)));
       });
 
   auto [send_buf_intra, send_counts_intra, send_displs_intra] =
-      prepare_send_buf(std::views::zip(intra_node_comm_targets, unpacked_messages),
+      prepare_send_buf(std::views::zip(intra_node_comm_targets, packed_env),
                        grid_comm.intra_node_comm().size());
 
   SPDLOG_LOGGER_TRACE(spdlog::get("gather"), "counts {}, displs {}, size {}",
                       send_counts_intra, send_displs_intra,
                       grid_comm.intra_node_comm().size());
-  return grid_comm.intra_node_comm().alltoallv(kmp::send_buf(send_buf_intra),
-                                               kmp::send_counts(send_counts_intra),
-                                               kmp::send_displs(send_displs_intra));
+
+  auto recv_buf_intra = grid_comm.intra_node_comm().alltoallv(
+      kmp::send_buf(send_buf_intra), kmp::send_counts(send_counts_intra),
+      kmp::send_displs(send_displs_intra));
+
+  //*************************
+  // intra-node-comm exchange
+  //*************************
+  auto unpacked_messages =
+      recv_buf_intra |
+      std::views::transform([](auto const& envelope) { return get_message(envelope); });
+
+  auto inter_node_comm_targets =
+      recv_buf_intra | std::views::transform([&grid_comm](auto const& envelope) {
+        return static_cast<int>(grid_comm.inter_node_rank(get_target_rank(envelope)));
+      });
+
+  auto [send_buf_inter, send_counts_inter, send_displs_inter] =
+      prepare_send_buf(std::views::zip(inter_node_comm_targets, unpacked_messages),
+                       grid_comm.inter_node_comm().size());
+
+  SPDLOG_LOGGER_TRACE(spdlog::get("gather"), "counts {}, displs {}, size {}",
+                      send_counts_inter, send_displs_inter,
+                      grid_comm.inter_node_comm().size());
+  return grid_comm.inter_node_comm().alltoallv(kmp::send_buf(send_buf_inter),
+                                               kmp::send_counts(send_counts_inter),
+                                               kmp::send_displs(send_displs_inter));
 }
 
 template <typename T>
