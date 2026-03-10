@@ -2,7 +2,7 @@ name: sparse-ruling-set-eulertour
 executable: bench/kascade
 output_path_option_name: "output-file"
 ncores: [64, 128, 256, 512, 1024, 2048]
-time_limit: 4
+time_limit: 6
 threads_per_rank: [1]
 # tasks_per_node: 64
 graphs:
@@ -26,17 +26,17 @@ graphs:
       verify-level: 0
       iterations: 5
     scale_weak: True
-  - generator: kagen
-    permute: True
-    type: rmat
-    N: 19
-    M: 22
-    extra_args:
-      statistics-level: extensive-reduced-output
-      input-processing: eulertour
-      verify-level: 0
-      iterations: 5
-    scale_weak: True
+ # - generator: kagen
+ #   permute: True
+ #   type: rmat
+ #   N: 19
+ #   M: 22
+ #   extra_args:
+ #     statistics-level: extensive-reduced-output
+ #     input-processing: eulertour
+ #     verify-level: 0
+ #     iterations: 5
+ #   scale_weak: True
 
 config:
   - algorithm: SparseRulingSet
@@ -65,7 +65,7 @@ config:
     sparse-ruling-set-post-invert: [True]
     sparse-ruling-set-post-invert-detect-leaves: [False]
     sparse-ruling-set-base-algorithm: [SparseRulingSet]
-    sparse-ruling-set-grid-communicator-mode: [topology-aware, balanced]
+    sparse-ruling-set-grid-communicator-mode: [topology-aware]
     sparse-ruling-set-cache-owners: [True]
     sparse-ruling-set-use-local-contraction: [True]
     pointer-doubling-fallback-allgather-size-ratio: [3]
