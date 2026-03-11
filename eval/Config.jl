@@ -9,9 +9,9 @@ value_paths = Dict(
     "async_caching" => ["config", "async_pointer_chasing", "use_caching"],
     "pointer_doubling_aggregation_level" => ["config", "pointer_doubling", "aggregation_level"],
     "pointer_doubling_use_local_preprocessing" => ["config", "pointer_doubling", "use_local_preprocessing"],
-    "pointer_doubling_use_grid_comm" => ["config", "pointer_doubling", "use_grid_communication"],
-    "sparse_ruling_set_grid_communicator_mode" => ["config", "sparse_ruling_set", "grid_communicator_mode"],
+    "pointer_doubling_grid_comm" => ["config", "pointer_doubling", "use_grid_communication"],
     "pointer_doubling_grid_communicator_mode" => ["config", "pointer_doubling", "grid_communicator_mode"],
+    "sparse_ruling_set_grid_communicator_mode" => ["config", "sparse_ruling_set", "grid_communicator_mode"],
     "sparse_ruling_set_base_algorithm" => ["config", "sparse_ruling_set", "base_algorithm"],
     "sparse_ruling_set_sparse_ruling_set_rounds" => ["config", "sparse_ruling_set", "sparse_ruling_set_rounds"],
     "sparse_ruling_set_sync" => ["config", "sparse_ruling_set", "sync"],
@@ -76,6 +76,11 @@ function format_pointer_doubling(;kwargs...)
     end
     if kwargs[:pointer_doubling_aggregation_level] != nothing && kwargs[:pointer_doubling_aggregation_level] != "none"
         push!(parts, "agg=$(kwargs[:pointer_doubling_aggregation_level])")
+    end
+    use_grid_comm = get(kwargs, :pointer_doubling_grid_comm, false)
+    if use_grid_comm
+        grid_mode = get(kwargs, :pointer_doubling_grid_communicator_mode, "topology-aware")
+        push!(parts, " [comm=$(grid_mode)]")
     end
     return join(parts, " ")
 end
