@@ -39,7 +39,7 @@ end
 function read_logs_from_directory(directory::String, value_paths::Dict{String, Vector{String}}, glob_pattern::String="*in*r*t*c*s*.json")::DataFrame
     log_path = joinpath(directory, "output")
     df_entries = Vector{Dict{String, Any}}()
-    files = collect(glob(joinpath(log_path, glob_pattern)))
+    files = collect(glob(glob_pattern,log_path))
 
     @threads for file in files
         if filesize(file) == 0
