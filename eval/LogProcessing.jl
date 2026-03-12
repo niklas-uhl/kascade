@@ -67,6 +67,7 @@ function read_logs_from_directory(directory::String, value_paths::Dict{String, V
         else
             base_entry = Dict{String, Any}()
             to_expand = Dict{String, Vector}()
+            base_entry["source"] = file
             for (name, path) in value_paths
                 value = get_json_path(log, path)
                 if !isa(value, Vector)
