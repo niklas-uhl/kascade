@@ -43,7 +43,8 @@ filters_indirection = [
     quote
         @subset(df,
             :algorithm .== "SparseRulingSet",
-             :i_mpi_adjust_alltoallv .== 1,
+            :p .<= 12288,
+            :i_mpi_adjust_alltoallv .== "",
             :sparse_ruling_set_use_local_contraction .== true,
             :permute,
             :permutation_prob .=== missing
@@ -86,7 +87,43 @@ filters_scalability_euler = [
         )
     end
 ]
-filters = filters_scalability_euler
+
+filters_scalability_permuted_list = [
+    quote
+        @subset(df,
+            :algorithm .== "SparseRulingSet",
+            :p .<= 12288,
+            :permute,
+            :permutation_prob .=== missing .|| :permutation_prob .== 0.1,
+            :i_mpi_adjust_alltoallv .== "",
+            :sparse_ruling_set_use_local_contraction .== true,
+            :sparse_ruling_set_sync_locality_aware,
+            :sparse_ruling_set_grid_comm,
+            :sparse_ruling_set_grid_communicator_mode .== "topology-aware",
+        )
+    end,
+    quote
+        @subset(df,
+            :algorithm .== "SparseRulingSet",
+            :p .<= 12288,
+            :permute,
+            :permutation_prob .=== missing .|| :permutation_prob .== 0.1,
+            :i_mpi_adjust_alltoallv .== "",
+            :sparse_ruling_set_use_local_contraction .== true,
+            :sparse_ruling_set_sync_locality_aware,
+            :sparse_ruling_set_grid_comm .== false,
+        )
+    end,
+    quote
+        @subset(df,
+            :algorithm .== "PointerDoubling",
+            :p .<= 12288,
+            :permute,
+            :permutation_prob .=== missing .|| :permutation_prob .== 0.1,
+        )
+    end
+]
+filters = filters_scalability_permuted_list
 
 
 filtered_dfs = [eval(f) for f in filters]
@@ -97,12 +134,13 @@ additional_group_keys = [] #[:class, :instance]
 
 grouped = @by filtered [:p, :config, :graph, additional_group_keys...] begin
     :nrows = length(:iteration)
+    :files = join(unique(:source), ",")
     :total_time_mean = mean(:total_time)
     :total_time_min = minimum(:total_time)
     :total_time_max = maximum(:total_time)
 end
 
-unique(grouped.nrows)
+@subset(grouped, :nrows .> 4)
 grouped.p_exp = ceil.(Int, log2.(grouped.p ./ 48))
 
 ks = 0:maximum(grouped.p_exp)
