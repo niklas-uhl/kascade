@@ -1,7 +1,7 @@
 FetchContent_Declare(
   cmake_git_version_tracking
   GIT_REPOSITORY https://github.com/niklas-uhl/cmake-git-version-tracking
-  GIT_TAG master)
+  GIT_TAG 4f56e3b)
 FetchContent_MakeAvailable(cmake_git_version_tracking)
 
 FetchContent_Declare(
@@ -19,26 +19,15 @@ FetchContent_Declare(
 FetchContent_Declare(
   kamping-spdlog-adapter
   GIT_REPOSITORY https://github.com/kamping-site/kamping-spdlog-adapter
-  GIT_TAG main
+  GIT_TAG dd94df7
   GIT_SHALLOW ON)
 FetchContent_Declare(
   kamping-nlohmann-json-adapter
   GIT_REPOSITORY https://github.com/kamping-site/kamping-nlohmann-json-adaptor
-  GIT_TAG 9685077
+  GIT_TAG 678a15d
   GIT_SHALLOW ON)
-set(ABSL_PROPAGATE_CXX_STD ON)
-FetchContent_Declare(
-  absl
-  GIT_REPOSITORY https://github.com/abseil/abseil-cpp
-  GIT_TAG 20250814.0
-  GIT_SHALLOW ON
-  PATCH_COMMAND
-    patch -p1 --forward <
-    ${PROJECT_SOURCE_DIR}/cmake/patches/macos_no_define_xopen_source.patch ||
-    true EXCLUDE_FROM_ALL SYSTEM)
-
 FetchContent_MakeAvailable(nlohmann_json cli11 kamping-spdlog-adapter
-                           kamping-nlohmann-json-adapter absl)
+                           kamping-nlohmann-json-adapter)
 
 add_subdirectory(input)
 

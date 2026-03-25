@@ -276,7 +276,7 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
     trace.track_unreached(num_unreached);
     auto elements_to_fix = fixup_unreached(config, num_unreached, succ_array, rank_array,
                                            node_type, dist, comm, grid_comm);
-    rulers.insert_range(rulers.end(), std::move(elements_to_fix));
+    rulers.insert(rulers.end(), elements_to_fix.begin(), elements_to_fix.end());
   }
   kamping::measurements::timer().stop();
   KASSERT(std::ranges::all_of(node_type,

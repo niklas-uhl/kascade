@@ -16,7 +16,7 @@
     {
       "name": "experiments",
       "generator": "Unix Makefiles",
-      "binaryDir": "build-$env{SLURMD_NODENAME}",
+      "binaryDir": "build",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
         "KAMPING_ASSERTION_LEVEL": "none",

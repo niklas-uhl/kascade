@@ -7,8 +7,8 @@
 #include <vector>
 
 #include <absl/container/flat_hash_set.h>
-#include <kamping/communicator.hpp>
 #include <kamping/collectives/allgather.hpp>
+#include <kamping/communicator.hpp>
 #include <spdlog/spdlog.h>
 
 #include "kascade/configuration.hpp"
@@ -58,22 +58,25 @@ auto invert_leafs_and_build_leaf_info(
   };
   std::vector<int> num_roots;
   if (config.root_gather_threshold != 0) {
-    // in case the threshold is 0, we will use alltoall anyway, so we can skip this communication step
+    // in case the threshold is 0, we will use alltoall anyway, so we can skip this
+    // communication step
     num_roots = comm.allgather(
         kamping::send_buf(static_cast<int>(messages.size() + local_messages.size())));
   }
   auto total_num_roots = std::reduce(num_roots.begin(), num_roots.end(), std::size_t{0});
   SPDLOG_LOGGER_DEBUG(
       spdlog::get("root"),
-      "[post_invert] Total number of roots is {}. Using {} strategy to gather leaf messages.",
+      "[post_invert] Total number of roots is {}. Using {} strategy to gather leaf "
+      "messages.",
       total_num_roots,
       total_num_roots < config.root_gather_threshold ? "gather" : "alltoall");
   if (total_num_roots < config.root_gather_threshold) {
-    messages.insert_range(
-        messages.end(),
+    auto local_message_pairs =
         local_messages | std::views::transform([&](LeafMessage const& msg) {
           return std::pair{comm.rank(), msg};
-        }));
+        });
+    messages.insert(messages.end(), local_message_pairs.begin(),
+                    local_message_pairs.end());
     auto leaf_messages =
         comm.allgatherv(kamping::send_buf(messages), kamping::recv_counts(num_roots));
     absl::flat_hash_map<idx_t, LeafReply> leaf_info;
@@ -208,7 +211,7 @@ auto fixup_unreached(SparseRulingSetConfig const& config,
           return node_type[local_idx] == NodeType::unreached;
         });
     elements_to_fix.reserve(num_unreached);
-    elements_to_fix.insert_range(elements_to_fix.end(), unreached);
+    elements_to_fix.insert(elements_to_fix.end(), unreached.begin(), unreached.end());
     KASSERT(elements_to_fix.size() == num_unreached);
   }
   SPDLOG_DEBUG("Fixup {} unreached nodes.", elements_to_fix.size());
