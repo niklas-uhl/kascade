@@ -24,8 +24,7 @@ namespace kamping {
 template <typename Msg>
 struct mpi_type_traits<
     kascade::Envelope<Msg>,
-    std::enable_if_t<std::is_same_v<decltype(type_dispatcher<kascade::Envelope<Msg>>()),
-                                    no_matching_type>>>
+    std::enable_if_t<!kamping::has_auto_dispatched_type_v<kascade::Envelope<Msg>>>>
     // : kamping::struct_type<kascade::Envelope<Msg>> {};
     : kamping::byte_serialized<kascade::Envelope<Msg>> {};
 }  // namespace kamping

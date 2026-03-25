@@ -44,7 +44,7 @@ FetchContent_Declare(
 FetchContent_Declare(
   kamping
   GIT_REPOSITORY https://github.com/kamping-site/kamping
-  GIT_TAG v0.2.0
+  GIT_TAG kamping-types-lookup-policy
   SYSTEM EXCLUDE_FROM_ALL)
 
 set(KAGEN_BUILD_APPS OFF)
