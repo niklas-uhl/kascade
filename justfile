@@ -12,6 +12,12 @@ max-cores := "64"
 run-locality-experiment experiment="sparse-ruling-set-locality" +args="":
     uv run kaval/run-experiments.py --search-dirs ./experiments/reproducibility/ --cores pow2 --min-cores {{min-cores}} --max-cores {{max-cores}}  {{ experiment }} {{ args }} --experiment-data-dir experiment-out --no-date-suffix
 
+run-scalability-experiment experiment="pointer-doubling sparse-ruling-set" +args="":
+    uv run kaval/run-experiments.py --search-dirs ./experiments/reproducibility/ --cores pow2 --min-cores {{min-cores}} --max-cores {{max-cores}}  {{ experiment }} {{ args }} --experiment-data-dir experiment-out --no-date-suffix
+
+plot-locality experiment=sparse-ruling-set-locality output="eval/locality_plot.pdf":
+    julia --project=eval eval/locality_plot.jl eval/experiment-out/{{experiment}} {{output}}
+
 configure:
     cmake --preset experiments
 

@@ -1,4 +1,4 @@
-name: pointer-doubling
+name: sparse-ruling-set
 executable: bench/kascade
 output_path_option_name: "output-file"
 # ncores: [64, 128, 256, 512, 1024, 2048]
@@ -66,14 +66,35 @@ graphs:
       iterations: 5
     scale_weak: True
 config:
-  - algorithm: PointerDoubling
-    pointer-doubling-use-no-local-preprocessing: [False]
-    pointer-doubling-use-grid-communication: [False]
-    pointer-doubling-aggregation-level: [none]
+  - algorithm: SparseRulingSet
+    sparse-ruling-set-ruler-selection: ultimate-sanders
+    sparse-ruling-set-ultimate-sanders-factor: [2.0]
+    sparse-ruling-set-spawn: True
+    sparse-ruling-set-sync: True
+    sparse-ruling-set-sync-locality-aware: True
+    sparse-ruling-set-ruler-propagation-use-aggregation: [False]
+    sparse-ruling-set-reverse-list-locality-aware: [True]
+    sparse-ruling-set-post-invert: [True]
+    sparse-ruling-set-post-invert-detect-leaves: [False]
+    sparse-ruling-set-base-algorithm: [SparseRulingSet]
+    sparse-ruling-set-use-grid-communication: [False]
+    sparse-ruling-set-cache-owners: [True]
+    sparse-ruling-set-use-local-contraction: [True]
+    pointer-doubling-fallback-allgather-size-ratio: [3] 
+  - algorithm: SparseRulingSet
+    sparse-ruling-set-ruler-selection: ultimate-sanders
+    sparse-ruling-set-ultimate-sanders-factor: [2.0]
+    sparse-ruling-set-spawn: True
+    sparse-ruling-set-sync: True
+    sparse-ruling-set-sync-locality-aware: True
+    sparse-ruling-set-ruler-propagation-use-aggregation: [False]
+    sparse-ruling-set-reverse-list-locality-aware: [True]
+    sparse-ruling-set-post-invert: [True]
+    sparse-ruling-set-post-invert-detect-leaves: [False]
+    sparse-ruling-set-base-algorithm: [SparseRulingSet]
+    sparse-ruling-set-grid-communicator-mode: [topology-aware]
+    sparse-ruling-set-cache-owners: [True]
+    sparse-ruling-set-use-local-contraction: [True]
     pointer-doubling-fallback-allgather-size-ratio: [3]
-  - algorithm: PointerDoubling
-    pointer-doubling-use-no-local-preprocessing: [False]
-    pointer-doubling-grid-communicator-mode: [topology-aware]
-    pointer-doubling-aggregation-level: [none]
-    pointer-doubling-fallback-allgather-size-ratio: [3]
+    sparse-ruling-set-use-local-first-request-scheme: True
 
