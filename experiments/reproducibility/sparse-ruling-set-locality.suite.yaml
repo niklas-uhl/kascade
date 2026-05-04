@@ -1,10 +1,8 @@
 name: sparse-ruling-set-locality
 executable: bench/kascade
 output_path_option_name: "output-file"
-ncores: [64, 128, 256, 512, 1024, 2048]
 time_limit: 2
 threads_per_rank: [1]
-# tasks_per_node: 64
 graphs:
   - generator: kagen
     type: path
@@ -13,7 +11,7 @@ graphs:
       statistics-level: extensive-reduced-output
       input-processing: none
       verify-level: 0
-      iterations: 4
+      iterations: 5
     scale_weak: True
   - generator: kagen
     type: path
@@ -23,7 +21,7 @@ graphs:
       statistics-level: extensive-reduced-output
       input-processing: none
       verify-level: 0
-      iterations: 4
+      iterations: 5
     scale_weak: True
   - generator: kagen
     type: path
@@ -34,7 +32,7 @@ graphs:
       statistics-level: extensive-reduced-output
       input-processing: none
       verify-level: 0
-      iterations: 4
+      iterations: 5
     scale_weak: True
   - generator: kagen
     type: path
@@ -45,7 +43,7 @@ graphs:
       statistics-level: extensive-reduced-output
       input-processing: none
       verify-level: 0
-      iterations: 4
+      iterations: 5
     scale_weak: True
 config:
   - algorithm: SparseRulingSet
