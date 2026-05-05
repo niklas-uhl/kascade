@@ -1,0 +1,4 @@
+echo "[LOG] Starting ${jobname}"
+mpiexec -n ${mpi_ranks} ${cmd}
+echo "[LOG] Finished ${jobname}""
+sleep 10

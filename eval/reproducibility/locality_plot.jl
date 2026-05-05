@@ -5,13 +5,30 @@ using CairoMakie
 using AlgebraOfGraphics
 using LaTeXStrings
 using CategoricalArrays
-using CSV
-using Glob
+using ArgParse
 
-include("KascadeEval.jl")
+include("../KascadeEval.jl")
 import .KascadeEval
-include("Config.jl")
+include("../Config.jl")
 import .Config
+
+function parse_args()
+    s = ArgParseSettings()
+    @add_arg_table! s begin
+        "data_dir"
+            help = "path to sparse-ruling-set-locality experiment output"
+            required = true
+        "--output", "-o"
+            help = "output PDF path"
+            default = "locality_plot.pdf"
+    end
+    return ArgParse.parse_args(s)
+end
+args = parse_args()
+data_dir    = args["data_dir"]
+output_file = args["output"]
+
+isdir(data_dir) || error("data directory not found: $data_dir")
 
 plt = mapping(
     :p_exp,
@@ -27,9 +44,6 @@ err = mapping(
     color=:config,
     col=:graph
 ) * visual(Rangebars;whiskerwidth=10)
-
-length(ARGS) == 2 || error("usage: julia locality_plot.jl <data_dir> <output.pdf>")
-data_dir, output_file = ARGS
 
 df = vcat(KascadeEval.read.([data_dir])...;cols=:union)
 
@@ -92,5 +106,4 @@ figuregrid = draw((plt + err) * data(grouped),
     ),
     facet=(; linkyaxes=:none),
     figure=(; size=(1500, 500)))
-display(figuregrid)
 save(output_file, figuregrid)

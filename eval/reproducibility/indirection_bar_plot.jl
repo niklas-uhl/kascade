@@ -5,19 +5,32 @@ using CairoMakie
 using AlgebraOfGraphics
 using LaTeXStrings
 using CategoricalArrays
+using ArgParse
 
-include("KascadeEval.jl")
+include("../KascadeEval.jl")
 import .KascadeEval
-include("Config.jl")
+include("../Config.jl")
 import .Config
 
-length(ARGS) == 2 || error("usage: julia indirection_bar_plot.jl <data_dir> <output.pdf>")
-data_dir, output_file = ARGS
+function parse_args()
+    s = ArgParseSettings()
+    @add_arg_table! s begin
+        "data_dir"
+            help = "path to sparse-ruling-set-indirection experiment output"
+            required = true
+        "--output", "-o"
+            help = "output PDF path"
+            default = "indirection_bar_plot.pdf"
+    end
+    return ArgParse.parse_args(s)
+end
+args = parse_args()
+data_dir    = args["data_dir"]
+output_file = args["output"]
 
-isdir(joinpath(data_dir, "sparse-ruling-set-indirection")) ||
-    error("data directory not found: $(joinpath(data_dir, "sparse-ruling-set-indirection"))")
+isdir(data_dir) || error("data directory not found: $data_dir")
 
-df = KascadeEval.read(joinpath(data_dir, "sparse-ruling-set-indirection"))
+df = KascadeEval.read(data_dir)
 
 function indirection_config_name(grid_comm, grid_mode)
     coalesce(grid_comm, false) || return "Direct"
@@ -62,15 +75,16 @@ phase_labels = Dict(
 long = stack(grouped, all_phases, [:p_label, :config], variable_name=:phase, value_name=:phase_time)
 transform!(long, :phase => ByRow(p -> phase_labels[Symbol(p)]) => :phase)
 
-phase_order = ["ruler chasing", "ruler propagation", "base case", "other"]
+phase_order = ["base case", "ruler chasing", "ruler propagation", "other"]
 long.phase = categorical(long.phase; levels=phase_order, ordered=true)
 
 plt = data(long) *
     mapping(:p_label, :phase_time; color=:phase, stack=:phase, col=:config) *
     visual(BarPlot)
 
-figuregrid = draw(plt;
+figuregrid = draw(plt,
+    scales(Color=(; palette=[:green, :orange, :purple, :pink]));
     axis=(; xlabel="# cores", ylabel=L"\mathrm{Time}\ /s"),
-    facet=(; linkyaxes=:row),
+    facet=(; linkyaxes=:rowwise),
     figure=(; size=(900, 500)))
 save(output_file, figuregrid)

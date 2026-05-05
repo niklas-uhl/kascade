@@ -13,7 +13,7 @@ machine := "shared"
 cores := "pow2"
 min-cores := "1"
 max-cores := "64"
-experiment-out := "experiment-out"
+experiment-out := "repro-out/data"
 extra_args := ""
 
 run-experiment experiment +args="":
@@ -29,17 +29,21 @@ julia := "julia --project=eval"
 plot-instantiate:
     {{julia}} -e "using Pkg; Pkg.instantiate()"
 
-plot-locality output="locality_plot.pdf":
-    {{julia}} eval/locality_plot.jl {{experiment-out}}/sparse-ruling-set-locality {{output}}
+plot-locality output="repro-out/plots/locality_plot.pdf":
+    mkdir -p $(dirname {{output}})
+    {{julia}} eval/reproducibility/locality_plot.jl {{experiment-out}}/sparse-ruling-set-locality --output {{output}}
 
-plot-scalability output="scalability_plot.pdf":
-    {{julia}} eval/scalability_plot.jl {{experiment-out}} {{output}}
+plot-scalability output="repro-out/plots/scalability_plot.pdf":
+    mkdir -p $(dirname {{output}})
+    {{julia}} eval/reproducibility/scalability_plot.jl {{experiment-out}}/sparse-ruling-set {{experiment-out}}/pointer-doubling --output {{output}}
 
-plot-indirection-scatter output="indirection_scatter_plot.pdf":
-    {{julia}} eval/indirection_scatter_plot.jl {{experiment-out}} {{output}}
+plot-indirection-scatter output="repro-out/plots/indirection_scatter_plot.pdf":
+    mkdir -p $(dirname {{output}})
+    {{julia}} eval/reproducibility/indirection_scatter_plot.jl {{experiment-out}}/sparse-ruling-set-indirection --output {{output}}
 
-plot-indirection-bar output="indirection_bar_plot.pdf":
-    {{julia}} eval/indirection_bar_plot.jl {{experiment-out}} {{output}}
+plot-indirection-bar output="repro-out/plots/indirection_bar_plot.pdf":
+    mkdir -p $(dirname {{output}})
+    {{julia}} eval/reproducibility/indirection_bar_plot.jl {{experiment-out}}/sparse-ruling-set-indirection --output {{output}}
 
 plot: plot-locality plot-scalability plot-indirection-scatter plot-indirection-bar
 

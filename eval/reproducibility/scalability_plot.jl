@@ -5,25 +5,39 @@ using CairoMakie
 using AlgebraOfGraphics
 using LaTeXStrings
 using CategoricalArrays
-using CSV
-using Glob
+using ArgParse
 
-include("KascadeEval.jl")
+include("../KascadeEval.jl")
 import .KascadeEval
-include("Config.jl")
+include("../Config.jl")
 import .Config
 
-length(ARGS) == 2 || error("usage: julia scalability_plot.jl <data_dir> <output.pdf>")
-data_dir, output_file = ARGS
-
-for subdir in ["sparse-ruling-set", "pointer-doubling"]
-    path = joinpath(data_dir, subdir)
-    isdir(path) || error("data directory not found: $path")
+function parse_args()
+    s = ArgParseSettings()
+    @add_arg_table! s begin
+        "srs_dir"
+            help = "path to sparse-ruling-set experiment output"
+            required = true
+        "pd_dir"
+            help = "path to pointer-doubling experiment output"
+            required = true
+        "--output", "-o"
+            help = "output PDF path"
+            default = "scalability_plot.pdf"
+    end
+    return ArgParse.parse_args(s)
 end
+args = parse_args()
+srs_dir     = args["srs_dir"]
+pd_dir      = args["pd_dir"]
+output_file = args["output"]
+
+isdir(srs_dir) || error("data directory not found: $srs_dir")
+isdir(pd_dir)  || error("data directory not found: $pd_dir")
 
 df = vcat(
-    KascadeEval.read(joinpath(data_dir, "sparse-ruling-set")),
-    KascadeEval.read(joinpath(data_dir, "pointer-doubling"));
+    KascadeEval.read(srs_dir),
+    KascadeEval.read(pd_dir);
     cols=:union
 )
 

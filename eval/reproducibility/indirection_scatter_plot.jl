@@ -5,19 +5,32 @@ using CairoMakie
 using AlgebraOfGraphics
 using LaTeXStrings
 using CategoricalArrays
+using ArgParse
 
-include("KascadeEval.jl")
+include("../KascadeEval.jl")
 import .KascadeEval
-include("Config.jl")
+include("../Config.jl")
 import .Config
 
-length(ARGS) == 2 || error("usage: julia indirection_scatter_plot.jl <data_dir> <output.pdf>")
-data_dir, output_file = ARGS
+function parse_args()
+    s = ArgParseSettings()
+    @add_arg_table! s begin
+        "data_dir"
+            help = "path to sparse-ruling-set-indirection experiment output"
+            required = true
+        "--output", "-o"
+            help = "output PDF path"
+            default = "indirection_scatter_plot.pdf"
+    end
+    return ArgParse.parse_args(s)
+end
+args = parse_args()
+data_dir    = args["data_dir"]
+output_file = args["output"]
 
-isdir(joinpath(data_dir, "sparse-ruling-set-indirection")) ||
-    error("data directory not found: $(joinpath(data_dir, "sparse-ruling-set-indirection"))")
+isdir(data_dir) || error("data directory not found: $data_dir")
 
-df = KascadeEval.read(joinpath(data_dir, "sparse-ruling-set-indirection"))
+df = KascadeEval.read(data_dir)
 
 function indirection_config_name(grid_comm, grid_mode)
     coalesce(grid_comm, false) || return "Direct"
@@ -44,23 +57,22 @@ plt = mapping(
     :p,
     :total_time_mean,
     color=:config,
-    marker=:config,
-    layout=:graph
+    marker=:config
 ) * visual(ScatterLines)
 err = mapping(
     :p,
     :total_time_min,
     :total_time_max,
     color=:config,
-    layout=:graph
 ) * visual(Rangebars; whiskerwidth=10)
 
-figuregrid = draw((plt + err) * data(grouped);
+figuregrid = draw((plt + err) * data(grouped),
+    scales(Color=(; palette=[:green, :orange, :purple]),
+           Marker=(; palette=[:circle, :rect, :utriangle]));
     axis=(;
           xscale=log2,
           xlabel="# cores",
           ylabel=L"\mathrm{Total\ time}\ /s",
     ),
-    facet=(; linkyaxes=:none),
-    figure=(; size=(1200, 500)))
+    figure=(; size=(600, 500)))
 save(output_file, figuregrid)
