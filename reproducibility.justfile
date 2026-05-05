@@ -13,11 +13,12 @@ machine := "shared"
 cores := "pow2"
 min-cores := "1"
 max-cores := "64"
-experiment-out := "repro-out/data"
+experiment-out := justfile_directory() / "repro-out/data"
+time-limit := "5"
 extra_args := ""
 
 run-experiment experiment +args="":
-    uv run kaval/run-experiments.py --search-dirs ./experiments/reproducibility/ --machine {{machine}} --cores {{cores}} --min-cores {{min-cores}} --max-cores {{max-cores}} {{experiment}} --experiment-data-dir {{experiment-out}} --no-date-suffix {{extra_args}} {{args}}
+    uv run kaval/run-experiments.py --search-dirs ./experiments/reproducibility/ --machine {{machine}} --cores {{cores}} --min-cores {{min-cores}} --max-cores {{max-cores}} --time-limit {{time-limit}} {{experiment}} --experiment-data-dir {{experiment-out}} --no-date-suffix {{extra_args}} {{args}}
 
 run-locality: (run-experiment "sparse-ruling-set-locality")
 run-scalability: (run-experiment "pointer-doubling") (run-experiment "sparse-ruling-set")

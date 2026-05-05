@@ -21,12 +21,16 @@ function parse_args()
         "--output", "-o"
             help = "output PDF path"
             default = "indirection_bar_plot.pdf"
+        "--ps"
+            help = "comma-separated list of core counts to show (default: auto-select 3)"
+            default = nothing
     end
     return ArgParse.parse_args(s)
 end
 args = parse_args()
 data_dir    = args["data_dir"]
 output_file = args["output"]
+requested_ps = isnothing(args["ps"]) ? nothing : Set(parse.(Int, split(args["ps"], ',')))
 
 isdir(data_dir) || error("data directory not found: $data_dir")
 
@@ -53,11 +57,8 @@ end
 transform!(grouped, [:total_time, phases...] =>
     ByRow((total, phases...) -> total - sum(phases)) => :rest)
 
-# select three representative core counts spread across the range
 ps = sort(unique(grouped.p))
-node_size = gcd(ps...)
-selected_ps = Set([node_size * 2^k for k in [0, 4, 8] if node_size * 2^k in ps])
-isempty(selected_ps) && (selected_ps = Set(ps[[1, max(1, length(ps) ÷ 2), length(ps)]]))
+selected_ps = isnothing(requested_ps) ? Set(ps) : requested_ps
 @subset!(grouped, :p .∈ Ref(selected_ps))
 
 config_order = ["Direct", "2DGrid", "TopoAware"]
