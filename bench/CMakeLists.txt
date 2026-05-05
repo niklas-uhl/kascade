@@ -26,19 +26,8 @@ FetchContent_Declare(
   GIT_REPOSITORY https://github.com/kamping-site/kamping-nlohmann-json-adaptor
   GIT_TAG main
   GIT_SHALLOW ON)
-set(ABSL_PROPAGATE_CXX_STD ON)
-FetchContent_Declare(
-  absl
-  GIT_REPOSITORY https://github.com/abseil/abseil-cpp
-  GIT_TAG 20250814.0
-  GIT_SHALLOW ON
-  PATCH_COMMAND
-    patch -p1 --forward <
-    ${PROJECT_SOURCE_DIR}/cmake/patches/macos_no_define_xopen_source.patch ||
-    true EXCLUDE_FROM_ALL SYSTEM)
-
 FetchContent_MakeAvailable(nlohmann_json cli11 kamping-spdlog-adapter
-                           kamping-nlohmann-json-adapter absl)
+                           kamping-nlohmann-json-adapter)
 
 add_subdirectory(input)
 

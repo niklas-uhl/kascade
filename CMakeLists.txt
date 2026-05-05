@@ -1,17 +1,20 @@
 cmake_minimum_required(VERSION 3.25)
 project(kascade LANGUAGES CXX)
 option(KASCADE_BUILD_BENCHMARKS "Build benchmarks" ${PROJECT_IS_TOP_LEVEL})
+option(KASCADE_ENABLE_FORMAT_CMAKE "Enable Format.cmake and fetch it" OFF)
 option(KASCADE_BUILD_TESTS "Build tests" OFF)
 
 find_package(MPI REQUIRED)
 
 include(FetchContent)
 if(PROJECT_IS_TOP_LEVEL)
-  FetchContent_Declare(
-    Format.cmake
-    GIT_REPOSITORY https://github.com/TheLartians/Format.cmake
-    GIT_TAG v1.8.3)
-  FetchContent_MakeAvailable(Format.cmake)
+  if (KASCADE_ENABLE_FORMAT_CMAKE)
+    FetchContent_Declare(
+      Format.cmake
+      GIT_REPOSITORY https://github.com/TheLartians/Format.cmake
+      GIT_TAG v1.8.3)
+    FetchContent_MakeAvailable(Format.cmake)
+  endif()
 endif()
 
 add_library(${CMAKE_PROJECT_NAME}_cxx_flags INTERFACE)
@@ -41,11 +44,25 @@ FetchContent_Declare(
   GIT_TAG v1.0.0
   SYSTEM EXCLUDE_FROM_ALL)
 
+set (KAMPING_ENABLE_SERIALIZATION OFF)
+set (KAMPING_ENABLE_REFLECTION OFF)
 FetchContent_Declare(
   kamping
   GIT_REPOSITORY https://github.com/kamping-site/kamping
   GIT_TAG v0.2.0
+  GIT_SHALLOW ON
   SYSTEM EXCLUDE_FROM_ALL)
+
+set(ABSL_PROPAGATE_CXX_STD ON)
+FetchContent_Declare(
+  absl
+  GIT_REPOSITORY https://github.com/abseil/abseil-cpp
+  GIT_TAG 20250814.0
+  GIT_SHALLOW ON
+  PATCH_COMMAND
+    patch -p1 --forward <
+    ${PROJECT_SOURCE_DIR}/cmake/patches/macos_no_define_xopen_source.patch ||
+    true EXCLUDE_FROM_ALL SYSTEM)
 
 set(KAGEN_BUILD_APPS OFF)
 set(KAGEN_BUILD_EXAMPLES OFF)
@@ -55,11 +72,11 @@ set(KAGEN_USE_XXHASH ON)
 FetchContent_Declare(
   kagen
   GIT_REPOSITORY https://github.com/KarlsruheGraphGeneration/KaGen
-  GIT_TAG feature/partially-permuted-path # feature/propabilistic-path #main
+  GIT_TAG 2e498ee # branch feature/partially-permuted-path 
   GIT_SHALLOW ON
   EXCLUDE_FROM_ALL SYSTEM)
 
-FetchContent_MakeAvailable(kamping kassert kagen)
+FetchContent_MakeAvailable(kamping kassert kagen absl)
 add_subdirectory(lib)
 
 if(KASCADE_BUILD_BENCHMARKS)
