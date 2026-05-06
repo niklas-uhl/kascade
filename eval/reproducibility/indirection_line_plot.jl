@@ -53,24 +53,31 @@ config_order = ["Direct", "2DGrid", "TopoAware"]
 @assert Set(unique(grouped.config)) == Set(config_order) "unexpected configs: $(unique(grouped.config))"
 grouped.config = categorical(grouped.config; levels=config_order, ordered=true)
 
+node_size = gcd(unique(grouped.p)...)
+grouped.p_exp = ceil.(Int, log2.(grouped.p ./ node_size))
+ks = sort(unique(grouped.p_exp))
+xtick_positions = ks
+xtick_labels = [L"{%$node_size} \times 2^{%$k} = %$(node_size * 2^k)" for k in ks]
+
 plt = mapping(
-    :p,
+    :p_exp,
     :total_time_mean,
     color=:config,
     marker=:config
 ) * visual(ScatterLines)
 err = mapping(
-    :p,
+    :p_exp,
     :total_time_min,
     :total_time_max,
     color=:config,
 ) * visual(Rangebars; whiskerwidth=10)
 
 figuregrid = draw((plt + err) * data(grouped),
-    scales(Color=(; palette=[:green, :orange, :purple]),
+    scales(Color=(; palette=[:green, "darkorange", :purple]),
            Marker=(; palette=[:circle, :rect, :utriangle]));
     axis=(;
-          xscale=log2,
+          xticks=(xtick_positions, xtick_labels),
+          xticklabelrotation=π/4,
           xlabel="# cores",
           ylabel=L"\mathrm{Total\ time}\ /s",
     ),

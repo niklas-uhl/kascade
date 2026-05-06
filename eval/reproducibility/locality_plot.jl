@@ -97,7 +97,7 @@ xtick_labels = [L"{%$node_size} \times 2^{%$k} = %$(node_size * 2^k)" for k in k
 
 
 figuregrid = draw((plt + err) * data(grouped),
-    scales(Color=(; palette=[:green, :orange, :purple]), Marker=(; palette=[:circle, :rect, :utriangle]));
+    scales(Color=(; palette=[:green, "darkorange", :purple]), Marker=(; palette=[:circle, :rect, :utriangle]));
     axis=(;
           xticks = (xtick_positions, xtick_labels),
           xticklabelrotation = π/4,

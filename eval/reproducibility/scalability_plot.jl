@@ -84,15 +84,21 @@ grouped.config = categorical(grouped.config; levels=config_order, ordered=true)
 @assert length(unique(grouped.graph)) == 6 "unexpected graphs: $(unique(grouped.graph))"
 grouped.graph = categorical(grouped.graph; levels=graph_order, ordered=true)
 
+node_size = gcd(unique(grouped.p)...)
+grouped.p_exp = ceil.(Int, log2.(grouped.p ./ node_size))
+ks = sort(unique(grouped.p_exp))
+xtick_positions = ks
+xtick_labels = [L"{%$node_size} \times 2^{%$k} = %$(node_size * 2^k)" for k in ks]
+
 plt = mapping(
-    :p,
+    :p_exp,
     :total_time_mean,
     color=:config,
     layout=:graph,
     marker=:config
 ) * visual(ScatterLines)
 err = mapping(
-    :p,
+    :p_exp,
     :total_time_min,
     :total_time_max,
     color=:config,
@@ -100,10 +106,11 @@ err = mapping(
 ) * visual(Rangebars; whiskerwidth=10)
 
 figuregrid = draw((plt + err) * data(grouped),
-    scales(Color=(; palette=[:green, :orange, :purple, :pink]),
+    scales(Color=(; palette=[:green, "darkorange", :purple, "hotpink"]),
            Marker=(; palette=[:circle, :rect, :utriangle, :diamond]));
     axis=(;
-          xscale=log2,
+          xticks=(xtick_positions, xtick_labels),
+          xticklabelrotation=π/4,
           xlabel="# cores",
           ylabel="Total time /s"
     ),

@@ -58,13 +58,16 @@ transform!(grouped, [:total_time, phases...] =>
     ByRow((total, phases...) -> total - sum(phases)) => :rest)
 
 ps = sort(unique(grouped.p))
+node_size = gcd(ps...)
 selected_ps = isnothing(requested_ps) ? Set(ps) : requested_ps
 @subset!(grouped, :p .∈ Ref(selected_ps))
 
 config_order = ["Direct", "2DGrid", "TopoAware"]
 @assert Set(unique(grouped.config)) == Set(config_order) "unexpected configs: $(unique(grouped.config))"
 grouped.config = categorical(grouped.config; levels=config_order, ordered=true)
-grouped.p_label = categorical(string.(grouped.p); levels=string.(sort(collect(selected_ps))), ordered=true)
+p_label(p) = L"{%$node_size} \times 2^{%$(ceil(Int, log2(p / node_size)))} = %$p"
+sorted_selected = sort(collect(selected_ps))
+grouped.p_label = categorical(p_label.(grouped.p); levels=p_label.(sorted_selected), ordered=true)
 
 all_phases = [:base_case, :chase_rulers, :ruler_propagation, :rest]
 phase_labels = Dict(
@@ -84,8 +87,8 @@ plt = data(long) *
     visual(BarPlot)
 
 figuregrid = draw(plt,
-    scales(Color=(; palette=[:green, :orange, :purple, :pink]));
-    axis=(; xlabel="# cores", ylabel=L"\mathrm{Time}\ /s"),
+    scales(Color=(; palette=[:green, "darkorange", :purple, "hotpink"]));
+    axis=(; xlabel="# cores", ylabel=L"\mathrm{Time}\ /s", xticklabelrotation=π/4),
     facet=(; linkyaxes=:rowwise),
     figure=(; size=(900, 500)))
 save(output_file, figuregrid)
