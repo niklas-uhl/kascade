@@ -91,7 +91,7 @@ endif()
 FetchContent_Declare(
   kaval
   GIT_REPOSITORY https://github.com/niklas-uhl/kaval.git
-  GIT_TAG main
+  GIT_TAG 4dabc59 #main
   SOURCE_DIR ${CMAKE_CURRENT_LIST_DIR}/kaval)
 FetchContent_MakeAvailable(kaval)
 

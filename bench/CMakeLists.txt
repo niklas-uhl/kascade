@@ -1,7 +1,7 @@
 FetchContent_Declare(
   cmake_git_version_tracking
   GIT_REPOSITORY https://github.com/niklas-uhl/cmake-git-version-tracking
-  GIT_TAG master)
+  GIT_TAG 4f56e3b)
 FetchContent_MakeAvailable(cmake_git_version_tracking)
 
 FetchContent_Declare(
@@ -24,7 +24,7 @@ FetchContent_Declare(
 FetchContent_Declare(
   kamping-nlohmann-json-adapter
   GIT_REPOSITORY https://github.com/kamping-site/kamping-nlohmann-json-adaptor
-  GIT_TAG main
+  GIT_TAG 678a15d
   GIT_SHALLOW ON)
 FetchContent_MakeAvailable(nlohmann_json cli11 kamping-spdlog-adapter
                            kamping-nlohmann-json-adapter)
