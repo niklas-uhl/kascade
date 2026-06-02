@@ -1,14 +1,12 @@
-This artifact for reproducing the results of the paper "Engineering Scalable Distributed List Ranking" is also available as a source archive (GitHub repository:
-<https://github.com/niklas-uhl/kascade>) at
+The artifact is available as a source archive (GitHub repository:
+<https://github.com/niklas-uhl/kascade>):
+This artifact for reproducing the results of the paper "Engineering Scalable Distributed List Ranking" is also available as a source archive (GitHub repository: <https://github.com/niklas-uhl/kascade>) at <https://github.com/niklas-uhl/kascade/releases/tag/europar-artifact>.
 
-::: center
-<https://github.com/niklas-uhl/kascade/releases/tag/europar-artifact>
-:::
 
 The archive contains the full source of the benchmark suite including
 all reproducibility scripts. Alternatively, clone the repository
-directly (see [1.3](#sec:setup){reference-type="ref+label"
-reference="sec:setup"}).
+directly (see <a href="#sec:setup" data-reference-type="ref+label"
+data-reference="sec:setup">1.3</a>).
 
 This paper has one artifact, the `kascade` benchmark suite, consisting
 of the list ranking library, containing all algorithm variants described
@@ -43,7 +41,7 @@ the full scalability range (Figure 3), at least 1 000 cores on an HPC
 system are required; these effects are driven by network latencies only
 present in multi-node HPC environments.
 
-# Getting Started Guide {#sec:gett-start-guide}
+# Getting Started Guide
 
 ## Platform
 
@@ -63,11 +61,11 @@ environment respectively, requiring no system-wide installation.
 
 The following dependencies must be installed manually on the system
 where experiments are executed. Most C++ library dependencies are
-fetched automatically at build time via CMake's FetchContent; see
-[3](#sec:full-deps){reference-type="ref+label"
-reference="sec:full-deps"} for a complete list. Outbound network access
-is therefore required on the machine where `cmake --preset experiments`
-is run.
+fetched automatically at build time via CMake’s FetchContent; see
+<a href="#sec:full-deps" data-reference-type="ref+label"
+data-reference="sec:full-deps">3</a> for a complete list. Outbound
+network access is therefore required on the machine where
+`cmake --preset experiments` is run.
 
 - GNU `g++` 15.1.0 (minimum required 14)
 
@@ -94,21 +92,22 @@ version manager:
 
 Julia package dependencies are managed via the project environment in
 `eval/` and can be installed automatically (see
-[1.3](#sec:setup){reference-type="ref+label" reference="sec:setup"}).
+<a href="#sec:setup" data-reference-type="ref+label"
+data-reference="sec:setup">1.3</a>).
 
-## Setup {#sec:setup}
+## Setup
 
 All commands should be run from the repository root. We provide
 `reproducibility.justfile` with recipes for all steps below; default
 parameters such as core counts can be adjusted at the top of that file.
-Install `just`[^7] via your system's package manager; it is also
+Install `just`[^7] via your system’s package manager; it is also
 available via `uv run just` once `uv sync` has been run. Alternatively,
 copy the commands from the file directly without installing `just`. Each
-step in [2](#sec:step-step-instr){reference-type="ref+label"
-reference="sec:step-step-instr"} lists the corresponding `just` recipe
-in [blue]{style="color: blue"} as a shorthand.
+step in <a href="#sec:step-step-instr" data-reference-type="ref+label"
+data-reference="sec:step-step-instr">2</a> lists the corresponding
+`just` recipe in <span style="color: blue">blue</span> as a shorthand.
 
-1.  Install the compiler, MPI, and CMake using the system's package
+1.  Install the compiler, MPI, and CMake using the system’s package
     manager.
 
 2.  Optionally install `uv` and `just` as described in this section.
@@ -121,7 +120,7 @@ in [blue]{style="color: blue"} as a shorthand.
 4.  On the *experiment machine*, configure and build the benchmark
     binary and sync Python dependencies:
 
-    ``` {style="just"}
+    ```
     just setup-experiments
     ```
 
@@ -134,7 +133,7 @@ in [blue]{style="color: blue"} as a shorthand.
 5.  On the *eval machine* (may be the same), instantiate the Julia plot
     environment:
 
-    ``` {style="just"}
+    ```
     just setup-eval
     ```
 
@@ -160,10 +159,10 @@ cores. Adjust `max-cores` to match the available hardware, e.g.:
     just max-cores=16 run-all
 
 For running on a SLURM cluster, see
-[4](#sec:custom-system){reference-type="ref+label"
-reference="sec:custom-system"}.
+<a href="#sec:custom-system" data-reference-type="ref+label"
+data-reference="sec:custom-system">4</a>.
 
-# Step-by-Step Instructions {#sec:step-step-instr}
+# Step-by-Step Instructions
 
 All inputs are generated synthetically on-the-fly by KaGen[^8], a
 communication-free distributed graph generator for different graph
@@ -198,27 +197,27 @@ Each subsection below lists the *run* step (experiment machine) and the
 *plot* step (eval machine) separately. The manual commands shown use
 `--machine shared` and `--max-cores 64`; adjust these to match your
 system as described in
-[4](#sec:custom-system){reference-type="ref+label"
-reference="sec:custom-system"}. Run the plot step only after the
-corresponding experiment data has been collected and transferred to the
-eval machine.
+<a href="#sec:custom-system" data-reference-type="ref+label"
+data-reference="sec:custom-system">4</a>. Run the plot step only after
+the corresponding experiment data has been collected and transferred to
+the eval machine.
 
 All steps can be run together with:
 
-``` {style="just"}
+```
 just run-all
 just plot
 ```
 
 or individually as described below.
 
-## Locality (Figure 2) {#sec:locality}
+## Locality (Figure 2)
 
 Evaluates locality-aware techniques (Plain, LocalChasing,
 LocalContraction) on randomly permuted path graphs with varying locality
-parameter $\gamma$.
+parameter $`\gamma`$.
 
-``` {style="just"}
+```
 just run-locality
 just plot-locality
 ```
@@ -234,24 +233,24 @@ just plot-locality
       --output repro-out/plots/locality_plot.pdf
 
 *Output:* `repro-out/plots/locality_plot.pdf`. The plot shows four
-panels for $\gamma \in \{0, 0.01, 0.1, 1.0\}$, where $\gamma$ is the
-permutation probability ($\gamma = 0$: fully local, $\gamma = 1$: fully
-random). At high locality ($\gamma = 0$), the ordering Plain $>$
-LocalChasing $>$ LocalContraction (slowest to fastest in terms of
-running time) should be clearly visible; the gap between variants
-decreases with increasing $\gamma$, until all variants perform similarly
-at $\gamma = 1.0$ (fully random). Absolute times will differ from the
-paper (which uses up to 24 576 cores on SuperMUC-NG), but the relative
-ordering of variants should be preserved.
+panels for $`\gamma \in \{0, 0.01, 0.1, 1.0\}`$, where $`\gamma`$ is the
+permutation probability ($`\gamma = 0`$: fully local, $`\gamma = 1`$:
+fully random). At high locality ($`\gamma = 0`$), the ordering Plain
+$`>`$ LocalChasing $`>`$ LocalContraction (slowest to fastest in terms
+of running time) should be clearly visible; the gap between variants
+decreases with increasing $`\gamma`$, until all variants perform
+similarly at $`\gamma = 1.0`$ (fully random). Absolute times will differ
+from the paper (which uses up to 24 576 cores on SuperMUC-NG), but the
+relative ordering of variants should be preserved.
 
-## Scalability (Figure 3) {#sec:scalability}
+## Scalability (Figure 3)
 
 Compares pointer doubling (PD) and sparse ruling-set (SRS) with direct
 communication and topology-aware indirect communication (+Ind) across
-list sizes $2^{16}$--$2^{22}$ and two Euler tour instances (GNM, RGG2D)
-constructed from random graphs.
+list sizes $`2^{16}`$–$`2^{22}`$ and two Euler tour instances (GNM,
+RGG2D) constructed from random graphs.
 
-``` {style="just"}
+```
 just run-scalability
 just plot-scalability
 ```
@@ -283,13 +282,13 @@ and is therefore system dependent; it might not be observable on shared
 memory machines and with fewer than 1 000 cores. The switching point
 should happen at higher core counts with increasing list size.
 
-## Indirection (Figures 4 and 5) {#sec:indirection}
+## Indirection (Figures 4 and 5)
 
 Evaluates the impact of message indirection schemes (Direct, 2D-grid,
-topology-aware) on a large randomly permuted path ($2^{22}$ elements per
-rank), including a phase breakdown.
+topology-aware) on a large randomly permuted path ($`2^{22}`$ elements
+per rank), including a phase breakdown.
 
-``` {style="just"}
+```
 just run-indirection
 just plot-indirection-line
 just plot-indirection-bar
@@ -320,7 +319,7 @@ show that ruler propagation and ruler chasing are the dominant phases;
 on large core counts indirect communication improves the running time of
 these phases.
 
-# Full Dependency List {#sec:full-deps}
+# Full Dependency List
 
 ## C++ (fetched via CMake FetchContent)
 
@@ -395,28 +394,31 @@ Julia 1.11.6
 
 - [Makie](https://juliapackages.com/p/Makie) v0.24.8
 
-# Running on a Custom System {#sec:custom-system}
+# Running on a Custom System
 
 By default, `reproducibility.justfile` targets a shared-memory machine
 (`machine=shared`) and scales core counts as powers of two from 1 to 64.
-The variables shown in [1](#tab:vars){reference-type="ref+label"
-reference="tab:vars"} are defined at the top of the file and can be
-edited there directly, or overridden on the command line.
+The variables shown in
+<a href="#tab:vars" data-reference-type="ref+label"
+data-reference="tab:vars">1</a> are defined at the top of the file and
+can be edited there directly, or overridden on the command line.
 
-::: {#tab:vars}
-  Variable                                                                     Description
-  ---------------------------------------------------------------------------- ------------------------------------------------------
-  `machine`                                                                    `shared` (direct) or `generic-job-file` (SLURM)
-  `cores`                                                                      
-  (use $2^0, 2^1, \ldots$ or $k \times 2^0, k \times 2^1, \ldots$ as #cores)   
-                                                                               
-  `max-cores`                                                                  
-  the inclusive core count range                                               
-  `extra_args`                                                                 extra arguments forwarded to `kaval`
-  `time-limit`                                                                 per-configuration time limit in minutes (default: 5)
+<div id="tab:vars">
 
-  : Variables for controlling execution in `reproducibility.justfile`.
-:::
+| Variable | Description |
+|:---|:---|
+| `machine` | `shared` (direct) or `generic-job-file` (SLURM) |
+| `cores` |  |
+| (use $`2^0, 2^1, \ldots`$ or $`k \times 2^0, k \times 2^1, \ldots`$ as \#cores) |  |
+|  |  |
+| `max-cores` |  |
+| the inclusive core count range |  |
+| `extra_args` | extra arguments forwarded to `kaval` |
+| `time-limit` | per-configuration time limit in minutes (default: 5) |
+
+Variables for controlling execution in `reproducibility.justfile`.
+
+</div>
 
 The required compiler, MPI, and CMake are typically provided as
 environment modules on HPC systems; load them before building. For
@@ -450,8 +452,8 @@ the top of `reproducibility.justfile`:
 
 Replace `<N>` with the number of physical cores per node. This is
 required when using `cores=node-size-pow2`, which generates core counts
-as multiples of the node size ($N, 2N, 4N, \ldots$). Variables can also
-be overridden on the command line without editing the file, e.g.:
+as multiples of the node size ($`N, 2N, 4N, \ldots`$). Variables can
+also be overridden on the command line without editing the file, e.g.:
 
     just machine=generic-job-file max-cores=2048 run-all
 
