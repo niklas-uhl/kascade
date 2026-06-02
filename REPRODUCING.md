@@ -1,6 +1,6 @@
-This artifact for reproducing the results of the paper "Engineering Scalable Distributed List Ranking" is also available as a source archive on GitHub (<https://github.com/niklas-uhl/kascade>) at <https://github.com/niklas-uhl/kascade/releases/tag/europar-artifact>.
+# Reproducing: Engineering Scalable Distributed List Ranking
 
-The archive contains the full source of the benchmark suite including all reproducibility scripts.
+The source archive containing the full benchmark suite and all reproducibility scripts is also available on GitHub (<https://github.com/niklas-uhl/kascade>) at <https://github.com/niklas-uhl/kascade/releases/tag/europar-artifact>.
 
 This paper has one artifact, the `kascade` benchmark suite, consisting
 of the list ranking library, containing all algorithm variants described
