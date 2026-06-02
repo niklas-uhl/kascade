@@ -1,12 +1,6 @@
-The artifact is available as a source archive (GitHub repository:
-<https://github.com/niklas-uhl/kascade>):
-This artifact for reproducing the results of the paper "Engineering Scalable Distributed List Ranking" is also available as a source archive (GitHub repository: <https://github.com/niklas-uhl/kascade>) at <https://github.com/niklas-uhl/kascade/releases/tag/europar-artifact>.
+This artifact for reproducing the results of the paper "Engineering Scalable Distributed List Ranking" is also available as a source archive on GitHub (<https://github.com/niklas-uhl/kascade>) at <https://github.com/niklas-uhl/kascade/releases/tag/europar-artifact>.
 
-
-The archive contains the full source of the benchmark suite including
-all reproducibility scripts. Alternatively, clone the repository
-directly (see <a href="#sec:setup" data-reference-type="ref+label"
-data-reference="sec:setup">1.3</a>).
+The archive contains the full source of the benchmark suite including all reproducibility scripts.
 
 This paper has one artifact, the `kascade` benchmark suite, consisting
 of the list ranking library, containing all algorithm variants described
@@ -62,8 +56,7 @@ environment respectively, requiring no system-wide installation.
 The following dependencies must be installed manually on the system
 where experiments are executed. Most C++ library dependencies are
 fetched automatically at build time via CMake’s FetchContent; see
-<a href="#sec:full-deps" data-reference-type="ref+label"
-data-reference="sec:full-deps">3</a> for a complete list. Outbound
+[Full Dependency List](#full-dependency-list) for a complete list. Outbound
 network access is therefore required on the machine where
 `cmake --preset experiments` is run.
 
@@ -91,9 +84,7 @@ version manager:
     curl -fsSL https://install.julialang.org | sh
 
 Julia package dependencies are managed via the project environment in
-`eval/` and can be installed automatically (see
-<a href="#sec:setup" data-reference-type="ref+label"
-data-reference="sec:setup">1.3</a>).
+`eval/` and can be installed automatically (see [Setup](#setup)).
 
 ## Setup
 
@@ -102,10 +93,8 @@ All commands should be run from the repository root. We provide
 parameters such as core counts can be adjusted at the top of that file.
 Install `just`[^7] via your system’s package manager; it is also
 available via `uv run just` once `uv sync` has been run. Alternatively,
-copy the commands from the file directly without installing `just`. Each
-step in <a href="#sec:step-step-instr" data-reference-type="ref+label"
-data-reference="sec:step-step-instr">2</a> lists the corresponding
-`just` recipe in <span style="color: blue">blue</span> as a shorthand.
+copy the commands from the file directly without installing `just`. Each step in [Step-by-Step Instructions](#step-by-step-instructions) lists the corresponding
+`just` recipe as a shorthand.
 
 1.  Install the compiler, MPI, and CMake using the system’s package
     manager.
@@ -158,9 +147,7 @@ cores. Adjust `max-cores` to match the available hardware, e.g.:
 
     just max-cores=16 run-all
 
-For running on a SLURM cluster, see
-<a href="#sec:custom-system" data-reference-type="ref+label"
-data-reference="sec:custom-system">4</a>.
+For running on a SLURM cluster, see [Running on a Custom System](#running-on-a-custom-system).
 
 # Step-by-Step Instructions
 
@@ -196,9 +183,7 @@ Julia package dependencies).
 Each subsection below lists the *run* step (experiment machine) and the
 *plot* step (eval machine) separately. The manual commands shown use
 `--machine shared` and `--max-cores 64`; adjust these to match your
-system as described in
-<a href="#sec:custom-system" data-reference-type="ref+label"
-data-reference="sec:custom-system">4</a>. Run the plot step only after
+system as described in [Running on a Custom System](#running-on-a-custom-system). Run the plot step only after
 the corresponding experiment data has been collected and transferred to
 the eval machine.
 
@@ -398,27 +383,16 @@ Julia 1.11.6
 
 By default, `reproducibility.justfile` targets a shared-memory machine
 (`machine=shared`) and scales core counts as powers of two from 1 to 64.
-The variables shown in
-<a href="#tab:vars" data-reference-type="ref+label"
-data-reference="tab:vars">1</a> are defined at the top of the file and
+The variables shown in the table below are defined at the top of the file and
 can be edited there directly, or overridden on the command line.
-
-<div id="tab:vars">
 
 | Variable | Description |
 |:---|:---|
 | `machine` | `shared` (direct) or `generic-job-file` (SLURM) |
-| `cores` |  |
-| (use $`2^0, 2^1, \ldots`$ or $`k \times 2^0, k \times 2^1, \ldots`$ as \#cores) |  |
-|  |  |
-| `max-cores` |  |
-| the inclusive core count range |  |
+| `cores` | explicit list, `pow2` or `node-size-pow2` (use 2^0, 2^1, … or k×2^0, k×2^1, … as #cores) |
+| `min-cores` / `max-cores` | lower and upper bounds for filtering the inclusive core count range |
 | `extra_args` | extra arguments forwarded to `kaval` |
 | `time-limit` | per-configuration time limit in minutes (default: 5) |
-
-Variables for controlling execution in `reproducibility.justfile`.
-
-</div>
 
 The required compiler, MPI, and CMake are typically provided as
 environment modules on HPC systems; load them before building. For
