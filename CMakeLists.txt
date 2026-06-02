@@ -72,7 +72,7 @@ set(KAGEN_USE_XXHASH ON)
 FetchContent_Declare(
   kagen
   GIT_REPOSITORY https://github.com/KarlsruheGraphGeneration/KaGen
-  GIT_TAG 2e498ee # branch feature/partially-permuted-path 
+  GIT_TAG kascade-partial-path-permutation-v1.0
   GIT_SHALLOW ON
   EXCLUDE_FROM_ALL SYSTEM)
 
@@ -91,7 +91,7 @@ endif()
 FetchContent_Declare(
   kaval
   GIT_REPOSITORY https://github.com/niklas-uhl/kaval.git
-  GIT_TAG 4dabc59 #main
+  GIT_TAG 20260505.0
   SOURCE_DIR ${CMAKE_CURRENT_LIST_DIR}/kaval)
 FetchContent_MakeAvailable(kaval)
 
