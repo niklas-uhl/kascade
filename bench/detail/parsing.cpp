@@ -257,7 +257,14 @@ auto parse_args(std::span<char*> args) -> Config {
          config.sparse_ruling_set.use_locality_aware_in_ruler_propagation)
       ->group("Sparse Ruling Set");
 
+  auto* opt_sparse_ruling_set_use_sparse_alltoall =
+      app.add_flag("--sparse-ruling-set-use-sparse-alltoall",
+                   config.sparse_ruling_set.use_sparse_alltoall)
+          ->group("Sparse Ruling Set");
+
   opt_sparse_ruling_set_use_grid->excludes(opt_sparse_ruling_set_grid_mode);
+  opt_sparse_ruling_set_use_sparse_alltoall->excludes(opt_sparse_ruling_set_use_grid);
+  opt_sparse_ruling_set_use_sparse_alltoall->excludes(opt_sparse_ruling_set_grid_mode);
   opt_sparse_ruling_set_grid_mode->excludes(opt_sparse_ruling_set_use_grid);
   app.add_flag(
          "--sparse-ruling-set-use-local-first-request-scheme,!--sparse-ruling-set-use-no-"

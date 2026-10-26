@@ -112,7 +112,8 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(SparseRulingSetConfig,
                                    briefkasten,
                                    grid_communicator_mode,
                                    use_grid_communication,
-                                   use_local_first_request_scheme);
+                                   use_local_first_request_scheme,
+                                   use_sparse_alltoall);
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(EulerTourConfig,
                                    algorithm,
                                    use_high_degree_handling,

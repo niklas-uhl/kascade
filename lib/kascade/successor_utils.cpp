@@ -164,7 +164,8 @@ auto reverse_list(std::span<const idx_t> succ_array,
                   kamping::Communicator<> const& comm,
                   std::optional<TopologyAwareGridCommunicator> const& grid_comm,
                   bool use_grid_comm /* = false */,
-                  bool locality_aware /* = false */
+                  bool locality_aware /* = false */,
+                  bool use_sparse_alltoall /* = false */
                   ) -> std::vector<idx_t> {
   KASSERT(is_list(succ_array, dist, comm), kascade::assert::with_communication);
   struct message_type {
@@ -202,9 +203,11 @@ auto reverse_list(std::span<const idx_t> succ_array,
   }
   kamping::measurements::timer().stop();
 
-  SPDLOG_DEBUG("[reverse_list] Using grid_communication={} for alltoall", use_grid_comm);
+  SPDLOG_DEBUG("[reverse_list] Using grid_communication={}, sparse_alltoall={} for alltoall",
+               use_grid_comm, use_sparse_alltoall);
   kamping::measurements::timer().start("dispatcher_init");
-  AlltoallDispatcher<message_type> dispatcher(use_grid_comm, comm, grid_comm);
+  AlltoallDispatcher<message_type> dispatcher(use_grid_comm, comm, grid_comm,
+                                              use_sparse_alltoall);
   kamping::measurements::timer().stop();
   kamping::measurements::timer().start("message_exchange");
   auto recv_buf = dispatcher.alltoallv(request_buf);

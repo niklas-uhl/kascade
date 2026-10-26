@@ -91,7 +91,7 @@ struct SparseRulingSetConfig {
   GridCommunicatorMode grid_communicator_mode = GridCommunicatorMode::topology_aware;
   bool use_grid_communication = false;
   bool use_local_first_request_scheme = false;
-
+  bool use_sparse_alltoall = false;
 };
 
 struct EulerTourConfig {

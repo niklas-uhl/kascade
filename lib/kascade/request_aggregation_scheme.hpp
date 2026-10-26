@@ -8,6 +8,7 @@
 #include "alltoall_utils.hpp"
 #include "grid_alltoall.hpp"
 #include "kascade/grid_communicator.hpp"
+#include "kascade/sparse_alltoall.hpp"
 
 namespace kascade {
 
@@ -159,29 +160,51 @@ auto request_reply_without_remote_aggregation(Requests const& requests,
                                               MPIBuffer<Request>& req_rbuffer,
                                               std::vector<Reply>& reply_sbuffer,
                                               std::vector<Reply>& reply_rbuffer,
-                                              kamping::Communicator<> const& comm) {
+                                              kamping::Communicator<> const& comm,
+                                              bool use_sparse_alltoall = false) {
   namespace kmp = kamping::params;
   prepare_send_buf_inplace(requests, req_sbuffer, comm.size());
 
-  comm.alltoallv(kmp::send_buf(req_sbuffer.data), kmp::send_counts(req_sbuffer.counts),
-                 kmp::send_displs(req_sbuffer.displs),
-                 kmp::recv_buf_out<kamping::resize_to_fit>(req_rbuffer.data),
-                 kmp::recv_counts_out<kamping::resize_to_fit>(req_rbuffer.counts),
-                 kmp::recv_displs_out<kamping::resize_to_fit>(req_rbuffer.displs));
+  if (use_sparse_alltoall) {
+    sparse_alltoallv<Request>(req_sbuffer.data, req_sbuffer.counts, req_sbuffer.displs,
+                              req_rbuffer.data, req_rbuffer.counts, req_rbuffer.displs,
+                              comm);
+  } else {
+    comm.alltoallv(kmp::send_buf(req_sbuffer.data), kmp::send_counts(req_sbuffer.counts),
+                   kmp::send_displs(req_sbuffer.displs),
+                   kmp::recv_buf_out<kamping::resize_to_fit>(req_rbuffer.data),
+                   kmp::recv_counts_out<kamping::resize_to_fit>(req_rbuffer.counts),
+                   kmp::recv_displs_out<kamping::resize_to_fit>(req_rbuffer.displs));
+  }
 
   reply_sbuffer.clear();
   reply_sbuffer.resize(req_rbuffer.data.size());
   std::ranges::transform(req_rbuffer.data, reply_sbuffer.begin(),
                          [&](auto const& request) { return make_reply(request); });
-  comm.alltoallv(kmp::send_buf(reply_sbuffer), kmp::send_counts(req_rbuffer.counts),
-                 kmp::send_displs(req_rbuffer.displs),
-                 kmp::recv_buf_out<kamping::resize_to_fit>(reply_rbuffer));
+  if (use_sparse_alltoall) {
+    // the replies from each rank are placed where the dense alltoallv would put them,
+    // i.e. at the displacement of the corresponding requests
+    reply_rbuffer.resize(req_sbuffer.data.size());
+    auto place_reply = [&](int source, std::size_t count) {
+      auto const source_rank = static_cast<std::size_t>(source);
+      KASSERT(count == static_cast<std::size_t>(req_sbuffer.counts[source_rank]));
+      return std::span<Reply>(reply_rbuffer)
+          .subspan(static_cast<std::size_t>(req_sbuffer.displs[source_rank]), count);
+    };
+    sparse_alltoallv<Reply>(reply_sbuffer, req_rbuffer.counts, req_rbuffer.displs,
+                            place_reply, comm);
+  } else {
+    comm.alltoallv(kmp::send_buf(reply_sbuffer), kmp::send_counts(req_rbuffer.counts),
+                   kmp::send_displs(req_rbuffer.displs),
+                   kmp::recv_buf_out<kamping::resize_to_fit>(reply_rbuffer));
+  }
 }
 
 template <EnvelopedMsgRange Requests, typename MakeReplyFn>
 auto request_reply_without_remote_aggregation(Requests const& requests,
                                               MakeReplyFn const& make_reply,
-                                              kamping::Communicator<> const& comm) {
+                                              kamping::Communicator<> const& comm,
+                                              bool use_sparse_alltoall = false) {
   using Request = MsgTypeOf<std::ranges::range_value_t<Requests>>;
   using Reply = std::remove_cvref_t<std::invoke_result_t<MakeReplyFn, Request>>;
   MPIBuffer<Request> req_sbuffer;
@@ -189,7 +212,8 @@ auto request_reply_without_remote_aggregation(Requests const& requests,
   std::vector<Reply> reply_sbuffer;
   std::vector<Reply> reply_rbuffer;
   request_reply_without_remote_aggregation(requests, make_reply, req_sbuffer, req_rbuffer,
-                                           reply_sbuffer, reply_rbuffer, comm);
+                                           reply_sbuffer, reply_rbuffer, comm,
+                                           use_sparse_alltoall);
   return reply_rbuffer;
 }
 
@@ -203,7 +227,8 @@ auto request_reply_without_remote_aggregation(
     Requests const& requests,
     MakeReplyFn const& make_reply,
     kamping::Communicator<> const& comm,
-    request_reply_mode::reorder_output_tag /*tag*/) {
+    request_reply_mode::reorder_output_tag /*tag*/,
+    bool use_sparse_alltoall = false) {
   using Request = MsgTypeOf<std::ranges::range_value_t<Requests>>;
   using Reply = std::remove_cvref_t<std::invoke_result_t<MakeReplyFn, Request>>;
   MPIBuffer<Request> req_sbuffer;
@@ -211,7 +236,8 @@ auto request_reply_without_remote_aggregation(
   std::vector<Reply> reply_sbuffer;
   std::vector<Reply> reply_rbuffer;
   request_reply_without_remote_aggregation(requests, make_reply, req_sbuffer, req_rbuffer,
-                                           reply_sbuffer, reply_rbuffer, comm);
+                                           reply_sbuffer, reply_rbuffer, comm,
+                                           use_sparse_alltoall);
   return std::pair(std::move(reply_rbuffer), std::move(req_sbuffer.displs));
 }
 

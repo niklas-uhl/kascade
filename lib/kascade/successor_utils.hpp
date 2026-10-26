@@ -40,7 +40,8 @@ auto reverse_list(std::span<const idx_t> succ_array,
                   kamping::Communicator<> const& comm,
                   std::optional<TopologyAwareGridCommunicator> const& grid_comm,
                   bool use_grid_comm = false,
-                  bool locality_aware = false) -> std::vector<idx_t>;
+                  bool locality_aware = false,
+                  bool use_sparse_alltoall = false) -> std::vector<idx_t>;
 
 template <typename T>
 class maybe_owning_contiguous_range {

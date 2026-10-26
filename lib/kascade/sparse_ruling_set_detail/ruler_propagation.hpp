@@ -108,7 +108,8 @@ inline auto ruler_propagation(
       return request_reply_without_remote_aggregation(requests, make_reply,
                                                       grid_comm.value());
     }
-    return request_reply_without_remote_aggregation(requests, make_reply, comm);
+    return request_reply_without_remote_aggregation(requests, make_reply, comm,
+                                                    config.use_sparse_alltoall);
   }();
 
   kamping::measurements::timer().stop();
@@ -228,7 +229,8 @@ inline auto ruler_propagation(
           requests, make_reply, grid_comm.value(), request_reply_mode::reorder_output);
     }
     return request_reply_without_remote_aggregation(requests, make_reply, comm,
-                                                    request_reply_mode::reorder_output);
+                                                    request_reply_mode::reorder_output,
+                                                    config.use_sparse_alltoall);
   }();
 
   kamping::measurements::timer().stop();

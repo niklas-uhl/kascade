@@ -90,7 +90,7 @@ auto invert_leafs_and_build_leaf_info(
     return leaf_info;
   }
   AlltoallDispatcher<LeafMessage> dispatcher{config.use_grid_communication, comm,
-                                             grid_comm};
+                                             grid_comm, config.use_sparse_alltoall};
   auto leaf_messages = dispatcher.alltoallv(messages);
   std::ranges::for_each(local_messages, handle_local_leaf_message);
   std::ranges::for_each(leaf_messages, handle_local_leaf_message);
@@ -244,7 +244,7 @@ auto fixup_unreached(SparseRulingSetConfig const& config,
     message_buf.emplace_back(owner, msg);
   }
   AlltoallDispatcher<message_type> dispatcher(config.use_grid_communication, comm,
-                                              grid_comm);
+                                              grid_comm, config.use_sparse_alltoall);
   auto recv_buf = dispatcher.alltoallv(message_buf);
   auto handle_message = [&](message_type const& msg) {
     KASSERT(dist.is_local(msg.succ, comm.rank()));
