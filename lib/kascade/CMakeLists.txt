@@ -27,7 +27,8 @@ target_sources(
 add_subdirectory(sparse_ruling_set_detail)
 target_link_libraries(
   ${CMAKE_PROJECT_NAME}_list_ranking
-  PUBLIC MPI::MPI_CXX kamping::kamping ${CMAKE_PROJECT_NAME}_graph
+  PUBLIC absl::flat_hash_map absl::flat_hash_set MPI::MPI_CXX kamping::kamping
+         ${CMAKE_PROJECT_NAME}_graph
   PRIVATE ${CMAKE_PROJECT_NAME}_cxx_flags BriefKAsten::BriefKAsten
-          kassert::kassert fmt::fmt spdlog::spdlog absl::flat_hash_map)
+          kassert::kassert fmt::fmt spdlog::spdlog)
 target_compile_features(${CMAKE_PROJECT_NAME}_list_ranking PUBLIC cxx_std_20)

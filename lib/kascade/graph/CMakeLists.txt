@@ -12,9 +12,9 @@ target_sources(
 target_link_libraries(
   ${CMAKE_PROJECT_NAME}_graph
   PRIVATE ${CMAKE_PROJECT_NAME}_cxx_flags
-  PUBLIC kamping::kamping
+  PUBLIC absl::flat_hash_map
+         kamping::kamping
          KaGen::KaGen
-         absl::flat_hash_map
          fmt::fmt
          spdlog::spdlog
          kassert::kassert)

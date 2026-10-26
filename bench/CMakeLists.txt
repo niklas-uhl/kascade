@@ -67,6 +67,7 @@ target_link_libraries(
   kascade
   PRIVATE ${CMAKE_PROJECT_NAME}_cxx_flags
           cmake_git_version_tracking
+          absl::flat_hash_map
           KaGen::KaGen
           CLI11::CLI11
           nlohmann_json::nlohmann_json
