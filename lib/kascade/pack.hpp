@@ -29,7 +29,7 @@ auto pack(std::span<const idx_t> succ_array,
           kamping::Communicator<> const& comm,
           std::optional<TopologyAwareGridCommunicator> const& grid_comm,
           bool use_grid_communication = false,
-          bool use_sparse_alltoall = false) {
+          AlltoallAlgorithm alltoall_algorithm = AlltoallAlgorithm::alltoallv) {
   auto local_size_packed = std::ranges::size(active_indices);
   KASSERT(succ_array_packed.size() >= local_size_packed);
   KASSERT(rank_array_packed.size() >= local_size_packed);
@@ -65,7 +65,7 @@ auto pack(std::span<const idx_t> succ_array,
                                                        *grid_comm);
   } else {
     replies = request_reply_without_remote_aggregation(packed_idx_requests, make_reply,
-                                                       comm, use_sparse_alltoall);
+                                                       comm, alltoall_algorithm);
   }
   absl::flat_hash_map<idx_t, idx_t> succ_unpacked_to_packed{replies.begin(),
                                                             replies.end()};
@@ -89,7 +89,7 @@ auto pack(std::span<const idx_t> succ_array,
                     std::optional<TopologyAwareGridCommunicator> const& grid_comm,
                     bool use_grid_communication = false,
                     std::size_t gather_threshold = 100,
-                    bool use_sparse_alltoall = false) {
+                    AlltoallAlgorithm alltoall_algorithm = AlltoallAlgorithm::alltoallv) {
     auto local_packed_size = std::ranges::size(active_indices);
     kamping::measurements::timer().synchronize_and_start("build_request_set");
     absl::flat_hash_set<idx_t> unpacked_idx_requests_dedup;
@@ -148,7 +148,7 @@ auto pack(std::span<const idx_t> succ_array,
             request_reply_without_remote_aggregation(requests, make_reply, *grid_comm);
       } else {
         replies = request_reply_without_remote_aggregation(requests, make_reply, comm,
-                                                           use_sparse_alltoall);
+                                                           alltoall_algorithm);
       }
     }
     kamping::measurements::timer().stop();

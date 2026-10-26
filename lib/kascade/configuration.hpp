@@ -57,6 +57,12 @@ enum class RulerSelectionStrategy : std::uint8_t {
 };
 enum class RulerPropagationMode : std::uint8_t { pull, push, invalid };
 
+// How the sparse ruling set's personalized exchanges are performed:
+// alltoallv: MPI_Alltoallv, preceded by an MPI_Alltoall of the counts
+// nbx:       kamping's sparse alltoall (NBX, Hoefler et al. 2010)
+// pcx:       personalized census (PCX, Hoefler et al. 2010)
+enum class AlltoallAlgorithm : std::uint8_t { alltoallv, nbx, pcx, invalid };
+
 struct BriefkastenConfig {
   std::size_t local_threshold = 2048;
   std::size_t poll_skip_threshold = 1000;
@@ -91,7 +97,7 @@ struct SparseRulingSetConfig {
   GridCommunicatorMode grid_communicator_mode = GridCommunicatorMode::topology_aware;
   bool use_grid_communication = false;
   bool use_local_first_request_scheme = false;
-  bool use_sparse_alltoall = false;
+  AlltoallAlgorithm alltoall_algorithm = AlltoallAlgorithm::alltoallv;
 };
 
 struct EulerTourConfig {

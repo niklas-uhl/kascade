@@ -74,7 +74,7 @@ auto ruler_chasing_engine(SparseRulingSetConfig const& config,
   initialize(enqueue_locally_to_message_buffer, send_to);
 
   AlltoallDispatcher<RulerMessage> dispatcher(config.use_grid_communication, comm,
-                                              grid_comm, config.use_sparse_alltoall);
+                                              grid_comm, config.alltoall_algorithm);
 
   std::size_t rounds = 0;
   namespace kmp = kamping::params;

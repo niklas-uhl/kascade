@@ -83,6 +83,11 @@ NLOHMANN_JSON_SERIALIZE_ENUM(RulerPropagationMode,
                              {{RulerPropagationMode::invalid, nullptr},
                               {RulerPropagationMode::pull, "pull"},
                               {RulerPropagationMode::push, "push"}})
+NLOHMANN_JSON_SERIALIZE_ENUM(AlltoallAlgorithm,
+                             {{AlltoallAlgorithm::invalid, nullptr},
+                              {AlltoallAlgorithm::alltoallv, "alltoallv"},
+                              {AlltoallAlgorithm::nbx, "nbx"},
+                              {AlltoallAlgorithm::pcx, "pcx"}})
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(BriefkastenConfig,
                                    local_threshold,
                                    poll_skip_threshold);
@@ -113,7 +118,7 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(SparseRulingSetConfig,
                                    grid_communicator_mode,
                                    use_grid_communication,
                                    use_local_first_request_scheme,
-                                   use_sparse_alltoall);
+                                   alltoall_algorithm);
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(EulerTourConfig,
                                    algorithm,
                                    use_high_degree_handling,

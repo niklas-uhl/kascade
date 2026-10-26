@@ -55,7 +55,7 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
   if (!config.post_invert) {
     leaves = reverse_list(succ_array, rank_array, succ_array, rank_array, dist, comm,
                           grid_comm, config.use_grid_communication,
-                          config.reverse_list_locality_aware, config.use_sparse_alltoall);
+                          config.reverse_list_locality_aware, config.alltoall_algorithm);
   }
   kamping::measurements::timer().stop();
   kamping::measurements::timer().synchronize_and_start("find_leaves");
@@ -294,7 +294,7 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
     std::vector<rank_t> rank_array_base(rulers.size());
     auto [dist_base, unpack] =
         pack(succ_array, rank_array, dist, rulers, succ_array_base, rank_array_base, comm,
-             grid_comm, config.use_grid_communication, config.use_sparse_alltoall);
+             grid_comm, config.use_grid_communication, config.alltoall_algorithm);
     kamping::measurements::timer().stop();
 
     kamping::measurements::timer().synchronize_and_start("base_case");
@@ -305,7 +305,7 @@ void sparse_ruling_set(SparseRulingSetConfig const& config,
     kamping::measurements::timer().start("unpack_base_case");
     unpack(succ_array_base, rank_array_base, dist_base, succ_array, rank_array, dist,
            rulers, comm, grid_comm, config.use_grid_communication,
-           config.root_gather_threshold, config.use_sparse_alltoall);
+           config.root_gather_threshold, config.alltoall_algorithm);
     kamping::measurements::timer().stop();
   }
 

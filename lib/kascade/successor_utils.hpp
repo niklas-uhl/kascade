@@ -8,6 +8,7 @@
 #include <kamping/communicator.hpp>
 #include <spdlog/spdlog.h>
 
+#include "configuration.hpp"
 #include "grid_communicator.hpp"
 #include "kascade/distribution.hpp"
 #include "kascade/eulertour.hpp"
@@ -41,7 +42,7 @@ auto reverse_list(std::span<const idx_t> succ_array,
                   std::optional<TopologyAwareGridCommunicator> const& grid_comm,
                   bool use_grid_comm = false,
                   bool locality_aware = false,
-                  bool use_sparse_alltoall = false) -> std::vector<idx_t>;
+                  AlltoallAlgorithm alltoall_algorithm = AlltoallAlgorithm::alltoallv) -> std::vector<idx_t>;
 
 template <typename T>
 class maybe_owning_contiguous_range {

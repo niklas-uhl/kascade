@@ -2,6 +2,7 @@
 
 #include <charconv>
 #include <cstdlib>
+#include <iostream>
 
 #include <CLI/CLI.hpp>
 #include <nlohmann/json.hpp>
@@ -52,6 +53,11 @@ auto lexical_cast(const std::string& input, RulerPropagationMode& ruler_propagat
   nlohmann::json input_json = input;
   ruler_propagation_mode = input_json.template get<kascade::RulerPropagationMode>();
   return ruler_propagation_mode != kascade::RulerPropagationMode::invalid;
+}
+auto lexical_cast(const std::string& input, AlltoallAlgorithm& alltoall_algorithm) -> bool {
+  nlohmann::json input_json = input;
+  alltoall_algorithm = input_json.template get<kascade::AlltoallAlgorithm>();
+  return alltoall_algorithm != kascade::AlltoallAlgorithm::invalid;
 }
 
 namespace input {
@@ -257,14 +263,21 @@ auto parse_args(std::span<char*> args) -> Config {
          config.sparse_ruling_set.use_locality_aware_in_ruler_propagation)
       ->group("Sparse Ruling Set");
 
+  auto* opt_sparse_ruling_set_alltoall_algorithm =
+      app.add_option("--sparse-ruling-set-alltoall-algorithm",
+                     config.sparse_ruling_set.alltoall_algorithm)
+          ->group("Sparse Ruling Set");
+  // shorthand for `--sparse-ruling-set-alltoall-algorithm nbx`, used by older suites
   auto* opt_sparse_ruling_set_use_sparse_alltoall =
-      app.add_flag("--sparse-ruling-set-use-sparse-alltoall",
-                   config.sparse_ruling_set.use_sparse_alltoall)
+      app.add_flag_callback("--sparse-ruling-set-use-sparse-alltoall",
+                            [&config]() {
+                              config.sparse_ruling_set.alltoall_algorithm =
+                                  kascade::AlltoallAlgorithm::nbx;
+                            })
           ->group("Sparse Ruling Set");
 
   opt_sparse_ruling_set_use_grid->excludes(opt_sparse_ruling_set_grid_mode);
-  opt_sparse_ruling_set_use_sparse_alltoall->excludes(opt_sparse_ruling_set_use_grid);
-  opt_sparse_ruling_set_use_sparse_alltoall->excludes(opt_sparse_ruling_set_grid_mode);
+  opt_sparse_ruling_set_use_sparse_alltoall->excludes(opt_sparse_ruling_set_alltoall_algorithm);
   opt_sparse_ruling_set_grid_mode->excludes(opt_sparse_ruling_set_use_grid);
   app.add_flag(
          "--sparse-ruling-set-use-local-first-request-scheme,!--sparse-ruling-set-use-no-"
@@ -307,6 +320,12 @@ auto parse_args(std::span<char*> args) -> Config {
   // not be mutually exclusive
   if (config.pointer_doubling.aggregation_level == kascade::AggregationLevel::all) {
     config.pointer_doubling.use_grid_communication = true;
+  }
+  if (config.sparse_ruling_set.use_grid_communication &&
+      config.sparse_ruling_set.alltoall_algorithm != kascade::AlltoallAlgorithm::alltoallv) {
+    std::cerr << "Sparse ruling set: grid communication can only be combined with "
+                 "--sparse-ruling-set-alltoall-algorithm alltoallv\n";
+    std::exit(1);
   }
 
   return config;

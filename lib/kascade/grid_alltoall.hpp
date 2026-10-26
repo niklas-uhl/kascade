@@ -134,11 +134,11 @@ public:
   AlltoallDispatcher(bool use_grid_alltoall,
                      kamping::Communicator<> const& comm,
                      std::optional<TopologyAwareGridCommunicator> const& grid_comm,
-                     bool use_sparse_alltoall = false)
+                     AlltoallAlgorithm alltoall_algorithm = AlltoallAlgorithm::alltoallv)
       : use_grid_alltoall_{use_grid_alltoall},
-        use_sparse_alltoall_{use_sparse_alltoall},
+        alltoall_algorithm_{alltoall_algorithm},
         comm_{&comm} {
-    KASSERT(!(use_grid_alltoall && use_sparse_alltoall),
+    KASSERT(!(use_grid_alltoall && alltoall_algorithm != AlltoallAlgorithm::alltoallv),
             "grid and sparse alltoall are mutually exclusive");
     if (use_grid_alltoall) {
       KASSERT(grid_comm.has_value());
@@ -154,14 +154,16 @@ public:
     if (use_grid_alltoall_) {
       KASSERT(grid_comm_ != nullptr);
       recv_buf = kascade::grid_alltoallv(std::forward<R>(messages), *grid_comm_);
-    } else if (use_sparse_alltoall_) {
+    } else if (alltoall_algorithm_ != AlltoallAlgorithm::alltoallv) {
       kamping::measurements::timer().start("prepare_send_buf");
       prepare_send_buf_inplace(std::forward<R>(messages), send_buf, send_counts,
                                send_displs, comm_->size());
       kamping::measurements::timer().stop();
-      kamping::measurements::timer().start("alltoallv_sparse");
-      kascade::sparse_alltoallv<T>(send_buf, send_counts, send_displs, recv_buf,
-                                   recv_counts, recv_displs, *comm_);
+      kamping::measurements::timer().start(alltoall_algorithm_ == AlltoallAlgorithm::nbx
+                                               ? "alltoallv_sparse"
+                                               : "alltoallv_pcx");
+      kascade::sparse_exchange<T>(alltoall_algorithm_, send_buf, send_counts, send_displs,
+                                  recv_buf, recv_counts, recv_displs, *comm_);
       kamping::measurements::timer().stop();
     } else {
       kamping::measurements::timer().start("prepare_send_buf");
@@ -187,7 +189,7 @@ public:
 
 private:
   bool use_grid_alltoall_;
-  bool use_sparse_alltoall_;
+  AlltoallAlgorithm alltoall_algorithm_;
   kamping::Communicator<> const* comm_;
   TopologyAwareGridCommunicator const* grid_comm_ = nullptr;
   std::vector<T> send_buf;
