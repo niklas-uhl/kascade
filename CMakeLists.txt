@@ -98,7 +98,7 @@ FetchContent_MakeAvailable(kaval)
 FetchContent_Declare(
   BriefKAsten
   GIT_REPOSITORY https://github.com/niklas-uhl/BriefKAsten
-  GIT_TAG v0.2.1
+  GIT_TAG feat/briefkasten-tokens
   GIT_SHALLOW ON
   SYSTEM)
 FetchContent_MakeAvailable(BriefKAsten)
