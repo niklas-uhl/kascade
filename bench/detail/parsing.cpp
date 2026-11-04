@@ -5,6 +5,9 @@
 #include <iostream>
 
 #include <CLI/CLI.hpp>
+#include <kamping/collectives/bcast.hpp>
+#include <kamping/communicator.hpp>
+#include <kamping/named_parameters.hpp>
 #include <nlohmann/json.hpp>
 
 #include "./benchmark_config.hpp"
@@ -54,7 +57,8 @@ auto lexical_cast(const std::string& input, RulerPropagationMode& ruler_propagat
   ruler_propagation_mode = input_json.template get<kascade::RulerPropagationMode>();
   return ruler_propagation_mode != kascade::RulerPropagationMode::invalid;
 }
-auto lexical_cast(const std::string& input, AlltoallAlgorithm& alltoall_algorithm) -> bool {
+auto lexical_cast(const std::string& input, AlltoallAlgorithm& alltoall_algorithm)
+    -> bool {
   nlohmann::json input_json = input;
   alltoall_algorithm = input_json.template get<kascade::AlltoallAlgorithm>();
   return alltoall_algorithm != kascade::AlltoallAlgorithm::invalid;
@@ -277,7 +281,8 @@ auto parse_args(std::span<char*> args) -> Config {
           ->group("Sparse Ruling Set");
 
   opt_sparse_ruling_set_use_grid->excludes(opt_sparse_ruling_set_grid_mode);
-  opt_sparse_ruling_set_use_sparse_alltoall->excludes(opt_sparse_ruling_set_alltoall_algorithm);
+  opt_sparse_ruling_set_use_sparse_alltoall->excludes(
+      opt_sparse_ruling_set_alltoall_algorithm);
   opt_sparse_ruling_set_grid_mode->excludes(opt_sparse_ruling_set_use_grid);
   app.add_flag(
          "--sparse-ruling-set-use-local-first-request-scheme,!--sparse-ruling-set-use-no-"
@@ -312,7 +317,11 @@ auto parse_args(std::span<char*> args) -> Config {
   try {
     app.parse(static_cast<int>(args.size()), args.data());
   } catch (const CLI ::ParseError& e) {
-    int errcode = app.exit(e);
+    int errcode = 0;
+    if (kamping::comm_world().is_root()) {
+      errcode = app.exit(e);
+    }
+    kamping::comm_world().bcast(kamping::params::send_recv_buf(errcode));
     std::exit(errcode);
   };
 
@@ -322,7 +331,8 @@ auto parse_args(std::span<char*> args) -> Config {
     config.pointer_doubling.use_grid_communication = true;
   }
   if (config.sparse_ruling_set.use_grid_communication &&
-      config.sparse_ruling_set.alltoall_algorithm != kascade::AlltoallAlgorithm::alltoallv) {
+      config.sparse_ruling_set.alltoall_algorithm !=
+          kascade::AlltoallAlgorithm::alltoallv) {
     std::cerr << "Sparse ruling set: grid communication can only be combined with "
                  "--sparse-ruling-set-alltoall-algorithm alltoallv\n";
     std::exit(1);
