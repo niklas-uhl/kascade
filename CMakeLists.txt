@@ -49,7 +49,7 @@ set (KAMPING_ENABLE_REFLECTION OFF)
 FetchContent_Declare(
   kamping
   GIT_REPOSITORY https://github.com/kamping-site/kamping
-  GIT_TAG v0.2.0
+  GIT_TAG v0.3.1
   GIT_SHALLOW ON
   SYSTEM EXCLUDE_FROM_ALL)
 
