@@ -91,7 +91,7 @@ endif()
 FetchContent_Declare(
   kaval
   GIT_REPOSITORY https://github.com/niklas-uhl/kaval.git
-  GIT_TAG 20260505.0
+  GIT_TAG feat/horeka2
   SOURCE_DIR ${CMAKE_CURRENT_LIST_DIR}/kaval)
 FetchContent_MakeAvailable(kaval)
 
