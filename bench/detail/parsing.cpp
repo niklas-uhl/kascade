@@ -256,6 +256,24 @@ auto parse_args(std::span<char*> args) -> Config {
                  config.sparse_ruling_set.briefkasten.idle_flush,
                  "default|off|all|stale")
       ->group("Sparse Ruling Set");
+  app.add_flag("--sparse-ruling-set-briefkasten-idle-flush-fixed-start",
+               config.sparse_ruling_set.briefkasten.idle_flush_fixed_start)
+      ->group("Sparse Ruling Set");
+  app.add_option("--sparse-ruling-set-briefkasten-send-backlog-capacity",
+                 config.sparse_ruling_set.briefkasten.send_backlog_capacity,
+                 "default|comm-size|<number>")
+      ->check([](const std::string& value) -> std::string {
+        if (value == "default" || value == "comm-size") {
+          return {};
+        }
+        std::size_t parsed = 0;
+        auto [ptr, ec] = std::from_chars(value.data(), value.data() + value.size(), parsed);
+        if (ec != std::errc{} || ptr != value.data() + value.size()) {
+          return "expected default, comm-size or a number";
+        }
+        return {};
+      })
+      ->group("Sparse Ruling Set");
   auto* opt_sparse_ruling_set_use_grid =
       app.add_flag("--sparse-ruling-set-use-grid-communication",
                    config.sparse_ruling_set.use_grid_communication)

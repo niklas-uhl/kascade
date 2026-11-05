@@ -3,6 +3,7 @@
 #include <any>
 #include <cstddef>
 #include <cstdint>
+#include <string>
 
 namespace kascade {
 
@@ -72,6 +73,12 @@ struct BriefkastenConfig {
   std::size_t local_threshold = 2048;
   std::size_t poll_skip_threshold = 1000;
   IdleFlush idle_flush = IdleFlush::library_default;
+  // Restart every idle flush at the beginning of the buffer map instead of where the previous one
+  // ran out of send slots (briefkasten's Config::idle_flush_round_robin = false). A/B only.
+  bool idle_flush_fixed_start = false;
+  // Send backlog behind the MPI request slots: "default" (briefkasten's choice, 0 under flow
+  // control), "comm-size", or a number. An explicit value survives flow control.
+  std::string send_backlog_capacity = "default";
 };
 
 struct SparseRulingSetConfig {

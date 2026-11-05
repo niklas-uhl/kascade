@@ -78,7 +78,7 @@ config:
     pointer-doubling-fallback-allgather-size-ratio: [3]
     sparse-ruling-set-use-grid-communication: [False, True]
     sparse-ruling-set-async: True
-    sparse-ruling-set-briefkasten-idle-flush: [off, all, stale]
+    sparse-ruling-set-briefkasten-idle-flush: ["off", "all", "stale"]  # quoted: bare off is YAML false
     # 1000 was tuned on v0.2.1, whose poll_throttled never polled after the first call;
     # 100 is briefkasten's default and what KaCCv2 runs with
     sparse-ruling-set-briefkasten-poll-skip-threshold: [100, 1000]

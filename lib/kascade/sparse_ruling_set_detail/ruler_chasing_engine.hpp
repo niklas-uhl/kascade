@@ -3,6 +3,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <queue>
+#include <string>
 
 #include <briefkasten/buffered_queue.hpp>
 #include <briefkasten/grid_indirection.hpp>
@@ -54,6 +55,8 @@ inline void record_queue_counters(auto const& queue) {
   append("bk_idle_flush_elements", queue.num_idle_flush_elements());
   append("bk_idle_flush_skips", queue.num_idle_flush_skips());
   append("bk_idle_flush_deferred", queue.num_idle_flush_deferred());
+  append("bk_idle_flush_stops", queue.num_idle_flush_stops());
+  append("bk_peak_send_backlog", queue.peak_send_backlog());
   append("bk_elements_flushed", queue.num_elements_flushed());
 }
 
@@ -78,6 +81,12 @@ auto ruler_chasing_engine(SparseRulingSetConfig const& config,
     case IdleFlush::library_default:
     case IdleFlush::invalid:
       break;
+  }
+  briefkasten_config.idle_flush_round_robin = !config.briefkasten.idle_flush_fixed_start;
+  if (auto const& backlog = config.briefkasten.send_backlog_capacity; backlog == "comm-size") {
+    briefkasten_config.send_backlog_capacity = comm.size();
+  } else if (backlog != "default") {
+    briefkasten_config.send_backlog_capacity = std::stoull(backlog);  // validated by the parser
   }
   auto with_queue = [&](auto&& func) {
     if (config.use_grid_communication) {

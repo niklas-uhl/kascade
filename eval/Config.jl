@@ -38,6 +38,8 @@ value_paths = Dict(
     "sparse_ruling_set_briefkasten_local_threshold" => ["config", "sparse_ruling_set", "briefkasten", "local_threshold"],
     "sparse_ruling_set_briefkasten_poll_skip_threshold" => ["config", "sparse_ruling_set", "briefkasten", "poll_skip_threshold"],
     "sparse_ruling_set_briefkasten_idle_flush" => ["config", "sparse_ruling_set", "briefkasten", "idle_flush"],
+    "sparse_ruling_set_briefkasten_idle_flush_fixed_start" => ["config", "sparse_ruling_set", "briefkasten", "idle_flush_fixed_start"],
+    "sparse_ruling_set_briefkasten_send_backlog_capacity" => ["config", "sparse_ruling_set", "briefkasten", "send_backlog_capacity"],
     "eulertour_algorithm" => ["config", "euler_tour", "algorithm"],
     "eulertour_use_high_degree_handling" => ["config", "euler_tour", "use_high_degree_handling"],
     "rma_pointer_chasing_sync_mode" => ["config", "rma_pointer_chasing", "sync_mode"],
@@ -156,7 +158,16 @@ function format_sparse_ruling_set(;kwargs...)
     idle_flush = get(kwargs, :sparse_ruling_set_briefkasten_idle_flush, nothing)
     if !sync && !isnothing(idle_flush)
         poll_skip = get(kwargs, :sparse_ruling_set_briefkasten_poll_skip_threshold, nothing)
-        push!(parts, " [idle_flush=$(idle_flush), ρ=$(poll_skip)]")
+        bk = ["idle_flush=$(idle_flush)", "ρ=$(poll_skip)"]
+        # absent in runs before the backlog suite, and left out at their defaults
+        backlog = get(kwargs, :sparse_ruling_set_briefkasten_send_backlog_capacity, nothing)
+        if !isnothing(backlog) && backlog != "default"
+            push!(bk, "backlog=$(backlog)")
+        end
+        if get(kwargs, :sparse_ruling_set_briefkasten_idle_flush_fixed_start, nothing) == true
+            push!(bk, "fixed-start")
+        end
+        push!(parts, " [$(join(bk, ", "))]")
     end
 
     push!(parts, " [$(format_ruler_selection_params(;kwargs...))]")

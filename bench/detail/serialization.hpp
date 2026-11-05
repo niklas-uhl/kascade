@@ -97,7 +97,9 @@ NLOHMANN_JSON_SERIALIZE_ENUM(IdleFlush,
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(BriefkastenConfig,
                                    local_threshold,
                                    poll_skip_threshold,
-                                   idle_flush);
+                                   idle_flush,
+                                   idle_flush_fixed_start,
+                                   send_backlog_capacity);
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(SparseRulingSetConfig,
                                    base_algorithm,
                                    sparse_ruling_set_rounds,
