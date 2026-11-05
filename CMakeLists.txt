@@ -100,6 +100,6 @@ FetchContent_Declare(
   GIT_REPOSITORY https://github.com/niklas-uhl/BriefKAsten
   # Pinned to a commit so "which briefkasten" is reproducible; bump deliberately.
   # GIT_SHALLOW omitted: a shallow clone cannot resolve an arbitrary commit.
-  GIT_TAG 649640c8add82fd33814313f441d01966809dd38 # feat/idle-flush
+  GIT_TAG 1c5ed3dbeb8b65555e60faa1198ed524370aa06b # feat/idle-flush
   SYSTEM)
 FetchContent_MakeAvailable(BriefKAsten)

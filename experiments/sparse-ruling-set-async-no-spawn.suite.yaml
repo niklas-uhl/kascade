@@ -1,0 +1,115 @@
+name: sparse-ruling-set-async-no-spawn
+executable: bench/kascade
+output_path_option_name: "output-file"
+ncores: [64, 128, 256, 512, 1024, 2048]
+time_limit: 4  # 2 killed the slowest flat arms at n=2^22, p>=1536 (I_MPI_JOB_TIMEOUT)
+threads_per_rank: [1]
+# tasks_per_node: 64
+graphs:
+  - generator: kagen
+    type: path
+    N: 16
+    permute: True
+    extra_args:
+      statistics-level: extensive-reduced-output
+      input-processing: none
+      verify-level: 0
+      iterations: 5
+    scale_weak: True
+  - generator: kagen
+    type: path
+    N: 18
+    permute: True
+    extra_args:
+      statistics-level: extensive-reduced-output
+      input-processing: none
+      verify-level: 0
+      iterations: 5
+    scale_weak: True
+  - generator: kagen
+    type: path
+    N: 20
+    permute: True
+    extra_args:
+      statistics-level: extensive-reduced-output
+      input-processing: none
+      verify-level: 0
+      iterations: 5
+    scale_weak: True
+  - generator: kagen
+    type: path
+    N: 22
+    permute: True
+    extra_args:
+      statistics-level: extensive-reduced-output
+      input-processing: none
+      verify-level: 0
+      iterations: 5
+    scale_weak: True
+config:
+  # Async as a replacement for spawning: pick the optimal number of rulers for sync without spawning,
+  # r = c * sqrt(n p^(1+1/d)) (= ultimate since dea6ef6, ultimate-sanders without the 1/log p), and
+  # let async soften the long-chain tail instead of spawning. Briefkasten defaults (1c5ed3d): idle flush
+  # all, rotating start, backlog 0, for flat and grid. Factor 2.0 matches the current ultimate-sanders factor.
+  # baselines: ultimate-sanders with spawning, sync then async (sync is the default: `sync: False` emits
+  # no flag, so async arms set `async: True`)
+  - algorithm: SparseRulingSet
+    sparse-ruling-set-sync-locality-aware: True
+    sparse-ruling-set-ruler-propagation-use-aggregation: [False]
+    sparse-ruling-set-reverse-list-locality-aware: [True]
+    sparse-ruling-set-post-invert: [True]
+    sparse-ruling-set-post-invert-detect-leaves: [False]
+    sparse-ruling-set-base-algorithm: [SparseRulingSet]
+    sparse-ruling-set-cache-owners: [True]
+    sparse-ruling-set-use-local-contraction: [True]
+    pointer-doubling-fallback-allgather-size-ratio: [3]
+    sparse-ruling-set-use-grid-communication: [False, True]
+    sparse-ruling-set-ruler-selection: ultimate-sanders
+    sparse-ruling-set-ultimate-sanders-factor: [2.0]
+    sparse-ruling-set-spawn: True
+  - algorithm: SparseRulingSet
+    sparse-ruling-set-sync-locality-aware: True
+    sparse-ruling-set-ruler-propagation-use-aggregation: [False]
+    sparse-ruling-set-reverse-list-locality-aware: [True]
+    sparse-ruling-set-post-invert: [True]
+    sparse-ruling-set-post-invert-detect-leaves: [False]
+    sparse-ruling-set-base-algorithm: [SparseRulingSet]
+    sparse-ruling-set-cache-owners: [True]
+    sparse-ruling-set-use-local-contraction: [True]
+    pointer-doubling-fallback-allgather-size-ratio: [3]
+    sparse-ruling-set-use-grid-communication: [False, True]
+    sparse-ruling-set-ruler-selection: ultimate-sanders
+    sparse-ruling-set-ultimate-sanders-factor: [2.0]
+    sparse-ruling-set-spawn: True
+    sparse-ruling-set-async: True
+  # sync without spawning at the same ruler count: what async buys over plain rounds
+  - algorithm: SparseRulingSet
+    sparse-ruling-set-sync-locality-aware: True
+    sparse-ruling-set-ruler-propagation-use-aggregation: [False]
+    sparse-ruling-set-reverse-list-locality-aware: [True]
+    sparse-ruling-set-post-invert: [True]
+    sparse-ruling-set-post-invert-detect-leaves: [False]
+    sparse-ruling-set-base-algorithm: [SparseRulingSet]
+    sparse-ruling-set-cache-owners: [True]
+    sparse-ruling-set-use-local-contraction: [True]
+    pointer-doubling-fallback-allgather-size-ratio: [3]
+    sparse-ruling-set-use-grid-communication: [False, True]
+    sparse-ruling-set-ruler-selection: ultimate
+    sparse-ruling-set-spawn: False
+    sparse-ruling-set-ultimate-factor: [1.0, 2.0]
+  # async without spawning: factor sweep
+  - algorithm: SparseRulingSet
+    sparse-ruling-set-sync-locality-aware: True
+    sparse-ruling-set-ruler-propagation-use-aggregation: [False]
+    sparse-ruling-set-reverse-list-locality-aware: [True]
+    sparse-ruling-set-post-invert: [True]
+    sparse-ruling-set-post-invert-detect-leaves: [False]
+    sparse-ruling-set-base-algorithm: [SparseRulingSet]
+    sparse-ruling-set-cache-owners: [True]
+    sparse-ruling-set-use-local-contraction: [True]
+    pointer-doubling-fallback-allgather-size-ratio: [3]
+    sparse-ruling-set-use-grid-communication: [False, True]
+    sparse-ruling-set-ruler-selection: ultimate
+    sparse-ruling-set-spawn: False
+    sparse-ruling-set-ultimate-factor: [0.25, 0.5, 1.0, 2.0, 4.0]
+    sparse-ruling-set-async: True
