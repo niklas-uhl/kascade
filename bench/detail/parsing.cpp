@@ -63,6 +63,11 @@ auto lexical_cast(const std::string& input, AlltoallAlgorithm& alltoall_algorith
   alltoall_algorithm = input_json.template get<kascade::AlltoallAlgorithm>();
   return alltoall_algorithm != kascade::AlltoallAlgorithm::invalid;
 }
+auto lexical_cast(const std::string& input, IdleFlush& idle_flush) -> bool {
+  nlohmann::json input_json = input;
+  idle_flush = input_json.template get<kascade::IdleFlush>();
+  return idle_flush != kascade::IdleFlush::invalid;
+}
 
 namespace input {
 auto lexical_cast(const std::string& input, InputProcessing& processing) -> bool {
@@ -246,6 +251,10 @@ auto parse_args(std::span<char*> args) -> Config {
       ->group("Sparse Ruling Set");
   app.add_option("--sparse-ruling-set-briefkasten-poll-skip-threshold",
                  config.sparse_ruling_set.briefkasten.poll_skip_threshold)
+      ->group("Sparse Ruling Set");
+  app.add_option("--sparse-ruling-set-briefkasten-idle-flush",
+                 config.sparse_ruling_set.briefkasten.idle_flush,
+                 "default|off|all|stale")
       ->group("Sparse Ruling Set");
   auto* opt_sparse_ruling_set_use_grid =
       app.add_flag("--sparse-ruling-set-use-grid-communication",

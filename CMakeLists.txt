@@ -98,7 +98,8 @@ FetchContent_MakeAvailable(kaval)
 FetchContent_Declare(
   BriefKAsten
   GIT_REPOSITORY https://github.com/niklas-uhl/BriefKAsten
-  GIT_TAG feat/briefkasten-tokens
-  GIT_SHALLOW ON
+  # Pinned to a commit so "which briefkasten" is reproducible; bump deliberately.
+  # GIT_SHALLOW omitted: a shallow clone cannot resolve an arbitrary commit.
+  GIT_TAG f2cb20b0edbbe88dc4092e78aaebc1745e7a3714 # feat/idle-flush
   SYSTEM)
 FetchContent_MakeAvailable(BriefKAsten)

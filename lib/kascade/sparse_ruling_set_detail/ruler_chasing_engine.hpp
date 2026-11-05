@@ -9,6 +9,7 @@
 #include <briefkasten/indirection.hpp>
 #include <briefkasten/queue_builder.hpp>
 #include <kamping/collectives/allreduce.hpp>
+#include <kamping/measurements/counter.hpp>
 #include <kamping/types/unsafe/tuple.hpp>
 
 #include "kascade/configuration.hpp"
@@ -36,6 +37,26 @@ constexpr auto from_wire(const WireRulerMessage& msg) -> kascade::RulerMessage {
           .dist_from_ruler = std::bit_cast<rank_t>(std::get<2>(msg))};
 }
 
+// One entry per engine invocation, like the other sparse ruling set counters.
+inline void record_queue_counters(auto const& queue) {
+  auto append = [](char const* name, std::size_t value) {
+    kamping::measurements::counter().append(
+        name, static_cast<std::int64_t>(value),
+        {kamping::measurements::GlobalAggregationMode::sum,
+         kamping::measurements::GlobalAggregationMode::max});
+  };
+  append("bk_terminate_calls", queue.num_terminate_calls());
+  append("bk_termination_rounds", queue.num_termination_rounds());
+  append("bk_overflow_flushes", queue.num_overflows());
+  append("bk_forced_flushes", queue.num_forced_flushes());
+  append("bk_forced_flush_elements", queue.num_forced_flush_elements());
+  append("bk_idle_flushes", queue.num_idle_flushes());
+  append("bk_idle_flush_elements", queue.num_idle_flush_elements());
+  append("bk_idle_flush_skips", queue.num_idle_flush_skips());
+  append("bk_idle_flush_deferred", queue.num_idle_flush_deferred());
+  append("bk_elements_flushed", queue.num_elements_flushed());
+}
+
 auto ruler_chasing_engine(SparseRulingSetConfig const& config,
                           auto&& initialize,
                           auto&& work_on_item,
@@ -44,8 +65,20 @@ auto ruler_chasing_engine(SparseRulingSetConfig const& config,
                           ruler_chasing::async_tag /* tag */) {
   briefkasten::Config briefkasten_config;
   briefkasten_config.local_threshold_bytes = config.briefkasten.local_threshold;
-  // briefkasten_config.max_num_send_buffers = 2 * comm.size();
-  // briefkasten_config.out_buffer_capacity = comm.size();
+  switch (config.briefkasten.idle_flush) {
+    case IdleFlush::off:
+      briefkasten_config.idle_flush = briefkasten::IdleFlush::off;
+      break;
+    case IdleFlush::all:
+      briefkasten_config.idle_flush = briefkasten::IdleFlush::all;
+      break;
+    case IdleFlush::stale:
+      briefkasten_config.idle_flush = briefkasten::IdleFlush::stale;
+      break;
+    case IdleFlush::library_default:
+    case IdleFlush::invalid:
+      break;
+  }
   auto with_queue = [&](auto&& func) {
     if (config.use_grid_communication) {
       briefkasten::IndirectionAdapter queue{
@@ -85,6 +118,13 @@ auto ruler_chasing_engine(SparseRulingSetConfig const& config,
         work_on_item(msg, enqueue_locally, send_to);
       }
     } while (!queue.terminate(on_message));
+    record_queue_counters([&]() -> auto& {
+      if constexpr (requires { queue.queue(); }) {
+        return queue.queue();  // IndirectionAdapter
+      } else {
+        return queue;
+      }
+    }());
   });
 }
 

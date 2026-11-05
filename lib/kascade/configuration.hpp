@@ -63,9 +63,15 @@ enum class RulerPropagationMode : std::uint8_t { pull, push, invalid };
 // pcx:       personalized census (PCX, Hoefler et al. 2010)
 enum class AlltoallAlgorithm : std::uint8_t { alltoallv, nbx, pcx, invalid };
 
+// What briefkasten's terminate() flushes when the local work queue runs empty
+// (briefkasten::IdleFlush). library_default: all for the flat queue, off under grid
+// indirection.
+enum class IdleFlush : std::uint8_t { library_default, off, all, stale, invalid };
+
 struct BriefkastenConfig {
   std::size_t local_threshold = 2048;
   std::size_t poll_skip_threshold = 1000;
+  IdleFlush idle_flush = IdleFlush::library_default;
 };
 
 struct SparseRulingSetConfig {

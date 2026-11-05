@@ -88,9 +88,16 @@ NLOHMANN_JSON_SERIALIZE_ENUM(AlltoallAlgorithm,
                               {AlltoallAlgorithm::alltoallv, "alltoallv"},
                               {AlltoallAlgorithm::nbx, "nbx"},
                               {AlltoallAlgorithm::pcx, "pcx"}})
+NLOHMANN_JSON_SERIALIZE_ENUM(IdleFlush,
+                             {{IdleFlush::invalid, nullptr},
+                              {IdleFlush::library_default, "default"},
+                              {IdleFlush::off, "off"},
+                              {IdleFlush::all, "all"},
+                              {IdleFlush::stale, "stale"}})
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(BriefkastenConfig,
                                    local_threshold,
-                                   poll_skip_threshold);
+                                   poll_skip_threshold,
+                                   idle_flush);
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(SparseRulingSetConfig,
                                    base_algorithm,
                                    sparse_ruling_set_rounds,
