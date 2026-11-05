@@ -37,6 +37,7 @@ value_paths = Dict(
     "sparse_ruling_set_reverse_list_locality_aware" => ["config", "sparse_ruling_set", "reverse_list_locality_aware"],
     "sparse_ruling_set_briefkasten_local_threshold" => ["config", "sparse_ruling_set", "briefkasten", "local_threshold"],
     "sparse_ruling_set_briefkasten_poll_skip_threshold" => ["config", "sparse_ruling_set", "briefkasten", "poll_skip_threshold"],
+    "sparse_ruling_set_briefkasten_idle_flush" => ["config", "sparse_ruling_set", "briefkasten", "idle_flush"],
     "eulertour_algorithm" => ["config", "euler_tour", "algorithm"],
     "eulertour_use_high_degree_handling" => ["config", "euler_tour", "use_high_degree_handling"],
     "rma_pointer_chasing_sync_mode" => ["config", "rma_pointer_chasing", "sync_mode"],
@@ -151,7 +152,13 @@ function format_sparse_ruling_set(;kwargs...)
         grid_mode = get(kwargs, :sparse_ruling_set_grid_communicator_mode, "topology-aware")
         push!(parts, " [comm=$(grid_mode)]")
     end
-    
+    # only runs since the idle flush landed record it; older names stay unchanged
+    idle_flush = get(kwargs, :sparse_ruling_set_briefkasten_idle_flush, nothing)
+    if !sync && !isnothing(idle_flush)
+        poll_skip = get(kwargs, :sparse_ruling_set_briefkasten_poll_skip_threshold, nothing)
+        push!(parts, " [idle_flush=$(idle_flush), ρ=$(poll_skip)]")
+    end
+
     push!(parts, " [$(format_ruler_selection_params(;kwargs...))]")
     alltoallv_variant = get(kwargs, :i_mpi_adjust_alltoallv, "");
     if alltoallv_variant != ""
