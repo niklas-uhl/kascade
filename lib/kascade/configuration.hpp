@@ -69,6 +69,12 @@ enum class AlltoallAlgorithm : std::uint8_t { alltoallv, nbx, pcx, invalid };
 // indirection.
 enum class IdleFlush : std::uint8_t { library_default, off, all, stale, invalid };
 
+// Whether async ruler chasing routes through briefkasten's two-hop grid indirection. Decoupled
+// from use_grid_communication, which targets the latency of the synchronous exchanges;
+// indirection bounds the async queue's peers/buffers to O(sqrt p) and coalesces messages.
+// library_default: follow use_grid_communication.
+enum class BriefkastenIndirection : std::uint8_t { library_default, none, grid, invalid };
+
 struct BriefkastenConfig {
   std::size_t local_threshold = 2048;
   std::size_t poll_skip_threshold = 1000;
@@ -79,6 +85,18 @@ struct BriefkastenConfig {
   // Send backlog behind the MPI request slots: "default" (briefkasten's choice, 0 under flow
   // control), "comm-size", or a number. An explicit value survives flow control.
   std::string send_backlog_capacity = "default";
+  BriefkastenIndirection indirection = BriefkastenIndirection::library_default;
+
+  [[nodiscard]] auto use_indirection(bool use_grid_communication) const -> bool {
+    switch (indirection) {
+      case BriefkastenIndirection::none:
+        return false;
+      case BriefkastenIndirection::grid:
+        return true;
+      default:
+        return use_grid_communication;
+    }
+  }
 };
 
 struct SparseRulingSetConfig {

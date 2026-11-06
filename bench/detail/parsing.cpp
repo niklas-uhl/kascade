@@ -68,6 +68,11 @@ auto lexical_cast(const std::string& input, IdleFlush& idle_flush) -> bool {
   idle_flush = input_json.template get<kascade::IdleFlush>();
   return idle_flush != kascade::IdleFlush::invalid;
 }
+auto lexical_cast(const std::string& input, BriefkastenIndirection& indirection) -> bool {
+  nlohmann::json input_json = input;
+  indirection = input_json.template get<kascade::BriefkastenIndirection>();
+  return indirection != kascade::BriefkastenIndirection::invalid;
+}
 
 namespace input {
 auto lexical_cast(const std::string& input, InputProcessing& processing) -> bool {
@@ -273,6 +278,10 @@ auto parse_args(std::span<char*> args) -> Config {
         }
         return {};
       })
+      ->group("Sparse Ruling Set");
+  app.add_option("--sparse-ruling-set-briefkasten-indirection",
+                 config.sparse_ruling_set.briefkasten.indirection,
+                 "default|none|grid (default: follow --sparse-ruling-set-use-grid-communication)")
       ->group("Sparse Ruling Set");
   auto* opt_sparse_ruling_set_use_grid =
       app.add_flag("--sparse-ruling-set-use-grid-communication",

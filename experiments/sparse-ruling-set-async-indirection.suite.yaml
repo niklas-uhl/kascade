@@ -1,0 +1,103 @@
+name: sparse-ruling-set-async-indirection
+executable: bench/kascade
+output_path_option_name: "output-file"
+ncores: [64, 128, 256, 512, 1024, 2048]
+time_limit: 4  # 2 killed the slowest flat arms at n=2^22, p>=1536 (I_MPI_JOB_TIMEOUT)
+threads_per_rank: [1]
+# tasks_per_node: 64
+graphs:
+  - generator: kagen
+    type: path
+    N: 16
+    permute: True
+    extra_args:
+      statistics-level: extensive-reduced-output
+      input-processing: none
+      verify-level: 0
+      iterations: 5
+    scale_weak: True
+  - generator: kagen
+    type: path
+    N: 18
+    permute: True
+    extra_args:
+      statistics-level: extensive-reduced-output
+      input-processing: none
+      verify-level: 0
+      iterations: 5
+    scale_weak: True
+  - generator: kagen
+    type: path
+    N: 20
+    permute: True
+    extra_args:
+      statistics-level: extensive-reduced-output
+      input-processing: none
+      verify-level: 0
+      iterations: 5
+    scale_weak: True
+  - generator: kagen
+    type: path
+    N: 22
+    permute: True
+    extra_args:
+      statistics-level: extensive-reduced-output
+      input-processing: none
+      verify-level: 0
+      iterations: 5
+    scale_weak: True
+config:
+  # Async without spawning on grid, after (a) ultimate no longer depends on d (grid now picks the same
+  # c * sqrt(n) * p rulers as flat; with d it picked p^(1/4) fewer and starved async chasing) and
+  # (b) briefkasten indirection is its own knob, decoupled from the grid knob of the sync phases.
+  # Question: with grid sync phases, does async chasing want the two-hop indirection (O(sqrt p) peers,
+  # coalescing) or the flat queue (up to p buffers per rank)? Worth running beyond p = 3072 (raise
+  # --max-cores at submission) to see where flat's p buffers start to hurt.
+  # baseline: best config so far at p >= 1536, grid sync with spawning
+  - algorithm: SparseRulingSet
+    sparse-ruling-set-sync-locality-aware: True
+    sparse-ruling-set-ruler-propagation-use-aggregation: [False]
+    sparse-ruling-set-reverse-list-locality-aware: [True]
+    sparse-ruling-set-post-invert: [True]
+    sparse-ruling-set-post-invert-detect-leaves: [False]
+    sparse-ruling-set-base-algorithm: [SparseRulingSet]
+    sparse-ruling-set-cache-owners: [True]
+    sparse-ruling-set-use-local-contraction: [True]
+    pointer-doubling-fallback-allgather-size-ratio: [3]
+    sparse-ruling-set-use-grid-communication: True
+    sparse-ruling-set-ruler-selection: ultimate-sanders
+    sparse-ruling-set-ultimate-sanders-factor: [2.0]
+    sparse-ruling-set-spawn: True
+  # grid sync phases, async chasing without spawning: indirection on/off x factor
+  - algorithm: SparseRulingSet
+    sparse-ruling-set-sync-locality-aware: True
+    sparse-ruling-set-ruler-propagation-use-aggregation: [False]
+    sparse-ruling-set-reverse-list-locality-aware: [True]
+    sparse-ruling-set-post-invert: [True]
+    sparse-ruling-set-post-invert-detect-leaves: [False]
+    sparse-ruling-set-base-algorithm: [SparseRulingSet]
+    sparse-ruling-set-cache-owners: [True]
+    sparse-ruling-set-use-local-contraction: [True]
+    pointer-doubling-fallback-allgather-size-ratio: [3]
+    sparse-ruling-set-use-grid-communication: True
+    sparse-ruling-set-briefkasten-indirection: [none, grid]
+    sparse-ruling-set-ruler-selection: ultimate
+    sparse-ruling-set-spawn: False
+    sparse-ruling-set-ultimate-factor: [0.5, 1.0, 2.0, 4.0]
+    sparse-ruling-set-async: True
+  # flat reference (unchanged by (a)/(b)), same jobs for a fair comparison
+  - algorithm: SparseRulingSet
+    sparse-ruling-set-sync-locality-aware: True
+    sparse-ruling-set-ruler-propagation-use-aggregation: [False]
+    sparse-ruling-set-reverse-list-locality-aware: [True]
+    sparse-ruling-set-post-invert: [True]
+    sparse-ruling-set-post-invert-detect-leaves: [False]
+    sparse-ruling-set-base-algorithm: [SparseRulingSet]
+    sparse-ruling-set-cache-owners: [True]
+    sparse-ruling-set-use-local-contraction: [True]
+    pointer-doubling-fallback-allgather-size-ratio: [3]
+    sparse-ruling-set-use-grid-communication: False
+    sparse-ruling-set-ruler-selection: ultimate
+    sparse-ruling-set-spawn: False
+    sparse-ruling-set-ultimate-factor: [1.0, 2.0]
+    sparse-ruling-set-async: True

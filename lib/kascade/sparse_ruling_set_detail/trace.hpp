@@ -2,6 +2,7 @@
 
 #include <chrono>
 #include <limits>
+#include <optional>
 
 #include <absl/container/flat_hash_map.h>
 #include <kamping/collectives/allreduce.hpp>
@@ -26,8 +27,8 @@ struct RulerTrace {
   RulerTrace(RulerTrace&&) = delete;
   auto operator=(const RulerTrace&) -> RulerTrace& = default;
   auto operator=(RulerTrace&&) -> RulerTrace& = delete;
-  std::size_t local_num_rulers_;
-  std::size_t local_num_leaves_;
+  std::size_t local_num_rulers_ = 0;
+  std::size_t local_num_leaves_ = 0;
   ~RulerTrace() {
     kamping::measurements::timer().start("aggregate_ruler_stats");
     auto agg = [](auto const& lhs, auto const& rhs) {
@@ -101,10 +102,14 @@ struct RulerTrace {
         {kamping::measurements::GlobalAggregationMode::sum,
          kamping::measurements::GlobalAggregationMode::max,
          kamping::measurements::GlobalAggregationMode::min});
-    kamping::measurements::counter().append(
-        "ruler_chasing_rounds", static_cast<std::int64_t>(rounds_),
-        {kamping::measurements::GlobalAggregationMode::max,
-         kamping::measurements::GlobalAggregationMode::min});
+    // Only the sync engine has rounds; async runs report bk_termination_rounds instead.
+    // The config is identical on all ranks, so the append stays collective.
+    if (rounds_) {
+      kamping::measurements::counter().append(
+          "ruler_chasing_rounds", static_cast<std::int64_t>(*rounds_),
+          {kamping::measurements::GlobalAggregationMode::max,
+           kamping::measurements::GlobalAggregationMode::min});
+    }
     kamping::measurements::counter().append(
         "num_unreached", static_cast<std::int64_t>(num_unreached_),
         {kamping::measurements::GlobalAggregationMode::sum,
@@ -151,11 +156,11 @@ struct RulerTrace {
   void track_base_case(std::size_t local_subproblem_size) {
     local_subproblem_size_ = local_subproblem_size;
   }
-  std::size_t rounds_;
+  std::optional<std::size_t> rounds_;
   void track_ruler_chasing_rounds(std::size_t ruler_chasing_rounds) {
     rounds_ = ruler_chasing_rounds;
   }
-  std::size_t num_unreached_;
+  std::size_t num_unreached_ = 0;
   void track_unreached(std::size_t num_unreached) { num_unreached_ = num_unreached; }
   void track_local_num_rulers(std::size_t local_num_rulers) {
     local_num_rulers_ = local_num_rulers;

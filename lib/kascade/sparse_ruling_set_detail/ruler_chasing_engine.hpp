@@ -89,7 +89,7 @@ auto ruler_chasing_engine(SparseRulingSetConfig const& config,
     briefkasten_config.send_backlog_capacity = std::stoull(backlog);  // validated by the parser
   }
   auto with_queue = [&](auto&& func) {
-    if (config.use_grid_communication) {
+    if (config.briefkasten.use_indirection(config.use_grid_communication)) {
       briefkasten::IndirectionAdapter queue{
           briefkasten::BufferedMessageQueueBuilder<WireRulerMessage>(
               briefkasten_config, comm.mpi_communicator())

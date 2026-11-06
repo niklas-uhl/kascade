@@ -49,13 +49,13 @@ auto compute_local_num_rulers(SparseRulingSetConfig const& config,
                                       static_cast<double>(p) / std::log(n) *
                                       rel_local_size);
     case RulerSelectionStrategy::ultimate:
-      // $r^*=\Th{\sqrt{\alpha np^{1+1/d}/\beta}}$: ultimate_sanders without the 1/log p, the
-      // optimum without spawning (the base case no longer grows by ln(n/r), the longest
-      // sublist does, and the two log factors cancel). For d = 1 this is √n * p.
-      return static_cast<std::size_t>(
-          config.ultimate_factor *
-          std::sqrt(static_cast<double>(n) * pow(p, 1 + (1.0 / static_cast<double>(d)))) *
-          rel_local_size);
+      // √n * p: ultimate_sanders without the 1/log p (without spawning the base case no
+      // longer grows by ln(n/r), the longest sublist does, and the two log factors cancel).
+      // Deliberately independent of d: ultimate drives async chasing without spawning, where
+      // the indirection is a heuristic rather than the d-dimensional sync exchange of the cost
+      // model. With d, grid picked p^(1/4) fewer rulers, which starved async chasing.
+      return static_cast<std::size_t>(config.ultimate_factor * std::sqrt(n) *
+                                      static_cast<double>(p) * rel_local_size);
     case RulerSelectionStrategy::ultimate_sanders:
       // $r^*=\Th{\sqrt{\frac{\alpha np^{1+1/d}}{\beta\log p }}}$
       {
