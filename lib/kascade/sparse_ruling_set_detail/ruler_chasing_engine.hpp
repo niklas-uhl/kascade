@@ -58,6 +58,22 @@ inline void record_queue_counters(auto const& queue) {
   append("bk_idle_flush_stops", queue.num_idle_flush_stops());
   append("bk_peak_send_backlog", queue.peak_send_backlog());
   append("bk_elements_flushed", queue.num_elements_flushed());
+  // stalls and flow control: where a sender waits for a send slot or receiver credit
+  append("bk_buffer_stalls", queue.num_buffer_stalls());
+  append("bk_termination_drains", queue.num_termination_drains());
+  append("bk_drain_capacity_waits", queue.num_drain_capacity_waits());
+  append("bk_overflow_capacity_waits", queue.num_overflow_capacity_waits());
+  append("bk_parked_for_capacity", queue.num_parked_for_capacity());
+  append("bk_parked_for_credit", queue.num_parked_for_credit());
+  append("bk_grants_sent", queue.num_grants_sent());
+  append("bk_grants_withheld", queue.num_grants_withheld());
+  append("bk_oversize_passes", queue.num_oversize_passes());
+  // indirection only (zero for the flat queue)
+  append("bk_redirect_buffer_stalls", queue.num_redirect_buffer_stalls());
+  append("bk_redirect_overdraft", queue.redirect_overdraft());
+  // progress
+  append("bk_polls", queue.num_polls());
+  append("bk_unproductive_polls", queue.num_unproductive_polls());
 }
 
 auto ruler_chasing_engine(SparseRulingSetConfig const& config,
